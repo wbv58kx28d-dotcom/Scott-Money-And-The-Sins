@@ -43,6 +43,7 @@ Debug flags only work together with `?debug=1`:
 | `&cleared=start,isles` | Preset cleared regions (in memory only; your real save is untouched) |
 | `&sins=lilturnt,babarbara:2` | Preset recruited Sins, with optional levels (in memory only) |
 | `&reset=1` | Wipe your saved progress |
+| `&region=start` | Walk around that region (skips the map) |
 
 For example: `http://localhost:8000/?debug=1&battle=derek&perfect=1&seed=123&fast=1`
 
@@ -67,9 +68,9 @@ index.html            page shell: fonts, safe-area CSS, loads Phaser then src/ma
 lib/phaser.min.js     Phaser 3.80.1, vendored and pinned
 src/main.js           waits for fonts, starts the game
 src/config.js         canvas size, colors, fonts, layout positions
-src/scenes/           Boot → Preload → Title → Overworld (map) ⇄ Battle
-src/systems/          combat math, AI, statuses, crowd, timing, audio, rng, save, progress, debug
-src/data/             all content and tuning: moves, items, statuses, villains, crew, regions
+src/scenes/           Boot → Preload → Title → Overworld (map) → Region (walk) → Battle
+src/systems/          combat math, AI, statuses, crowd, timing, audio, rng, save, progress, walking and pathfinding, placeholder art, debug
+src/data/             all content and tuning: moves, items, statuses, villains, crew, regions, region maps
 src/ui/               buttons, menus, dialog, HUD, timing bar, effects
 assets/               finished art (see assets/README.md)
 tools/                unit tests and the Playwright smoke test

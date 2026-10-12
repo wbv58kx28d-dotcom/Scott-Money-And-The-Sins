@@ -17,3 +17,27 @@ export const IMAGES = [
   { key: 'derek', path: 'assets/sprites/enemies/derek.png', placeholder: 'derek' },
   { key: 'bg_tokyo', path: 'assets/bg/bg_tokyo.webp', placeholder: 'bgCity' },
 ];
+
+// ---- Walkable regions (CLAUDE.md §6.6, §8.4) ----------------------------------
+// Loaded by the Region scene on entry, not at startup. Anything with a null
+// path is baked procedurally under the same key (systems/fieldArt.js).
+
+// Painted region maps: `base` is the ground, `walk` the walk mask (white = walkable).
+export const REGION_ART = {
+  start: { base: null, walk: null },
+};
+
+// Walker sprite sheets: FIELD.frame-sized frames; rows down, up, left; columns idle, walk 1–4.
+export const FIELD_SHEETS = [
+  { key: 'field_scott', path: null },
+  { key: 'field_derek', path: null },
+];
+
+// Scenery props, drawn with their feet (bottom center) on the ground.
+export const PROP_IMAGES = [
+  { key: 'prop_cypress', path: null },
+  { key: 'prop_snag', path: null },
+  { key: 'prop_sign', path: null },
+  { key: 'prop_setup', path: null },
+  { key: 'prop_tent', path: null },
+];

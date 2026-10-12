@@ -210,10 +210,18 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 
 ### 6.5 Overworld map (built)
 - An illustrated portrait map from the map pack (`assets/map/`, see its README): a base image, plus fog, highlight, and gold-outline layers per region, tap polygons, landmark points, and the route.
-- Flow: Title → map → tap a region → ENTER → its fight → back to the map. Regions open by tier (§2): locked ones are fogged, open ones glow, cleared ones get a check. Clearing a region lifts the fog off whatever it opened and extends the dashed route. An open region without a villain file shows "coming soon".
+- Flow: Title → map → tap a region → ENTER → walk the region to its villain (§6.6) → fight → back to the map. A region without a walkable map yet goes straight to its fight. Regions open by tier (§2): locked ones are fogged, open ones glow, cleared ones get a check. Clearing a region lifts the fog off whatever it opened and extends the dashed route. An open region without a villain file shows "coming soon".
 - $cott's gold coin token stands on the last region he entered.
 - Progress saves in `localStorage` (cleared regions, recruited Sins and levels, quests, token position). Clearing a region recruits its Sin at level 1.
 - Not built yet: side-quest stops inside regions.
+
+### 6.6 Walkable regions (built, placeholder art)
+- Each region is a map $cott walks around in a **3/4 top-down view, like *Chained Echoes***: one painted map bigger than the screen, with the camera following him. Characters face down, up, left, or right.
+- **Phone controls:** tap anywhere to walk there (he paths around water and props), or hold and drag to steer. Tap an NPC to walk over and talk.
+- The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
+- Walking into an exit, or the MAP button, goes back to the overworld.
+- Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
+- Built for the Subreddit Swamps with procedural placeholder art, until the field art in §8.4 arrives.
 
 ## 7. Tech stack
 
@@ -260,6 +268,22 @@ From the art chat's portrait mockup:
   - Put the horizon about halfway down, with open ground below it for both sides.
   - Keep the bottom 15% dark and simple.
 
+### 8.4 Field art: walking sprites and region maps (art request)
+For the walkable regions (§6.6). Placeholders are in the game now; finished files drop in under the same names.
+
+**Walker sprite sheets** (one per character who appears in a region: $cott first, then each villain, later the Sins):
+- 3/4 top-down view, like *Chained Echoes*: the front when walking down, the back when walking up.
+- A sheet of **96×144 px frames, 5 columns × 3 rows.** Rows face down, up, and left. Columns are idle, then a 4-frame walk (contact, passing, other contact, passing). Right-facing is the left row mirrored in-engine; add a 4th row only if the character is lopsided (a bag on one shoulder, say).
+- The character stands about **120–130 px tall**, feet at the bottom center of each frame, on a transparent background.
+- Same cleanup as battle sprites: true pixel grid, shared 128-color palette, dark outline. Suggested density: **3 screen px per art pixel** (about 32×42 art pixels per character), so the outline is 3 px like the battle sprites.
+- NPCs who only stand still need just the idle column (the down row, plus left if they turn to face $cott).
+
+**Region maps** (one per region):
+- **Base:** the ground, painted 3/4 top-down at **1080×1920** (1.5× the screen each way; bigger is fine), WebP, same 3 px pixel density. No characters, and nothing tall that $cott should walk behind.
+- **Props:** anything tall (trees, signs, tents, buildings) as separate transparent PNGs, placed by their bottom center. They sort by depth with the characters, so $cott walks behind a canopy and in front of a trunk.
+- **Walk mask:** a PNG at the base's aspect ratio (a quarter size is fine): white where $cott can walk, black where he can't.
+- **Points:** spawn, exits, NPC spots, and each prop's position and footprint, as a list (like the map pack's JSON). They go in `src/data/maps/<region>.js`.
+
 ## 9. Content and data conventions
 
 - **Data-driven:** adding a diss, villain, Sin, quest, or minigame question should mean editing data files, not game logic.
@@ -299,4 +323,5 @@ From the art chat's portrait mockup:
 - Two fixes to prototype bugs are in: the **crowd meter locks at 100** until the mic drops (§5.5), and **STALL** replaces RUN when $cott is out of options (§5.8).
 - The **overworld map** is the hub between fights, built from the map pack; region names come from it (§2, §6.5).
 - **$cott is ~30% bigger than the enemies in battle** to sell depth (§8.2). In-engine 1.3× scaling is a stopgap until a ~420 px re-export of his sprite arrives (§8.1).
+- **Regions are walkable**, in a *Chained Echoes*-style 3/4 top-down view with tap-to-move. $cott finds and challenges each villain in their region (§6.6). Field art is a separate set of smaller walking sprites and painted maps (§8.4).
 - The **whole UI uses the ribbon style** (picked over classic, drum-pad, and phone mockups): every button, panel, HUD card, stat bar, and the timing bar. Battle menus have left-aligned text, $cott's and the enemy's HUD cards match, and the enemy's intel sits as tags at its feet (§8.2).

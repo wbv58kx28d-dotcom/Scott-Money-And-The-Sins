@@ -8,6 +8,7 @@ import PreloadScene from './scenes/PreloadScene.js';
 import TitleScene from './scenes/TitleScene.js';
 import BattleScene from './scenes/BattleScene.js';
 import OverworldScene from './scenes/OverworldScene.js';
+import RegionScene from './scenes/RegionScene.js';
 
 const FONT_TIMEOUT_MS = 2500;
 
@@ -34,6 +35,6 @@ waitForFonts().then(() => {
     roundPixels: true,
     audio: { noAudio: true }, // the beat is WebAudio (systems/audio.js)
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, BattleScene],
+    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene],
   });
 });

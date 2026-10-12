@@ -40,6 +40,7 @@ export default class PreloadScene extends Phaser.Scene {
     }
 
     if (DEBUG.battle) this.scene.start('Battle', { enemy: DEBUG.battle });
+    else if (DEBUG.region) this.scene.start('Region', { region: DEBUG.region });
     else if (DEBUG.enabled) this.scene.start('Overworld');
     else this.scene.start('Title');
   }

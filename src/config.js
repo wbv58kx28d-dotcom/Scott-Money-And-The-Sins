@@ -99,3 +99,19 @@ export const MAP = {
 // so a ~29-row sprite stands ~320 px tall (HANDOFF.md Phase 1, step 6).
 export const PLACEHOLDER_PX = 11;
 export const OUTLINE_PX = 3;
+
+// Walkable regions (scenes/RegionScene.js, CLAUDE.md §6.6, §8.4).
+export const FIELD = {
+  frame: { w: 96, h: 144 }, // one frame of a walker sprite sheet; feet at the bottom center
+  artPx: 5, // screen px per art pixel in the placeholder region art
+  cell: 10, // walk-grid cell, in world px
+  clearance: 2, // cells kept free between $cott's feet and a wall
+  speed: 320, // walking speed, px per second
+  walkFps: 8,
+  talkRange: 110, // $cott stops this close to an NPC to talk
+  cameraLerp: 0.14,
+  dragRepathMs: 120, // while a finger is held down and dragged, re-aim this often
+  tapSlop: 24,
+  card: { x: 16, y: 18, w: 420, h: 84 }, // region name, top-left
+  buttons: { y: 52, h: 48, right: 700, gap: 8 }, // MAP and SND, top-right
+};

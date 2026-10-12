@@ -1,5 +1,5 @@
 // Overworld map (CLAUDE.md §2, §6.5). The hub between fights: tap a region
-// to see it in the info panel, then ENTER to fight its villain.
+// to see it in the info panel, then ENTER to walk around it (or straight to its fight, for a region without a map yet).
 //
 // Art and geometry come from the map pack (assets/map/, see its README);
 // gameplay data from src/data/regions.js; progress from systems/save.js.
@@ -10,6 +10,7 @@ import { GAME_W, GAME_H, COLORS, MAP } from '../config.js';
 import { REGIONS, TIER_NAMES, regionById } from '../data/regions.js';
 import { ENEMIES } from '../data/enemies/index.js';
 import { CREW } from '../data/crew.js';
+import { MAPS } from '../data/maps/index.js';
 import { allStatuses, frontierTier, newlyOpened } from '../systems/progress.js';
 import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
@@ -222,7 +223,7 @@ export default class OverworldScene extends Phaser.Scene {
     }
     if (status === 'cleared') return { text: 'CLEARED', color: '#7cf29c' };
     if (!villain) return { text: "COMING SOON: this villain isn't written yet", color: COLORS.textDim };
-    return { text: 'OPEN. Tap ENTER to fight.', color: '#ffd166' };
+    return { text: MAPS[region.id] ? 'OPEN. Tap ENTER to explore.' : 'OPEN. Tap ENTER to fight.', color: '#ffd166' };
   }
 
   setStatus(text, color) {
@@ -235,7 +236,8 @@ export default class OverworldScene extends Phaser.Scene {
     const p = MAP.panel;
     const b = MAP.enterButton;
     const canFight = status !== 'locked' && !!villain;
-    const text = status === 'locked' ? 'LOCKED' : !villain ? 'SOON' : status === 'cleared' ? 'REMATCH' : 'ENTER';
+    const rematch = status === 'cleared' && !MAPS[region.id]; // with a map, rematches start from the villain
+    const text = status === 'locked' ? 'LOCKED' : !villain ? 'SOON' : rematch ? 'REMATCH' : 'ENTER';
     this.enterButton = new Button(this, {
       x: p.x + p.w - 14 - b.w / 2,
       y: p.y + p.h / 2,
@@ -258,7 +260,7 @@ export default class OverworldScene extends Phaser.Scene {
     this.setStatus(text, color);
   }
 
-  /** Walk the token to the region, then start its fight. */
+  /** Walk the token to the region, then go in (or straight to its fight if it has no map yet). */
   enter(region) {
     if (this.travelling) return;
     this.travelling = true;
@@ -273,9 +275,10 @@ export default class OverworldScene extends Phaser.Scene {
       ease: 'Quad.easeInOut',
       onComplete: () => {
         this.cameras.main.fadeOut(250, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () =>
-          this.scene.start('Battle', { enemy: region.villain, region: region.id }),
-        );
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          if (MAPS[region.id]) this.scene.start('Region', { region: region.id });
+          else this.scene.start('Battle', { enemy: region.villain, region: region.id });
+        });
       },
     });
   }

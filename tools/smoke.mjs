@@ -89,6 +89,37 @@ async function tapGame(page, gx, gy) {
 const state = (page) => page.evaluate(() => window.__smm?.state() ?? null);
 
 /**
+ * In a walkable region: screenshot it, tap the villain until $cott has walked
+ * over and started talking, tap through the talk, then press FIGHT.
+ */
+async function walkToVillain(page, failures) {
+  await page.waitForFunction(() => window.__smm.state().scene === 'Region', null, { timeout: 15_000 });
+  await sleep(700);
+  await page.screenshot({ path: path.join(SHOTS, '11b-region.png') });
+  const started = Date.now();
+  let s = await state(page);
+  const start = s.player;
+  while (s.mode === 'explore') {
+    if (Date.now() - started > 30_000) throw new Error('region: never reached the villain');
+    if (!s.walking) {
+      const { tap } = s.npcs.find((n) => n.id === 'derek');
+      await tapGame(page, Math.min(Math.max(tap.x, 10), GAME_W - 10), Math.min(Math.max(tap.y, 140), 1270));
+    }
+    await sleep(250);
+    s = await state(page);
+  }
+  if (Math.hypot(s.player.x - start.x, s.player.y - start.y) < 500) failures.push('region: $cott should have walked up the path to Derek');
+  await page.screenshot({ path: path.join(SHOTS, '11c-region-talk.png') });
+  for (let i = 0; i < 20; i++) {
+    const fight = (await state(page)).buttons.find((b) => b.text === 'FIGHT');
+    if (fight) return tapGame(page, fight.x, fight.y);
+    await tapGame(page, GAME_W / 2, 1170);
+    await sleep(250);
+  }
+  throw new Error('region: no FIGHT button after talking to Derek');
+}
+
+/**
  * Play one battle to the end. `plan` is a list of button labels to press, in
  * order, whenever they show up; otherwise a simple policy picks.
  */
@@ -252,7 +283,7 @@ async function main() {
       failures.push(...errors.map((e) => `timed run: ${e}`));
       await page.context().close();
     }
-    // 4. The journey: map -> Derek -> back to the map with Tier 1 unlocked -> reload keeps it.
+    // 4. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
     {
       const errors = [];
       const page = await newPage(browser, errors);
@@ -269,6 +300,7 @@ async function main() {
       const enter = map.buttons.find((b) => b.text === 'ENTER');
       if (!enter) throw new Error('map: no ENTER button for the Subreddit Swamps');
       await tapGame(page, enter.x, enter.y);
+      await walkToVillain(page, failures);
       const result = await playBattle(page, { label: 'map run' });
       if (result.result !== 'victory') failures.push(`map run: expected victory, got ${result.result}`);
       const cont = result.buttons.find((b) => b.text === 'CONTINUE');

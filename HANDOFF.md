@@ -61,6 +61,12 @@ every push to `https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/`
 - Step 5, **overworld map**: done, built ahead of steps 2–4 because the map
   art arrived (`src/scenes/OverworldScene.js`, gating rules in
   `src/systems/progress.js`, art in `assets/map/`). `?debug=1` now opens the map.
+- **Walkable regions** (added to the plan, `CLAUDE.md` §6.6): done as a
+  prototype for the Subreddit Swamps (`src/scenes/RegionScene.js`, map data in
+  `src/data/maps/`, pathfinding in `src/systems/walkGrid.js`). The ground,
+  props, and walking sprites are procedural placeholders
+  (`src/systems/fieldArt.js`) until the field art in `CLAUDE.md` §8.4 arrives.
+  `&region=start` jumps straight in.
 - Next: step 2, **Sin summons** (Lil' Turnt first). Its effect, cooldown, and
   feature lines still need to come from the art/writing chat.
 
@@ -200,6 +206,7 @@ Each step should be playable and committed before starting the next.
    - Each minigame must work standalone through a debug parameter (`&minigame=catquiz`).
 4. **Parley scene** (`CLAUDE.md` §6.2). Read the villain's parley data, offer choices for recruited Sins only, run the minigame, and carry the results into the battle as starting modifiers.
 5. **Overworld map** (`CLAUDE.md` §2, §6.5). Tier-gated regions, side-quest stops, and the tower at the end, all driven by `src/data/regions.js`.
+   - **Walkable regions** (`CLAUDE.md` §6.6): entering a region opens its map; $cott walks to the villain to start the fight. One map file per region in `src/data/maps/`.
 6. **Sin levels and side quests** (`CLAUDE.md` §6.4).
 7. **Remaining minigames, villains, and backgrounds** as content and art arrive from chat, one data file per villain.
 
