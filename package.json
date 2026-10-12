@@ -1,0 +1,14 @@
+{
+  "name": "scott-money-rpg",
+  "private": true,
+  "description": "$cott Money: Redemption Arc. A browser pixel-art diss-battle RPG. The game itself needs no build or install; this file only holds dev tooling.",
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "test": "node --test tools/*.test.mjs",
+    "smoke": "node tools/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

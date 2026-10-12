@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0a12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>$cott Money: Redemption Arc</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+    }
+    body {
+      box-sizing: border-box;
+      /* Keep the canvas clear of notches and home indicators. */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #game {
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+    }
+    #fallback {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      color: #f5f1e8;
+      background: #0b0a12;
+      font: 22px/1.4 "VT323", monospace;
+    }
+    #fallback[hidden] {
+      display: none;
+    }
+    #fallback strong {
+      display: block;
+      margin-bottom: 12px;
+      color: #f4d35e;
+      font: 16px/1.6 "Press Start 2P", monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="fallback" hidden>
+    <div>
+      <strong>$cott can't load right now.</strong>
+      The game engine didn't load. Check your connection and reload the page.
+    </div>
+  </div>
+
+  <!-- Phaser 3.80.1 (pinned, vendored) as a classic script before the modules. -->
+  <script src="lib/phaser.min.js"></script>
+  <script>
+    if (!window.Phaser) document.getElementById('fallback').hidden = false;
+  </script>
+  <script nomodule>
+    document.getElementById('fallback').hidden = false;
+  </script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -2,9 +2,41 @@
 
 This hands the game build off from claude.ai chat to Claude Code. **Read `CLAUDE.md` first.** That's the full project brief: story, region structure, crew, combat numbers, planned systems, art rules, and the decision log. This file covers the migration, the known quirks of the prototype, and the build order.
 
-_Last updated: Oct 11, 2026._
+_Last updated: Oct 12, 2026._
 
 ---
+
+## Build status
+
+_Updated by Claude Code at the end of each session._
+
+**Phase 1 is built, against the spec.** The repo has the target structure, a
+modular Phaser 3.80.1 battle at 720×1280 ($cott vs. Diamond Hands Derek), debug
+mode, 16 unit tests for the combat math (`npm test`), and a Playwright smoke test
+that plays full battles on a touch phone viewport (`npm run smoke`). All of it
+passes. Every quirk in "Prototype quirks to preserve" is implemented.
+
+**Art:** the crew pack is in. The 8 crew sprites are in `assets/sprites/crew/`
+and `bg_tokyo.webp` is in `assets/bg/`. The battle uses `scott.png` and the
+Tokyo background. The 7 Sin sprites wait for Phase 3 (summons, parley).
+`crew_assets.js` and the 1 MB `bg_tokyo.png` from the pack were left out on
+purpose. Derek is still procedural until he has art. Any art listed in
+`src/data/assets.js` that's missing falls back to a procedural placeholder.
+
+**Still missing:** `legacy/scott-money-battle.html` wasn't available, so the
+battle was rebuilt from the numbers in `CLAUDE.md` §5. Once it's dropped into
+`legacy/`, reconcile the items below against it.
+
+**Reconstructed while the legacy file was missing** (search the code for `RECONSTRUCTED`):
+1. **Derek's moves:** type/target and power for each, from their names. Loss Porn WORDPLAY→CAREER 12, Due Diligence ROAST→INTELLECT 9, Hairline Short ROAST→LOOKS 9, Drip Check FLEX→STYLE 13, Tendie Tower FLEX→WEALTH 16, Pump & Dump WORDPLAY→REP 8 (+ Rug Pulled), and Apes Together Strong heals 15 Clout.
+2. **All writing:** $cott's 11 couplets plus the Drop the Mic couplet, Derek's 7 move couplets, the intro/victory/defeat lines, and the hit, status, and item messages. These are placeholders for the legacy bars and the lore writer's material.
+3. **Status durations:** a status doesn't tick down in the round it's applied, so Mooning boosts $cott's next 3 attacks and Rug Pulled drains on his next 2 turns.
+4. **Crowd lock:** once the meter hits 100, it stays at 100 until Drop the Mic is used (`CROWD.lockWhenFull`). Without the lock, Derek's hit always lands before $cott's next turn, knocks the meter below 100, and the finisher can almost never fire.
+5. **Drop the Mic** empties the meter when used and earns no crowd itself.
+6. **Timing bar:** the marker bounces end to end. If nobody taps within 8 sweeps, the result is WACK.
+7. **Items** use $cott's turn. Run doesn't (per spec).
+8. **Discovery:** a crit reveals the weakness and the soft spot, a bypass reveals the resistance and the soft spot, a nerve reveals the soft spot, and a plain weak or resisted hit reveals the weakness or resistance.
+9. **STALL:** a soft-lock guard. It only appears when $cott can't afford any diss and has no items left, and it skips his turn.
 
 ## Where things stand
 

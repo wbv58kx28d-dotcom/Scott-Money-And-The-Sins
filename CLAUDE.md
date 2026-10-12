@@ -2,7 +2,7 @@
 
 Shared context for every chat and for Claude Code. In the repo this file is `CLAUDE.md`. In claude.ai, keep it in Project knowledge.
 
-_Last updated: Oct 11, 2026. Replaces `SCOTT_MONEY_RPG.md`._
+_Last updated: Oct 12, 2026. Replaces `SCOTT_MONEY_RPG.md`._
 
 **Who does what**
 - **claude.ai chats** handle art, lore, writing, and design decisions.
@@ -268,7 +268,8 @@ From the art chat's portrait mockup:
 - Prologue parley: skip it, or a $cott-only tutorial version?
 - Parley outcome sizes: how much Clout *Rattled* removes, how much crowd hype a good result gives, and so on.
 - Question banks for the cat quiz and lore quiz.
-- Public vs. private repo, depending on whether the crew is based on real friends.
+- Public vs. private repo, depending on whether the crew is based on real friends. (The GitHub repo was created **private**, so hosting points to Cloudflare Pages or Netlify.)
+- Combat details reconstructed while the legacy prototype was missing, waiting to be confirmed or corrected: Derek's move powers and targets, status-duration timing, the crowd meter locking at 100, and the placeholder bars. The full list is in `HANDOFF.md` under "Build status".
 
 ## 11. Decision log
 
