@@ -6,6 +6,7 @@
 
 import { COLORS, LAYOUT } from '../config.js';
 import { body, label, fitWrapped } from './text.js';
+import { PROMPT_STYLE } from './ribbon.js';
 
 const CHAR_MS = 16;
 
@@ -19,7 +20,8 @@ export class DialogBox {
 
     this.text = body(scene, this.box.x, this.box.y, '', 36, { lineSpacing: -2 });
     this.speaker = label(scene, p.x + 14, p.y - 6, '', 16, {
-      backgroundColor: '#2a2140',
+      color: PROMPT_STYLE.color,
+      backgroundColor: PROMPT_STYLE.bg,
       padding: { x: 10, y: 6 },
       strokeThickness: 0,
     }).setOrigin(0, 1);

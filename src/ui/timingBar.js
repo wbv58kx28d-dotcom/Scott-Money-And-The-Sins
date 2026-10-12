@@ -9,9 +9,13 @@ import { markerPosition, rateTiming, ratingById } from '../systems/timing.js';
 import { Audio } from '../systems/audio.js';
 import { rng } from '../systems/rng.js';
 import { label, fitWidth } from './text.js';
+import { drawCard, quad, RIBBON_GOLD } from './ribbon.js';
 
 // Zone colors from the prototype; WACK is the bare bar.
 const ZONE_COLORS = { MID: 0x3a2a6a, FIRE: 0xff8c42, PERFECT: 0xffd166 };
+// The bar leans like the ribbons. Every shape is shifted left by half the
+// lean, so at mid-height each zone is centered exactly where the math says.
+const SKEW = 12;
 
 export class TimingBar {
   constructor(scene, bus) {
@@ -23,21 +27,24 @@ export class TimingBar {
     this.layer = scene.add.container(0, 0).setDepth(25).setVisible(false);
 
     const g = scene.add.graphics();
-    g.fillStyle(0x0a0618, 1);
-    g.fillRect(b.x - 12, b.y - 10, b.w + 24, b.h + 20);
-    g.lineStyle(4, 0xf2eaff, 1);
-    g.strokeRect(b.x - 12, b.y - 10, b.w + 24, b.h + 20);
+    drawCard(g, { x: b.x - 24, y: b.y - 10, w: b.w + 36, h: b.h + 20 }, RIBBON_GOLD, { alpha: 1 });
+    g.fillStyle(0x1a1030, 1).fillPoints(quad(b.x - SKEW / 2, b.y, b.w, b.h, SKEW), true);
     // Widest zone first; each narrower zone paints over the middle.
     for (const r of [...TIMING.ratings].reverse()) {
       if (!ZONE_COLORS[r.id]) continue;
-      g.fillStyle(ZONE_COLORS[r.id], 1);
-      g.fillRect(Math.round(cx - r.within * half), b.y, Math.round(r.within * half * 2), b.h);
+      const zw = Math.round(r.within * half * 2);
+      g.fillStyle(ZONE_COLORS[r.id], 1).fillPoints(quad(cx - zw / 2 - SKEW / 2, b.y, zw, b.h, SKEW), true);
     }
 
     this.title = label(scene, cx, LAYOUT.panel.y + 28, '', 18, { color: COLORS.textGold }).setOrigin(0.5);
     this.prompt = label(scene, cx, LAYOUT.panel.y + 62, 'TAP ON THE BEAT!', 16, { color: COLORS.textGold }).setOrigin(0.5);
     this.result = label(scene, cx, LAYOUT.panel.y + 62, '', 22, { strokeThickness: 6 }).setOrigin(0.5).setVisible(false);
-    this.marker = scene.add.rectangle(b.x, b.y + b.h / 2, 12, b.h + 28, 0xffffff).setStrokeStyle(3, 0x000000);
+    // The marker leans with the bar (same slope, so a taller shape leans more).
+    const mh = b.h + 28;
+    const ms = (SKEW * mh) / b.h;
+    const markerShape = quad(-6 - ms / 2, -mh / 2, 12, mh, ms);
+    this.marker = scene.add.graphics({ x: b.x, y: b.y + b.h / 2 });
+    this.marker.fillStyle(0xffffff, 1).fillPoints(markerShape, true).lineStyle(3, 0x000000, 1).strokePoints(markerShape, true);
     this.layer.add([g, this.title, this.prompt, this.result, this.marker]);
   }
 

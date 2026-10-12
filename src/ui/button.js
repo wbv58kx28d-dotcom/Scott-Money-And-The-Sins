@@ -1,4 +1,4 @@
-// Pixel-style button.
+// Ribbon-style button (ui/ribbon.js): a slanted dark strip with an accent edge.
 //
 // HANDOFF quirk, kept on purpose: buttons act on POINTERUP, only when the same
 // press started on them, and the callback runs ~1 ms later. The global
@@ -12,6 +12,7 @@
 import { COLORS } from '../config.js';
 import { Audio } from '../systems/audio.js';
 import { label, body, fitWidth } from './text.js';
+import { RIBBON_BUTTON } from './ribbon.js';
 
 export class Button {
   /**
@@ -20,16 +21,14 @@ export class Button {
    */
   constructor(scene, o) {
     const { x, y, w, h, text, sub = null, enabled = true, size = 18, accent = null, fill = null, system = false } = o;
-    // An optional skin (e.g. RIBBON_BUTTON in ui/ribbon.js) draws the button
-    // instead of the classic framed box. `align: 'left'` starts the text at the
-    // skin's inset instead of centering it.
-    this.skin = o.skin ?? null;
+    // `align: 'left'` starts the text just past the accent edge (menus);
+    // otherwise it's centered.
     this.accent = accent;
     this.hover = false;
     const textColor = o.textColor ?? COLORS.text;
     const subColor = o.subColor ?? COLORS.textDim;
     const left = o.align === 'left';
-    const inset = this.skin?.inset ?? 14;
+    const inset = RIBBON_BUTTON.inset;
     const textX = left ? Math.round(-w / 2 + inset) : 0;
     const originX = left ? 0 : 0.5;
     this.scene = scene;
@@ -44,20 +43,14 @@ export class Button {
     this.pressed = false;
 
     this.container = scene.add.container(Math.round(x), Math.round(y)).setDepth(o.depth ?? 20);
-    this.shadow = scene.add.rectangle(4, 4, w, h, COLORS.shadow, 0.55);
-    this.bg = scene.add.rectangle(0, 0, w, h, COLORS.button).setStrokeStyle(4, accent ?? COLORS.buttonBorder);
+    // The graphics draw the ribbon; the invisible rectangle is the tap target.
+    this.g = scene.add.graphics();
+    this.bg = scene.add.rectangle(0, 0, w, h, 0x000000, 0.001);
     // With a sub-line, both lines scale to the button's height so they fit.
     const labelSize = sub ? Math.min(size, Math.round(h * 0.34)) : size;
     this.label = label(scene, textX, sub ? -Math.round(h * 0.22) : 0, text, labelSize, { color: textColor }).setOrigin(originX, 0.5);
     fitWidth(this.label, left ? w - inset - 10 : w - 20);
-    this.container.add([this.shadow, this.bg, this.label]);
-    if (this.skin) {
-      // The skin draws the visuals; the rectangle stays as the invisible tap target.
-      this.shadow.setVisible(false);
-      this.bg.setStrokeStyle();
-      this.skinG = scene.add.graphics();
-      this.container.addAt(this.skinG, 0);
-    }
+    this.container.add([this.g, this.bg, this.label]);
     if (sub) {
       const subSize = Math.min(26, Math.round(h * 0.5));
       this.sub = body(scene, textX, Math.round(h * 0.25), sub, subSize, { color: subColor }).setOrigin(originX, 0.5);
@@ -69,8 +62,7 @@ export class Button {
     this.bg.setInteractive({ useHandCursor: true });
     this.bg.on('pointerover', () => {
       this.hover = true;
-      if (this.skin) this.refresh();
-      else if (this.enabled && !this.fill) this.bg.setFillStyle(COLORS.buttonHover);
+      this.refresh();
     });
     this.bg.on('pointerout', () => {
       this.hover = false;
@@ -101,7 +93,7 @@ export class Button {
     this.pressed = pressed;
     const d = pressed ? 2 : -2;
     this.container.setPosition(this.container.x + d, this.container.y + d);
-    if (this.skin) this.refresh();
+    this.refresh();
   }
 
   setEnabled(enabled) {
@@ -117,16 +109,11 @@ export class Button {
   }
 
   refresh() {
-    if (this.skin) {
-      this.bg.setFillStyle(0x000000, 0.001);
-      this.skinG.clear();
-      this.skin.button(this.skinG, {
-        w: this.w, h: this.h, accent: this.accent, fill: this.fill,
-        enabled: this.enabled, pressed: this.pressed, hover: this.hover,
-      });
-    } else {
-      this.bg.setFillStyle(!this.enabled ? COLORS.buttonDisabled : this.fill ?? COLORS.button);
-    }
+    this.g.clear();
+    RIBBON_BUTTON.button(this.g, {
+      w: this.w, h: this.h, accent: this.accent, fill: this.fill,
+      enabled: this.enabled, pressed: this.pressed, hover: this.hover,
+    });
     this.label.setAlpha(this.enabled ? 1 : 0.45);
     this.sub?.setAlpha(this.enabled ? 1 : 0.45);
   }

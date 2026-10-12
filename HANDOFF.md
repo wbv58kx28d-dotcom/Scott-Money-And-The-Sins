@@ -32,7 +32,7 @@ the new art and layout. It has debug mode and a Playwright smoke test
   `JITTER` in `src/ui/speechBubble.js`), and rhymes land bold with a thump.
   Rhyme parsing is in `src/systems/bars.js`; letters are cached glyph images
   (`src/ui/glyphs.js`), rendered once during Preload.
-- **Ribbon UI:** the battle menu, HUD cards, stat bars, and corner buttons
+- **Ribbon UI:** every button, panel, HUD card, stat bar, and the timing bar
   share the lyric ribbons' look (`src/ui/ribbon.js`): dark slanted strips with
   a colored accent edge, menu text left-aligned. The enemy's and $cott's HUD
   cards match (name, type or status row, Clout); the enemy's WEAK / RESISTS /

@@ -4,6 +4,7 @@
 import { GAME_W, GAME_H, LAYOUT } from '../config.js';
 import { Audio } from '../systems/audio.js';
 import { label, body } from '../ui/text.js';
+import { drawCard, RIBBON_GOLD } from '../ui/ribbon.js';
 
 const TITLE_STYLE = {
   color: '#ffd166',
@@ -36,7 +37,9 @@ export default class TitleScene extends Phaser.Scene {
       align: 'center',
       wordWrap: { width: 600 },
     }).setOrigin(0.5, 0);
-    const tap = label(this, cx, 1172, 'TAP TO START', 24).setOrigin(0.5);
+    const tapW = 380;
+    drawCard(this.add.graphics(), { x: cx - tapW / 2 - 6, y: 1140, w: tapW, h: 64 }, RIBBON_GOLD);
+    const tap = label(this, cx + 6, 1172, 'TAP TO START', 24).setOrigin(0.5);
     this.tweens.add({ targets: tap, alpha: 0.2, duration: 450, yoyo: true, repeat: -1 });
     body(this, cx, 1236, 'A parody. All villains are fictional.', 26, { color: '#8a8496' }).setOrigin(0.5);
 

@@ -33,7 +33,7 @@ import { TimingBar } from '../ui/timingBar.js';
 import { EnemyHud, ScottHud, CrowdMeter } from '../ui/hud.js';
 import { showHowTo } from '../ui/howTo.js';
 import { spitBars } from '../ui/speechBubble.js';
-import { drawMenuPanel, RIBBON_BUTTON } from '../ui/ribbon.js';
+import { drawRibbonPanel } from '../ui/ribbon.js';
 import { lunge, hitFx, reTint, wait } from '../ui/fx.js';
 import { label, body } from '../ui/text.js';
 
@@ -77,7 +77,7 @@ export default class BattleScene extends Phaser.Scene {
     this.enemyHud = new EnemyHud(this, this.enemy);
     this.crowdMeter = new CrowdMeter(this, this.crowd);
     this.scottHud = new ScottHud(this, this.scott);
-    drawMenuPanel(this);
+    drawRibbonPanel(this, LAYOUT.panel);
     this.makeCornerButtons();
 
     this.bus = new TapBus(this);
@@ -151,11 +151,11 @@ export default class BattleScene extends Phaser.Scene {
     const sndW = 72;
     const helpW = 52;
     const snd = new Button(this, {
-      x: right - sndW / 2, y, w: sndW, h, text: Audio.muted ? 'OFF' : 'SND', size: 14, system: true, depth: 30, skin: RIBBON_BUTTON,
+      x: right - sndW / 2, y, w: sndW, h, text: Audio.muted ? 'OFF' : 'SND', size: 14, system: true, depth: 30,
       onPress: () => snd.setText(Audio.toggleMute() ? 'OFF' : 'SND'),
     });
     new Button(this, {
-      x: right - sndW - gap - helpW / 2, y, w: helpW, h, text: '?', size: 20, textColor: COLORS.textGold, system: true, depth: 30, skin: RIBBON_BUTTON,
+      x: right - sndW - gap - helpW / 2, y, w: helpW, h, text: '?', size: 20, textColor: COLORS.textGold, system: true, depth: 30,
       onPress: () => {
         if (this.overlayOpen) return;
         this.overlayOpen = true;

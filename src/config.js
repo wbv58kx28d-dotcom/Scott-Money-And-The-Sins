@@ -12,16 +12,6 @@ export const FONTS = {
 // Phaser wants numbers for fills and CSS strings for text.
 export const COLORS = {
   bg: '#0b0a12',
-  panel: 0x141020,
-  panelAlpha: 0.94,
-  panelBorder: 0xf4d35e,
-  panelBorderDim: 0x5b4f7a,
-  button: 0x2a2140,
-  buttonHover: 0x3b2f5c,
-  buttonDisabled: 0x1b1626,
-  buttonBorder: 0xf4d35e,
-  shadow: 0x000000,
-
   text: '#f5f1e8',
   textDim: '#8a8496',
   textGold: '#f4d35e',

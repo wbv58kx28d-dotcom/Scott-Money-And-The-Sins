@@ -1,8 +1,6 @@
-// The battle UI's look: slanted dark strips with a colored accent edge, the
-// same style as the lyric ribbons (ui/speechBubble.js). The bottom panel, the
-// menu buttons, the HUD cards, and the stat bars all draw from here.
-
-import { LAYOUT } from '../config.js';
+// The game's UI look: slanted dark strips with a colored accent edge, the
+// same style as the lyric ribbons (ui/speechBubble.js). Panels, buttons, HUD
+// cards, stat bars, and the timing bar all draw from here.
 
 export const RIBBON_FILL = 0x0d0820;
 export const RIBBON_GOLD = 0xffd166;
@@ -34,9 +32,8 @@ export function drawCard(g, { x, y, w, h }, accent, { skew = CARD_SKEW, alpha = 
 }
 export const CARD_INSET = CARD_SKEW + EDGE_W + 10;
 
-/** The bottom panel behind the menu, dialog, and timing bar. */
-export function drawMenuPanel(scene) {
-  const { x, y, w, h } = LAYOUT.panel;
+/** A wide panel (the battle menu, the map's info panel) with a gold top edge. */
+export function drawRibbonPanel(scene, { x, y, w, h }) {
   const g = scene.add.graphics();
   g.fillStyle(0x000000, 0.45).fillPoints(quad(x + 6, y + 6, w - CARD_SKEW, h, CARD_SKEW), true);
   g.fillStyle(RIBBON_FILL, 0.94).fillPoints(quad(x, y, w - CARD_SKEW, h, CARD_SKEW), true);
@@ -46,8 +43,8 @@ export function drawMenuPanel(scene) {
 }
 
 /**
- * Button skin for ui/button.js. Buttons are drawn centered on (0, 0); the
- * label starts `inset` px in from the left edge when left-aligned.
+ * How ui/button.js draws a button, centered on (0, 0). A left-aligned label
+ * starts `inset` px in from the left edge.
  */
 export const RIBBON_BUTTON = {
   inset: BUTTON_SKEW + EDGE_W + 12,

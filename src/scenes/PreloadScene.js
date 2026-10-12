@@ -6,6 +6,7 @@ import { IMAGES } from '../data/assets.js';
 import { DEBUG } from '../systems/debug.js';
 import { makePlaceholder } from '../systems/placeholders.js';
 import { label } from '../ui/text.js';
+import { StatBar } from '../ui/bars.js';
 import { prewarmBubbleGlyphs } from '../ui/speechBubble.js';
 
 export default class PreloadScene extends Phaser.Scene {
@@ -18,10 +19,8 @@ export default class PreloadScene extends Phaser.Scene {
     const x = (GAME_W - barW) / 2;
     const y = GAME_H / 2;
     label(this, GAME_W / 2, y - 40, 'LOADING...', 20, { color: COLORS.textGold }).setOrigin(0.5);
-    const frame = this.add.rectangle(GAME_W / 2, y + 10, barW, 28).setStrokeStyle(4, COLORS.panelBorder);
-    const bar = this.add.rectangle(x + 4, y + 10, 0, 20, COLORS.flow).setOrigin(0, 0.5);
-    this.load.on('progress', (p) => bar.setSize(Math.round((barW - 8) * p), 20));
-    frame.setDepth(1);
+    const bar = new StatBar(this, { x, y: y - 4, w: barW, h: 28, color: COLORS.flow, value: 0, max: 1, numbers: false });
+    this.load.on('progress', (p) => bar.set(p, 1, false));
 
     this.missing = [];
     this.load.on('loaderror', (file) => this.missing.push(file.key));

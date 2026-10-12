@@ -4,7 +4,7 @@
 import { LAYOUT } from '../config.js';
 import { Button } from './button.js';
 import { label, fitWidth } from './text.js';
-import { RIBBON_BUTTON, PROMPT_STYLE } from './ribbon.js';
+import { PROMPT_STYLE } from './ribbon.js';
 
 const FLASH_MS = 1500;
 
@@ -45,7 +45,6 @@ export class Menu {
         const row = Math.floor(i / columns);
         const button = new Button(this.scene, {
           ...item,
-          skin: RIBBON_BUTTON,
           align: 'left',
           x: p.x + p.pad + col * (bw + p.gap) + bw / 2,
           y: p.y + p.pad + row * (bh + p.gap) + bh / 2,

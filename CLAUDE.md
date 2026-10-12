@@ -299,4 +299,4 @@ From the art chat's portrait mockup:
 - Two fixes to prototype bugs are in: the **crowd meter locks at 100** until the mic drops (§5.5), and **STALL** replaces RUN when $cott is out of options (§5.8).
 - The **overworld map** is the hub between fights, built from the map pack; region names come from it (§2, §6.5).
 - **$cott is ~30% bigger than the enemies in battle** to sell depth (§8.2). In-engine 1.3× scaling is a stopgap until a ~420 px re-export of his sprite arrives (§8.1).
-- The **battle UI uses the ribbon style** throughout (picked over classic, drum-pad, and phone mockups): menu with left-aligned text, matching HUD cards for $cott and the enemy, and the enemy's intel as tags at its feet (§8.2).
+- The **whole UI uses the ribbon style** (picked over classic, drum-pad, and phone mockups): every button, panel, HUD card, stat bar, and the timing bar. Battle menus have left-aligned text, $cott's and the enemy's HUD cards match, and the enemy's intel sits as tags at its feet (§8.2).

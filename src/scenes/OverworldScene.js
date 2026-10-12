@@ -14,7 +14,7 @@ import { allStatuses, frontierTier, newlyOpened } from '../systems/progress.js';
 import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { Button } from '../ui/button.js';
-import { drawPanel } from '../ui/panel.js';
+import { drawRibbonPanel } from '../ui/ribbon.js';
 import { label, body, fitWidth } from '../ui/text.js';
 
 const MAP_DIR = 'assets/map';
@@ -172,7 +172,7 @@ export default class OverworldScene extends Phaser.Scene {
   makePanel() {
     const p = MAP.panel;
     const b = MAP.enterButton;
-    drawPanel(this, p);
+    drawRibbonPanel(this, p);
     const textW = p.w - 36 - b.w - 16;
     this.textW = textW;
     this.infoName = label(this, p.x + 18, p.y + 18, '', 18, { color: COLORS.textGold });
