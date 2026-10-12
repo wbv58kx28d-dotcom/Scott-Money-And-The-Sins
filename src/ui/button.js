@@ -19,7 +19,15 @@ export class Button {
    * @param {object} o  x/y are the button's center.
    */
   constructor(scene, o) {
-    const { x, y, w, h, text, sub = null, enabled = true, size = 18, accent = null, fill = null, textColor = COLORS.text, subColor = COLORS.textDim, system = false } = o;
+    const { x, y, w, h, text, sub = null, enabled = true, size = 18, accent = null, fill = null, system = false } = o;
+    // An optional skin (ui/menuSkins.js) draws the button instead of the
+    // classic framed box, and may override the text colors.
+    this.skin = o.skin ?? null;
+    this.accent = accent;
+    this.hover = false;
+    const skinText = this.skin?.text?.({ accent, fill, enabled }) ?? {};
+    const textColor = skinText.textColor ?? o.textColor ?? COLORS.text;
+    const subColor = skinText.subColor ?? o.subColor ?? COLORS.textDim;
     this.scene = scene;
     this.text = text;
     this.onPress = o.onPress;
@@ -36,9 +44,16 @@ export class Button {
     this.bg = scene.add.rectangle(0, 0, w, h, COLORS.button).setStrokeStyle(4, accent ?? COLORS.buttonBorder);
     // With a sub-line, both lines scale to the button's height so they fit.
     const labelSize = sub ? Math.min(size, Math.round(h * 0.34)) : size;
-    this.label = label(scene, 0, sub ? -Math.round(h * 0.22) : 0, text, labelSize, { color: textColor }).setOrigin(0.5);
+    this.label = label(scene, 0, sub ? -Math.round(h * 0.22) : 0, text, labelSize, { color: textColor, ...(skinText.noStroke ? { strokeThickness: 0 } : {}) }).setOrigin(0.5);
     fitWidth(this.label, w - 20);
     this.container.add([this.shadow, this.bg, this.label]);
+    if (this.skin) {
+      // The skin draws the visuals; the rectangle stays as the invisible tap target.
+      this.shadow.setVisible(false);
+      this.bg.setStrokeStyle();
+      this.skinG = scene.add.graphics();
+      this.container.addAt(this.skinG, 0);
+    }
     if (sub) {
       const subSize = Math.min(26, Math.round(h * 0.5));
       this.sub = body(scene, 0, Math.round(h * 0.25), sub, subSize, { color: subColor }).setOrigin(0.5);
@@ -48,8 +63,13 @@ export class Button {
 
     // Phaser runs pointerup before pointerout, so resetting on out is safe.
     this.bg.setInteractive({ useHandCursor: true });
-    this.bg.on('pointerover', () => this.enabled && !this.fill && this.bg.setFillStyle(COLORS.buttonHover));
+    this.bg.on('pointerover', () => {
+      this.hover = true;
+      if (this.skin) this.refresh();
+      else if (this.enabled && !this.fill) this.bg.setFillStyle(COLORS.buttonHover);
+    });
     this.bg.on('pointerout', () => {
+      this.hover = false;
       this.downTime = null;
       this.setPressed(false);
       this.refresh();
@@ -77,6 +97,7 @@ export class Button {
     this.pressed = pressed;
     const d = pressed ? 2 : -2;
     this.container.setPosition(this.container.x + d, this.container.y + d);
+    if (this.skin) this.refresh();
   }
 
   setEnabled(enabled) {
@@ -92,8 +113,16 @@ export class Button {
   }
 
   refresh() {
-    const fill = !this.enabled ? COLORS.buttonDisabled : this.fill ?? COLORS.button;
-    this.bg.setFillStyle(fill);
+    if (this.skin) {
+      this.bg.setFillStyle(0x000000, 0.001);
+      this.skinG.clear();
+      this.skin.button(this.skinG, {
+        w: this.w, h: this.h, accent: this.accent, fill: this.fill,
+        enabled: this.enabled, pressed: this.pressed, hover: this.hover,
+      });
+    } else {
+      this.bg.setFillStyle(!this.enabled ? COLORS.buttonDisabled : this.fill ?? COLORS.button);
+    }
     this.label.setAlpha(this.enabled ? 1 : 0.45);
     this.sub?.setAlpha(this.enabled ? 1 : 0.45);
   }

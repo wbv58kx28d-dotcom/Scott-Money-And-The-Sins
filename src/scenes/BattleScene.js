@@ -31,9 +31,9 @@ import { Menu } from '../ui/menu.js';
 import { Button } from '../ui/button.js';
 import { TimingBar } from '../ui/timingBar.js';
 import { EnemyHud, ScottHud, CrowdMeter } from '../ui/hud.js';
-import { drawPanel } from '../ui/panel.js';
 import { showHowTo } from '../ui/howTo.js';
 import { spitBars } from '../ui/speechBubble.js';
+import { drawMenuPanel } from '../ui/menuSkins.js';
 import { lunge, hitFx, reTint, wait } from '../ui/fx.js';
 import { label, body } from '../ui/text.js';
 
@@ -77,7 +77,7 @@ export default class BattleScene extends Phaser.Scene {
     this.enemyHud = new EnemyHud(this, this.enemy);
     this.crowdMeter = new CrowdMeter(this, this.crowd);
     this.scottHud = new ScottHud(this, this.scott);
-    drawPanel(this, LAYOUT.panel);
+    drawMenuPanel(this);
     this.makeCornerButtons();
 
     this.bus = new TapBus(this);

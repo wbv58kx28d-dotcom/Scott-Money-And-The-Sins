@@ -3,7 +3,8 @@
 
 import { COLORS, LAYOUT } from '../config.js';
 import { Button } from './button.js';
-import { label, fitWidth } from './text.js';
+import { label, body, fitWidth } from './text.js';
+import { menuSkin } from './menuSkins.js';
 
 const FLASH_MS = 1500;
 const PROMPT_SIZE = 16;
@@ -13,9 +14,13 @@ export class Menu {
     this.scene = scene;
     this.buttons = [];
     const p = LAYOUT.panel;
-    this.prompt = label(scene, p.x + 14, p.y - 6, '', PROMPT_SIZE, {
-      backgroundColor: '#2a2140',
-      padding: { x: 10, y: 6 },
+    this.skin = menuSkin();
+    // The prompt tag above the panel; skins restyle it (e.g. an LCD readout).
+    const ps = this.skin?.prompt ?? { font: 'header', size: PROMPT_SIZE, color: COLORS.text, bg: '#2a2140', flash: COLORS.textGold };
+    this.promptStyle = ps;
+    this.prompt = (ps.font === 'body' ? body : label)(scene, p.x + 14, p.y - 6, '', ps.size, {
+      backgroundColor: ps.bg,
+      padding: { x: 10, y: ps.font === 'body' ? 2 : 6 },
       strokeThickness: 0,
     }).setOrigin(0, 1).setVisible(false);
     this.promptText = '';
@@ -42,6 +47,7 @@ export class Menu {
         const row = Math.floor(i / columns);
         const button = new Button(this.scene, {
           ...item,
+          skin: this.skin,
           x: p.x + p.pad + col * (bw + p.gap) + bw / 2,
           y: p.y + p.pad + row * (bh + p.gap) + bh / 2,
           w: bw,
@@ -62,20 +68,20 @@ export class Menu {
   setPrompt(text) {
     this.promptText = text;
     this.flashToken = (this.flashToken ?? 0) + 1;
-    this.showPrompt(text, COLORS.text);
+    this.showPrompt(text, this.promptStyle.color);
   }
 
   showPrompt(text, color) {
-    this.prompt.setFontSize(PROMPT_SIZE).setColor(color).setText(text).setVisible(!!text);
+    this.prompt.setFontSize(this.promptStyle.size).setColor(color).setText(text).setVisible(!!text);
     fitWidth(this.prompt, LAYOUT.panel.w - 28, 8);
   }
 
   /** Briefly replace the prompt with a message, then restore it. */
   flash(message) {
     const token = (this.flashToken = (this.flashToken ?? 0) + 1);
-    this.showPrompt(message, COLORS.textGold);
+    this.showPrompt(message, this.promptStyle.flash);
     this.scene.time.delayedCall(FLASH_MS, () => {
-      if (token === this.flashToken && this.buttons.length) this.showPrompt(this.promptText, COLORS.text);
+      if (token === this.flashToken && this.buttons.length) this.showPrompt(this.promptText, this.promptStyle.color);
     });
   }
 

@@ -79,6 +79,8 @@ export const LAYOUT = {
   // Lyric ribbons for bars (ui/speechBubble.js): $cott's sit above his head,
   // the enemy's to the right of their face. Both stay below minTop.
   bubble: { right: 700, gap: 22, minTop: 318 },
+  // Combat menu look: classic | ribbon | pads | phone (ui/menuSkins.js; debug &menu= overrides).
+  menuStyle: 'classic',
   // The crowd: silhouettes along the horizon, behind the fighters.
   crowdRow: { y: 700, count: 15, spacing: 48 },
   entrance: { offscreen: 260, ms: 650 }, // fighters slide in from the sides
