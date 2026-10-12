@@ -1,26 +1,24 @@
 // Button grid inside the bottom panel. `choose()` resolves with the picked
 // item's id, so a menu tree reads as a few awaits in the battle loop.
 
-import { COLORS, LAYOUT } from '../config.js';
+import { LAYOUT } from '../config.js';
 import { Button } from './button.js';
-import { label, body, fitWidth } from './text.js';
-import { menuSkin } from './menuSkins.js';
+import { label, fitWidth } from './text.js';
+import { RIBBON_BUTTON, PROMPT_STYLE } from './ribbon.js';
 
 const FLASH_MS = 1500;
-const PROMPT_SIZE = 16;
 
 export class Menu {
   constructor(scene) {
     this.scene = scene;
     this.buttons = [];
     const p = LAYOUT.panel;
-    this.skin = menuSkin();
-    // The prompt tag above the panel; skins restyle it (e.g. an LCD readout).
-    const ps = this.skin?.prompt ?? { font: 'header', size: PROMPT_SIZE, color: COLORS.text, bg: '#2a2140', flash: COLORS.textGold };
+    // The prompt tag sits just above the panel.
+    const ps = PROMPT_STYLE;
     this.promptStyle = ps;
-    this.prompt = (ps.font === 'body' ? body : label)(scene, p.x + 14, p.y - 6, '', ps.size, {
+    this.prompt = label(scene, p.x + 14, p.y - 6, '', ps.size, {
       backgroundColor: ps.bg,
-      padding: { x: 10, y: ps.font === 'body' ? 2 : 6 },
+      padding: { x: 10, y: 6 },
       strokeThickness: 0,
     }).setOrigin(0, 1).setVisible(false);
     this.promptText = '';
@@ -47,7 +45,8 @@ export class Menu {
         const row = Math.floor(i / columns);
         const button = new Button(this.scene, {
           ...item,
-          skin: this.skin,
+          skin: RIBBON_BUTTON,
+          align: 'left',
           x: p.x + p.pad + col * (bw + p.gap) + bw / 2,
           y: p.y + p.pad + row * (bh + p.gap) + bh / 2,
           w: bw,

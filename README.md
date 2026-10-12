@@ -43,7 +43,6 @@ Debug flags only work together with `?debug=1`:
 | `&cleared=start,isles` | Preset cleared regions (in memory only; your real save is untouched) |
 | `&sins=lilturnt,babarbara:2` | Preset recruited Sins, with optional levels (in memory only) |
 | `&reset=1` | Wipe your saved progress |
-| `&menu=ribbon` | Try a combat-menu style: `classic`, `ribbon`, `pads`, `phone` |
 
 For example: `http://localhost:8000/?debug=1&battle=derek&perfect=1&seed=123&fast=1`
 

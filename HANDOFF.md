@@ -32,6 +32,11 @@ the new art and layout. It has debug mode and a Playwright smoke test
   `JITTER` in `src/ui/speechBubble.js`), and rhymes land bold with a thump.
   Rhyme parsing is in `src/systems/bars.js`; letters are cached glyph images
   (`src/ui/glyphs.js`), rendered once during Preload.
+- **Ribbon UI:** the battle menu, HUD cards, stat bars, and corner buttons
+  share the lyric ribbons' look (`src/ui/ribbon.js`): dark slanted strips with
+  a colored accent edge, menu text left-aligned. The enemy's and $cott's HUD
+  cards match (name, type or status row, Clout); the enemy's WEAK / RESISTS /
+  SOFT SPOTS intel sits as tags under its feet. The crowd meter is top-right.
 - **Layout changes on purpose** (HANDOFF said to re-lay, not double): $cott
   lower-right and Derek upper-left, the HUD and menu at the `CLAUDE.md` §8.2
   positions, and dialog speaker names in a tab instead of inline.

@@ -20,14 +20,18 @@ export class Button {
    */
   constructor(scene, o) {
     const { x, y, w, h, text, sub = null, enabled = true, size = 18, accent = null, fill = null, system = false } = o;
-    // An optional skin (ui/menuSkins.js) draws the button instead of the
-    // classic framed box, and may override the text colors.
+    // An optional skin (e.g. RIBBON_BUTTON in ui/ribbon.js) draws the button
+    // instead of the classic framed box. `align: 'left'` starts the text at the
+    // skin's inset instead of centering it.
     this.skin = o.skin ?? null;
     this.accent = accent;
     this.hover = false;
-    const skinText = this.skin?.text?.({ accent, fill, enabled }) ?? {};
-    const textColor = skinText.textColor ?? o.textColor ?? COLORS.text;
-    const subColor = skinText.subColor ?? o.subColor ?? COLORS.textDim;
+    const textColor = o.textColor ?? COLORS.text;
+    const subColor = o.subColor ?? COLORS.textDim;
+    const left = o.align === 'left';
+    const inset = this.skin?.inset ?? 14;
+    const textX = left ? Math.round(-w / 2 + inset) : 0;
+    const originX = left ? 0 : 0.5;
     this.scene = scene;
     this.text = text;
     this.onPress = o.onPress;
@@ -44,8 +48,8 @@ export class Button {
     this.bg = scene.add.rectangle(0, 0, w, h, COLORS.button).setStrokeStyle(4, accent ?? COLORS.buttonBorder);
     // With a sub-line, both lines scale to the button's height so they fit.
     const labelSize = sub ? Math.min(size, Math.round(h * 0.34)) : size;
-    this.label = label(scene, 0, sub ? -Math.round(h * 0.22) : 0, text, labelSize, { color: textColor, ...(skinText.noStroke ? { strokeThickness: 0 } : {}) }).setOrigin(0.5);
-    fitWidth(this.label, w - 20);
+    this.label = label(scene, textX, sub ? -Math.round(h * 0.22) : 0, text, labelSize, { color: textColor }).setOrigin(originX, 0.5);
+    fitWidth(this.label, left ? w - inset - 10 : w - 20);
     this.container.add([this.shadow, this.bg, this.label]);
     if (this.skin) {
       // The skin draws the visuals; the rectangle stays as the invisible tap target.
@@ -56,8 +60,8 @@ export class Button {
     }
     if (sub) {
       const subSize = Math.min(26, Math.round(h * 0.5));
-      this.sub = body(scene, 0, Math.round(h * 0.25), sub, subSize, { color: subColor }).setOrigin(0.5);
-      fitWidth(this.sub, w - 16);
+      this.sub = body(scene, textX, Math.round(h * 0.25), sub, subSize, { color: subColor }).setOrigin(originX, 0.5);
+      fitWidth(this.sub, left ? w - inset - 10 : w - 16);
       this.container.add(this.sub);
     }
 

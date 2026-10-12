@@ -67,20 +67,21 @@ export const LAYOUT = {
   // Where popups appear, measured up from the feet.
   headroom: 30, // gap above the head for damage numbers
 
-  enemyHud: { x: 24, y: 24, w: 672, h: 196 },
-  cornerButtons: { y: 52, h: 40, gap: 8, right: 682 }, // ? and SND, inside the enemy panel
-  crowd: { x: 24, y: 232, w: 672, h: 56 },
-  scottHud: { x: 24, y: 850, w: 300, h: 196 },
+  // HUD cards (ui/hud.js). The enemy's and $cott's match; the enemy's intel
+  // tags sit under its feet (dy below the enemy slot), not in its card.
+  enemyHud: { x: 24, y: 24, w: 352, h: 144 },
+  scottHud: { x: 24, y: 830, w: 352, h: 210 },
+  enemyIntel: { x: 24, dy: 12, h: 34, gap: 6, maxW: 344 },
+  cornerButtons: { y: 46, h: 40, gap: 8, right: 684 }, // ? and SND, top-right
+  crowd: { x: 412, y: 82, w: 272, h: 86 },
 
   panel: { x: 16, y: 1090, w: 688, h: 170, pad: 8, gap: 6 },
   timingBar: { x: 60, y: 1186, w: 600, h: 44 },
 
-  stageLabel: { x: 28, y: 300 },
+  stageLabel: { x: 28, y: 176 },
   // Lyric ribbons for bars (ui/speechBubble.js): $cott's sit above his head,
   // the enemy's to the right of their face. Both stay below minTop.
   bubble: { right: 700, gap: 22, minTop: 318 },
-  // Combat menu look: classic | ribbon | pads | phone (ui/menuSkins.js; debug &menu= overrides).
-  menuStyle: 'classic',
   // The crowd: silhouettes along the horizon, behind the fighters.
   crowdRow: { y: 700, count: 15, spacing: 48 },
   entrance: { offscreen: 260, ms: 650 }, // fighters slide in from the sides

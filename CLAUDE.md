@@ -249,6 +249,8 @@ From the art chat's portrait mockup:
 - The mockup's party positions were (345, 905), (585, 860), and (540, 1050). With only $cott on screen, he takes a single lower-right spot, feet at (500, 1040).
 - Depth: $cott is in the foreground, so he's drawn about 30% bigger than the enemies (about 420 px vs. about 330 px).
 - Sin cut-ins slide in from the right edge.
+- HUD, in the lyric ribbons' style (dark slanted strips, accent edge in the owner's color): the enemy's card is top-left and $cott's is lower-left, matching row for row (name, type or status row, Clout; $cott adds Flow and items). The crowd meter is top-right under the ? and SND buttons. The enemy's WEAK / RESISTS / SOFT SPOTS intel sits as small tags under its feet, not in its card.
+- The menu panel and buttons use the same ribbon style, with text left-aligned.
 
 ### 8.3 Backgrounds
 - Size: 720×1280 WebP, pre-dimmed, with the bottom band darkened for the menu.
@@ -297,3 +299,4 @@ From the art chat's portrait mockup:
 - Two fixes to prototype bugs are in: the **crowd meter locks at 100** until the mic drops (§5.5), and **STALL** replaces RUN when $cott is out of options (§5.8).
 - The **overworld map** is the hub between fights, built from the map pack; region names come from it (§2, §6.5).
 - **$cott is ~30% bigger than the enemies in battle** to sell depth (§8.2). In-engine 1.3× scaling is a stopgap until a ~420 px re-export of his sprite arrives (§8.1).
+- The **battle UI uses the ribbon style** throughout (picked over classic, drum-pad, and phone mockups): menu with left-aligned text, matching HUD cards for $cott and the enemy, and the enemy's intel as tags at its feet (§8.2).

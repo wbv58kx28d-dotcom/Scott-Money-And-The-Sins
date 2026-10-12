@@ -10,7 +10,6 @@
 //   &sins=lilturnt,babarbara:2
 //                        preset recruited Sins, with optional levels (in memory only)
 //   &reset=1             wipe the saved progress
-//   &menu=ribbon         try a combat-menu style: classic, ribbon, pads, phone
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
 
@@ -39,5 +38,4 @@ export const DEBUG = Object.freeze({
   cleared: list('cleared'),
   sins,
   reset: flag('reset'),
-  menu: enabled ? params.get('menu') : null,
 });
