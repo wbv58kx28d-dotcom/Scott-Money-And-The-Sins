@@ -179,6 +179,11 @@ const SFX = {
   bad: (a, t) => a.tone(t, 196, 0.3, 'sawtooth', 0.08, 100),
   heal: (a, t) => [0, 5, 9].forEach((k, i) => a.tone(t + i * 0.07, 523 * Math.pow(2, k / 12), 0.15, 'triangle', 0.1)),
   buff: (a, t) => a.tone(t, 300, 0.45, 'square', 0.06, 1300),
+  // A rhyme landing in a speech bubble.
+  punch: (a, t) => {
+    a.tone(t, 170, 0.14, 'sine', 0.55, 48);
+    a.noise(t, 0.06, 0.3, 'lowpass', 900);
+  },
 };
 
 export const Audio = new AudioEngine();

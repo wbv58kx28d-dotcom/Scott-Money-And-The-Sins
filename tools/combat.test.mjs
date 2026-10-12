@@ -17,6 +17,7 @@ import { StatusSet } from '../src/systems/status.js';
 import { Crowd } from '../src/systems/crowd.js';
 import { chooseEnemyMove } from '../src/systems/ai.js';
 import { createRng } from '../src/systems/rng.js';
+import { parseCouplet, plainCouplet } from '../src/systems/bars.js';
 
 const noVariance = { range: () => 1 };
 
@@ -258,4 +259,29 @@ test('every villain has couplets for every type and target, and for each move', 
       assert.ok(enemy.moves.some((m) => m.id === rule.move), `${enemy.id} AI rule ${rule.move}`);
     }
   }
+});
+
+test('bars: the last word of each line rhymes by default', () => {
+  const [a, b] = parseCouplet(['Your hairline is retreating all year,', "I'd short it, Money, but it's outta here."]);
+  assert.deepEqual(a.words.filter((w) => w.rhyme).map((w) => w.text), ['year,']);
+  assert.deepEqual(b.words.filter((w) => w.rhyme).map((w) => w.text), ['here.']);
+  assert.equal(a.direction, false);
+});
+
+test('bars: [brackets] mark rhymes, including multi-word ones', () => {
+  const lines = parseCouplet(["My watch beats your portfolio's [peak],", 'your [grow up] was a Tuesday last [week].']);
+  const rhymes = lines.flatMap((l) => l.words.filter((w) => w.rhyme).map((w) => w.text));
+  assert.deepEqual(rhymes, ['peak,', 'grow', 'up', 'week.']);
+  assert.ok(lines.every((l) => l.words.every((w) => !/[[\]]/.test(w.text))), 'brackets are stripped');
+});
+
+test('bars: *stage directions* never rhyme', () => {
+  const [action, quote] = parseCouplet(['*puts on a second pair of sunglasses*', '"Number go up. That\'s the whole whitepaper."']);
+  assert.equal(action.direction, true);
+  assert.ok(action.words.every((w) => !w.rhyme));
+  assert.equal(quote.words.at(-1).rhyme, true);
+});
+
+test('bars: plainCouplet removes markup', () => {
+  assert.deepEqual(plainCouplet(['a [b] c', '[d e]']), ['a b c', 'd e']);
 });

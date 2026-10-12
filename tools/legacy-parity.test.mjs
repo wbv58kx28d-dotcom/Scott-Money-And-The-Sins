@@ -12,6 +12,13 @@ import SCOTT from '../src/data/scott.js';
 import derek from '../src/data/enemies/derek.js';
 import { DISS_TYPES, TARGET_INFO, HIT_KINDS } from '../src/data/types.js';
 import { TIMING } from '../src/data/rules.js';
+import { plainCouplet } from '../src/systems/bars.js';
+
+// Rhyme [brackets] are presentation markup the prototype didn't have.
+const plainPool = (pool) => pool.map(plainCouplet);
+const plainBars = (bars) => Object.fromEntries(
+  Object.entries(bars).map(([type, targets]) => [type, Object.fromEntries(Object.entries(targets).map(([t, pool]) => [t, plainPool(pool)]))]),
+);
 
 const html = fs.readFileSync(new URL('../legacy/scott-money-battle.html', import.meta.url), 'utf8');
 const start = html.indexOf('/* ---------------- GAME DATA');
@@ -72,7 +79,7 @@ test("$cott's stats, weaknesses, soft spots, and moves", () => {
       assert.equal(m.power, lm.power);
       assert.equal(m.speed, lm.speed);
     } else {
-      assert.deepEqual(m.bars, lm.bars);
+      assert.deepEqual(plainPool(m.bars), lm.bars);
     }
   }
   const mic = legacy.MIC_DROP;
@@ -102,10 +109,10 @@ test("Derek's stats, soft spots, messages, moves, and bars", () => {
     assert.equal(m.target, lm.target, lm.id);
     assert.equal(m.power, lm.power, lm.id);
     assert.equal(m.weight, lm.weight ?? 0, lm.id);
-    assert.deepEqual(m.bars, lm.bars, lm.id);
+    assert.deepEqual(plainPool(m.bars), lm.bars, lm.id);
     assert.equal(!!m.applyStatus, !!lm.inflict, lm.id);
   }
 
-  assert.deepEqual(JSON.parse(JSON.stringify(derek.scottBars)), JSON.parse(JSON.stringify(E.scottBars)));
-  assert.deepEqual(derek.micBars, E.micBars);
+  assert.deepEqual(plainBars(derek.scottBars), E.scottBars);
+  assert.deepEqual(plainPool(derek.micBars), E.micBars);
 });

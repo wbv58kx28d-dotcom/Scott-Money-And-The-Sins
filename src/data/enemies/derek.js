@@ -3,6 +3,8 @@
 //
 // Bars are pools: each entry is a list of couplets, and one is picked at
 // random each time. Add a couplet to a list to give it more variety.
+// Rhymes are bolded in the speech bubble: the last word of each line by
+// default, or [bracketed] words if a couplet has any (see systems/bars.js).
 
 export default {
   id: 'derek',
@@ -82,7 +84,7 @@ export default {
   scottBars: {
     FLEX: {
       WEALTH: [
-        ["My watch costs more than your portfolio's peak,", "and your portfolio's peak was a Tuesday last week."],
+        ["My watch costs more than your portfolio's [peak],", "and your portfolio's [peak] was a Tuesday last [week]."],
         ["I tip my valet in equity, my barista's on the board.", "You tip in Dogecoin. That's the most you can afford."],
       ],
       PHYSIQUE: [["I got abs on my abs and a cold plunge on the yacht.", "Your only cardio's running from the margin calls you got."]],

@@ -144,10 +144,19 @@ async function playBattle(page, { plan = [], shots = {}, label }) {
       continue;
     }
 
+    if (s.phase === 'bars') {
+      await sleep(250); // let the bubble pop in
+      await snap(s.bubble === '$COTT' ? 'scottBubble' : 'enemyBubble');
+    }
     if (s.phase === 'timing') await snap('timing');
     if (s.phase === 'dialog') await snap('dialog');
     if (s.phase === 'dialog' && s.enemy.statuses.includes('shortSqueezed')) await snap('squeezed');
-    // Dialog, timing bar, or animation: tap an empty spot.
+    // Nothing to tap during an animation.
+    if (s.phase === 'anim') {
+      await sleep(STEP_MS);
+      continue;
+    }
+    // Dialog, bubble, or timing bar: tap an empty spot.
     await tapGame(page, 360, 560);
     actions += 1;
     await sleep(STEP_MS);
@@ -211,6 +220,8 @@ async function main() {
           targetMenu: '05-target-menu.png',
           bagMenu: '05b-bag-menu.png',
           timing: '06-timing.png',
+          scottBubble: '06b-scott-bars.png',
+          enemyBubble: '06c-enemy-bars.png',
           squeezed: '07-short-squeezed.png',
           over: '08-victory.png',
         },

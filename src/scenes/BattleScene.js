@@ -31,6 +31,7 @@ import { TimingBar } from '../ui/timingBar.js';
 import { EnemyHud, ScottHud, CrowdMeter } from '../ui/hud.js';
 import { drawPanel } from '../ui/panel.js';
 import { showHowTo } from '../ui/howTo.js';
+import { spitBars } from '../ui/speechBubble.js';
 import { lunge, hitFx, reTint, wait } from '../ui/fx.js';
 import { label, body } from '../ui/text.js';
 
@@ -53,6 +54,7 @@ export default class BattleScene extends Phaser.Scene {
     this.result = null;
     this.round = 0;
     this.overlayOpen = false;
+    this.bubbleSpeaker = null;
 
     const def = ENEMIES[this.enemyId];
     this.def = def;
@@ -171,6 +173,22 @@ export default class BattleScene extends Phaser.Scene {
     return this.say(line.text, line.speaker ?? null);
   }
 
+  /** Bars go in a speech bubble over the speaker, not the bottom panel. */
+  async spit(couplet, who) {
+    const isScott = who === 'scott';
+    this.phase = 'bars';
+    this.bubbleSpeaker = isScott ? SCOTT.short : this.def.short;
+    await spitBars(this, this.bus, {
+      couplet,
+      speaker: this.bubbleSpeaker,
+      character: isScott ? this.scottChar : this.enemyChar,
+      side: isScott ? 'right' : 'left',
+      tagColor: isScott ? '#ffd166' : DISS_TYPES[this.def.type]?.color,
+      instant: DEBUG.fast,
+    });
+    this.bubbleSpeaker = null;
+  }
+
   // ---- Turn loop ----------------------------------------------------------
 
   async run() {
@@ -217,7 +235,7 @@ export default class BattleScene extends Phaser.Scene {
     this.dialog.show(`${def.short} fires back with ${move.name}!${move.target ? `\nTarget: ${move.target}` : ''}`);
     await wait(this, 850);
     await lunge(this, this.enemyChar, LAYOUT.enemyLunge);
-    await this.say(pickCouplet(move.bars, rng.fx), def.short);
+    await this.spit(pickCouplet(move.bars, rng.fx), 'enemy');
 
     const hit = resolveHit(scott, move.type, move.target);
     const dmg = rollDamage({
@@ -267,8 +285,9 @@ export default class BattleScene extends Phaser.Scene {
     const title = `$COTT SPITS ${move.name}!${target ? ` · ${target}` : ''}`;
     const rating = await this.timing.play({ speed: move.speed, title, perfect: DEBUG.perfect });
     this.phase = 'anim';
+    this.dialog.show(`$COTT spits ${move.name}!${target ? `\nTarget: ${target}` : ''}`);
     await lunge(this, this.scottChar, LAYOUT.scottLunge);
-    await this.say(scottBarsFor(def, move, target, rng.fx), SCOTT.short);
+    await this.spit(scottBarsFor(def, move, target, rng.fx), 'scott');
 
     const hit = isMic ? { ...HIT_KINDS.normal, softSpot: null } : resolveHit(enemy, move.type, target);
     const dmg = rollDamage({
@@ -310,7 +329,7 @@ export default class BattleScene extends Phaser.Scene {
     this.dialog.show(`$COTT MONEY spits ${move.name}!`);
     await wait(this, 400);
     await lunge(this, this.scottChar, LAYOUT.scottLunge);
-    await this.say(scottBarsFor(this.def, move, null, rng.fx), SCOTT.short);
+    await this.spit(scottBarsFor(this.def, move, null, rng.fx), 'scott');
     const status = this.scott.statuses.apply(move.applyStatus);
     Audio.sfx('buff');
     reTint(this.scottChar, this.scott);
@@ -501,6 +520,7 @@ export default class BattleScene extends Phaser.Scene {
       result: this.result,
       round: this.round,
       overlay: this.overlayOpen,
+      bubble: this.bubbleSpeaker,
       crowd: this.crowd.value,
       scott: { clout: this.scott.clout, flow: this.scott.flow, statuses: this.scott.statuses.list().map((s) => s.id) },
       enemy: { id: this.enemy.id, clout: this.enemy.clout, statuses: this.enemy.statuses.list().map((s) => s.id) },

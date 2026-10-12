@@ -27,6 +27,9 @@ the new art and layout. It has debug mode and a Playwright smoke test
      back under 100 before $cott's turn, so the finisher could never fire.
   2. STALL replaces RUN when $cott has no Flow for any diss, no items, and no
      mic. The prototype soft-locked there.
+- **Speech bubbles:** bars play in a bubble over the speaker instead of the
+  bottom panel. Words punch in on a beat and jitter, and rhymes land bold with
+  a thump (`src/ui/speechBubble.js`, rhyme parsing in `src/systems/bars.js`).
 - **Layout changes on purpose** (HANDOFF said to re-lay, not double): $cott
   lower-right and Derek upper-left, the HUD and menu at the `CLAUDE.md` §8.2
   positions, and dialog speaker names in a tab instead of inline.

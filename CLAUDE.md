@@ -263,6 +263,7 @@ From the art chat's portrait mockup:
 - **Crew** (`src/data/crew.js`): each Sin's eligible targets, summon effect, cooldown, feature lines by target, minigame id, and per-level modifiers.
 - **Regions** (`src/data/regions.js`): tier, villain, Sin recruit, background, and side quests.
 - **Bars are couplets:** two lines, delivered after the timing minigame. Every bar slot holds a **pool** of couplets, and one is picked at random, so adding variety means adding a couplet to the list.
+- **Bars play as speech bubbles** over whoever is spitting, with the words punching in and jittering. **Rhyme words** are bolded: by default the last word of each line. To choose them yourself (internal or multi-word rhymes), wrap them in `[brackets]`, as in `"and your portfolio's [peak] was a Tuesday last [week]."`. A line wrapped in `*asterisks*` is a stage direction, shown as an italic action.
 
 ## 10. Open questions
 
@@ -287,3 +288,4 @@ From the art chat's portrait mockup:
 - Side quests raise Sin levels (1 to 3).
 - The build moved to Claude Code and GitHub. Art and lore stay in claude.ai chats.
 - The repo is **public**, so the game is hosted on **GitHub Pages** from `main`.
+- Bars play in **speech bubbles** over the speaker (rhymes bolded, jittery delivery), not in the bottom text panel. The panel keeps narration and hit messages.
