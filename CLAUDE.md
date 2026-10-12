@@ -60,10 +60,10 @@ Keezus's gluttony is **financial**: FOMO, excessive borrowing, scheming, and ris
 - Soft spots: FLEX→WEALTH (crit), ROAST→INTELLECT (bypass), WORDPLAY→CAREER (nerve).
 - Status: becomes *Short Squeezed* at 40% Clout or below.
 
-**Planned archetypes:**
-- A thrift-shop rapper.
-- A rocket-obsessed billionaire. One idea is pairing him with Six Pac's (Pride) finale region.
-- The **everything-store overlord** who rules from the final tower.
+**Planned archetypes** (sprites already in `assets/sprites/enemies/`, named by file; no battle data yet):
+- A thrift-shop rapper (`vince.png`).
+- A rocket-obsessed billionaire (`max.png`). One idea is pairing him with Six Pac's (Pride) finale region.
+- The **everything-store overlord** who rules from the final tower (`fulfiller.png`, boss-sized at 395 px tall).
 
 **Still needed:** about **5 more regional villains**, for 7 regional villains total plus the final boss. Pairing each villain thematically with their region's Sin is encouraged. A villain's soft spots can reward that tier's Sin summons, but no summon should ever be required.
 
@@ -224,7 +224,7 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 ### 8.1 Character sprites
 Source art is generated in GPT and cleaned up in a claude.ai chat:
 1. Background and baked-in effects are removed. Effects come back as animated layers.
-2. Sprites are mirrored so everyone **faces left**, toward the enemies.
+2. Sprites are mirrored so the crew **faces left**, toward the enemies, and villains **face right**, toward $cott.
 3. They're snapped to a true pixel grid and quantized to a shared 128-color palette.
 4. A 3 px dark outline is baked in.
 

@@ -7,10 +7,13 @@
 // The seven Sin sprites (lilturnt, babarbara, susan, toking, keezus, louis,
 // sixpac) are already in assets/sprites/crew/. They get listed here when
 // summon cut-ins and parley portraits are built (HANDOFF.md Phase 3), so phones
-// don't download them before the game uses them.
+// don't download them before the game uses them. Likewise the villains with
+// art but no battle yet (vince, max, fulfiller in assets/sprites/enemies/).
+//
+// Facing: crew sprites face left; villain sprites face right, toward $cott.
 
 export const IMAGES = [
   { key: 'scott', path: 'assets/sprites/crew/scott.png', placeholder: 'scott' },
-  { key: 'derek', path: null, placeholder: 'derek' }, // procedural until Derek has art
+  { key: 'derek', path: 'assets/sprites/enemies/derek.png', placeholder: 'derek' },
   { key: 'bg_tokyo', path: 'assets/bg/bg_tokyo.webp', placeholder: 'bgCity' },
 ];

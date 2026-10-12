@@ -4,8 +4,8 @@
 // sprite pixel, with a 3 px outline, so they stand ~320 px tall.
 
 export const PIXEL_SPRITES = {
-  // Diamond Hands Derek: backwards cap, stubble, rocket hoodie, a glowing
-  // diamond clutched in both hands.
+  // Diamond Hands Derek fallback, used only if assets/sprites/enemies/derek.png
+  // is missing: backwards cap, stubble, rocket hoodie, a glowing diamond.
   derek: {
     palette: {
       C: '#c8313a', c: '#8e1f2a', // cap
