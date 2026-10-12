@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>$cott Money: Redemption Arc — Battle 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --surround:#cfc6e4; --ink:#1a1030;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --surround:#06030d; --ink:#e8e0ff; }
+}
+:root[data-theme="dark"]{ --surround:#06030d; --ink:#e8e0ff; }
+html{ height:100%; scroll-padding-top:env(safe-area-inset-top,0px); }
+body{
+  height:100%; margin:0; background:var(--surround); color:var(--ink);
+  overflow:hidden; touch-action:manipulation;
+  -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+  font-family:VT323, "Courier New", monospace;
+}
+#game{ width:100%; height:100%; }
+#game canvas{ display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
+#err{ display:none; padding:24px; font-size:22px; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="err">The game engine didn't load. Check your connection and reload the page.</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+<script>
+(function(){
+'use strict';
+if(!window.Phaser){ document.getElementById('err').style.display='block'; return; }
+
+const W=360, H=640;
+const FONT='VT323, "Courier New", monospace';
+const PIX='"Press Start 2P", "Courier New", monospace';
+const hex=c=>Phaser.Display.Color.HexStringToColor(c).color;
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+/* ---------------- GAME DATA (edit bars here) ---------------- */
+const TYPES={
+  FLEX:{label:'FLEX',color:'#ffd166',desc:'Wealth, status, and things you bought.',targets:['WEALTH','PHYSIQUE','STYLE','STATUS']},
+  ROAST:{label:'ROAST',color:'#ff5c8a',desc:'Personal attacks. Low blows welcome.',targets:['LOOKS','INTELLECT','LIFESTYLE','FAMILY']},
+  WORDPLAY:{label:'WORDPLAY',color:'#4cc9f0',desc:'Punchlines, puns, and technical bars.',targets:['NAME','CAREER','REP']},
+  HYPE:{label:'HYPE',color:'#b388ff',desc:'Mind games, buffs, and market manipulation.',targets:[]}
+};
+const TARGETS={
+  WEALTH:'Money and assets',PHYSIQUE:'Gains, or lack of',STYLE:'The fit',STATUS:'Clout and connects',
+  LOOKS:'Face, hair, vibes',INTELLECT:'Brains, bad takes',LIFESTYLE:'How they live',FAMILY:'Mom jokes',
+  NAME:'Puns on the name',CAREER:'The job (or none)',REP:'Street cred'
+};
+// Soft-spot math: resisted type -> resistance ignored (1x); neutral type -> NERVE; weak type -> 2x * CRIT
+const CRIT=1.5, NERVE=1.5;
+const RATINGS=[
+  {max:0.08,label:'PERFECT!',mult:1.5,crowd:25,color:'#ffd166',sfx:'good'},
+  {max:0.20,label:'FIRE!',mult:1.25,crowd:18,color:'#ff8c42',sfx:'good'},
+  {max:0.36,label:'MID',mult:1.0,crowd:10,color:'#cfc3ef',sfx:'ok'},
+  {max:99,label:'WACK...',mult:0.6,crowd:-5,color:'#8a80a8',sfx:'bad'}
+];
+
+const SCOTT={name:'$COTT MONEY',maxClout:100,maxFlow:60,weak:['ROAST'],resist:['FLEX'],
+  soft:{ROAST:['LOOKS'],FLEX:['STYLE']},
+  softMsg:{LOOKS:"Nobody is allowed to talk about the hairline.",STYLE:"The vest was supposed to be his whole personality."}};
+const SCOTT_MOVES=[
+  {id:'lambo',name:'LAMBO LULLABY',type:'FLEX',cost:8,power:20,speed:1.0},
+  {id:'seriesA',name:'SERIES A SLAUGHTER',type:'WORDPLAY',cost:12,power:23,speed:1.25},
+  {id:'captable',name:'CAP TABLE CLAPBACK',type:'ROAST',cost:10,power:22,speed:1.1},
+  {id:'moon',name:'MOONING',type:'HYPE',cost:15,power:0,buff:true,bars:[
+    ["*puts on a second pair of sunglasses*","\"I don't need the crowd. The crowd needs a narrative.\""],
+    ["*announces a token that does not exist*","\"Number go up. That's the whole whitepaper.\""]]}
+];
+const MIC_DROP={id:'mic',name:'DROP THE MIC',type:null,power:45,speed:1.4};
+
+const ENEMY={name:'DIAMOND HANDS DEREK',short:'DEREK',type:'HYPE',maxClout:150,
+  weak:['FLEX'],resist:['ROAST'],
+  soft:{FLEX:['WEALTH'],ROAST:['INTELLECT'],WORDPLAY:['CAREER']},
+  resistMsg:{ROAST:"Derek has no shame left to lose.\nNot very effective."},
+  softMsg:{WEALTH:"He's broke, and now the whole crowd knows it.",
+    INTELLECT:"He can lose money. He cannot lose an argument about money.",
+    CAREER:"\"Day trader\" is not a job, and deep down he knows it."},
+  // $cott's bars against this rival, by diss type and target
+  scottBars:{
+    FLEX:{
+      WEALTH:[["My watch costs more than your portfolio's peak,","and your portfolio's peak was a Tuesday last week."],
+              ["I tip my valet in equity, my barista's on the board.","You tip in Dogecoin. That's the most you can afford."]],
+      PHYSIQUE:[["I got abs on my abs and a cold plunge on the yacht.","Your only cardio's running from the margin calls you got."]],
+      STYLE:[["My vest costs more than your four-monitor setup.","You wear a hoodie with a rocket on it. Grow up."]],
+      STATUS:[["I keynote in Davos, got a TED Talk in the can.","You're famous on a forum where your username's banned."]]},
+    ROAST:{
+      LOOKS:[["You look like an energy drink that learned how to type.","Your skin's been in a downtrend since you first bought the hype."]],
+      INTELLECT:[["Your due diligence is a meme and a gut feeling.","You read candlestick charts like tea leaves on the ceiling."],
+                 ["You think a P/E ratio is something from gym class.","Your whole investing thesis is 'trust me, it'll pass.'"]],
+      LIFESTYLE:[["Gaming chair, energy drink, four monitors, no job.","You're not a trader, Derek. You're a Discord mod."]],
+      FAMILY:[["You call it diamond hands. I call it a cry for help.","Your wife's boyfriend runs your 401(k) himself."]]},
+    WORDPLAY:{
+      NAME:[["Diamond Hands Derek? More like Paper Wallet Pete.","Your name's got more letters than your wins this week."]],
+      CAREER:[["I close a Series A while you close a position.","I raise capital. You raise suspicion."],
+              ["You call yourself a day trader. That's not a career.","That's a gambling problem with a Wi-Fi bill and a chair."]],
+      REP:[["You buy high, sell low, and call it a strategy.","I call it charity, and Derek, you're the charity."]]}
+  },
+  micBars:[["This is the part where the founder gets the final say:","you're a ticker symbol, Derek, and I just delisted you today."]],
+  moves:[
+    {id:'loss',name:'LOSS PORN',type:'ROAST',target:'LIFESTYLE',power:13,weight:30,bars:[
+      ["You're down bad, Money, and I know down bad.","I'm the CEO of down bad. Inherited it from my dad."]]},
+    {id:'hair',name:'HAIRLINE SHORT',type:'ROAST',target:'LOOKS',power:10,weight:15,bars:[
+      ["Your hairline's in a bear market, it's been retreating all year.","I'd short it, Money, but it's already outta here."]]},
+    {id:'dd',name:'DUE DILIGENCE',type:'WORDPLAY',target:'CAREER',power:14,weight:20,bars:[
+      ["They found your laptop, Money. They found your little scheme.","You're the only founder whose cap table is a crime scene."]]},
+    {id:'apes',name:'APES TOGETHER STRONG',type:'WORDPLAY',target:'REP',power:14,weight:20,bars:[
+      ["Apes together strong, but you? You're alone.","Your whole crew left the group chat. Even Greed blocked your phone."],
+      ["I got ten million apes. You got ten million in debt.","I hold the line. You hold a press conference of regret."]]},
+    {id:'drip',name:'DRIP CHECK',type:'FLEX',target:'STYLE',power:14,weight:15,bars:[
+      ["Patagonia vest on a button-down? Groundbreaking.","You dress like a LinkedIn post about networking."]]},
+    {id:'tendie',name:'TENDIE TOWER',type:'FLEX',target:'WEALTH',power:16,weight:10,bars:[
+      ["Stimmy check stacked, YOLO'd every cent on calls!","I'm flexin' on you, Money. Wait, why's it not working at all?"]]},
+    {id:'pump',name:'PUMP & DUMP',type:'HYPE',target:null,power:7,inflict:'rug',bars:[
+      ["I'll pump you to the moon, then I dump you on your head.","Not financial advice, but your Flow is lookin' red."]]}
+  ]
+};
+const SCOTT_RESIST_MSG={FLEX:"You can't out-flex $cott Money.\nNot very effective."};
+
+/* ---------------- PIXEL SPRITES ---------------- */
+const SCOTT_SPR=[
+".......HHHHHH.......",
+"......HHHHHHHH......",
+".....HHHHHHHHHH.....",
+".....HHSSSSSSHH.....",
+".....HSSSSSSSSH.....",
+".....SGGGGGGGGS.....",
+".....SGWGGGWGGS.....",
+".....SSSSSSSSSS.....",
+".....sSSSSSKKSs.....",
+"......sSSSSSSs......",
+".......sSSSSs.......",
+"........SSSS........",
+"....VVVVBWWBVVVV....",
+"...BVVVVBYYBVVVVB...",
+"..BBVvVVBBBBVVvVBB..",
+"..BBVvVVBBBBVVvVBB..",
+"..BBVVVVBBBBVVVVBB..",
+"..BBVVVVBBBBVVVVBB..",
+"..SSVVVVBBBBVVVVSS..",
+"..SYVVVVBBBBVVVVSS..",
+"....KKKKKYYKKKKK....",
+"....PPPPPPPPPPPP....",
+"....PPPPPppPPPPP....",
+"....PPPPP..PPPPP....",
+"....PPPPP..PPPPP....",
+"....pPPPP..PPPPp....",
+"...OOOOOO..OOOOOO..."];
+const SCOTT_PAL={H:'#3b2a1a',S:'#f1c27d',s:'#d39a5e',G:'#14141c',W:'#ffffff',K:'#2a1a12',B:'#9ad0ec',
+  V:'#1d3557',v:'#2f5a8a',Y:'#ffd700',P:'#c8b48a',p:'#a8946c',O:'#5c3a21'};
+
+const DEREK_SPR=[
+".x................x.",
+"xXx..............xXx",
+".X................X.",
+".S......CCCC......S.",
+".S.....CCCCCC.....S.",
+".D....cCCCCCCc....D.",
+".D....HSSSSSSH....D.",
+".D....SKWSSKWS....D.",
+".D....SSSSSSSS....D.",
+".D....sSWWWWSs....D.",
+".D.....ssSSss.....D.",
+".DD....DDDDDD....DD.",
+"..DDDDDDDDDDDDDDDD..",
+"...DDDDDDDDDDDDDD...",
+"...DDDDDDWWDDDDDD...",
+"...DDDDDWWWWDDDDD...",
+"...DDDDDWWWWDDDDD...",
+"...dDDDDCWWCDDDDd...",
+"...dDDDDDCCDDDDDd...",
+"...dddddddddddddd...",
+"....JJJJJJJJJJJJ....",
+"....JJJJJJJJJJJJ....",
+"....JJJJJjjJJJJJ....",
+"....JJJJJ..JJJJJ....",
+"....JJJJJ..JJJJJ....",
+"....jJJJJ..JJJJj....",
+"...NNNNNN..NNNNNN...",
+"...WWWWWW..WWWWWW..."];
+const DEREK_PAL={x:'#c9f4ff',X:'#48cae4',S:'#f2c6a0',s:'#d4a27a',C:'#e63946',c:'#a4161a',H:'#6b4423',
+  K:'#1a1020',W:'#ffffff',D:'#2a9d8f',d:'#1f6f66',J:'#3a5a8c',j:'#2c4870',N:'#ced4da'};
+
+function makeSprite(scene,key,rows,pal){
+  if(scene.textures.exists(key)) return;
+  const h=rows.length, w=rows[0].length;
+  const c=document.createElement('canvas'); c.width=w+2; c.height=h+2;
+  const ctx=c.getContext('2d');
+  const solid=(x,y)=>y>=0&&y<h&&x>=0&&x<w&&rows[y][x]!=='.';
+  for(let y=-1;y<=h;y++) for(let x=-1;x<=w;x++){
+    if(solid(x,y)){ ctx.fillStyle=pal[rows[y][x]]||'#ff00ff'; ctx.fillRect(x+1,y+1,1,1); }
+    else if(solid(x-1,y)||solid(x+1,y)||solid(x,y-1)||solid(x,y+1)){ ctx.fillStyle='#0c0718'; ctx.fillRect(x+1,y+1,1,1); }
+  }
+  scene.textures.addCanvas(key,c);
+}
+function makeTextures(scene){
+  makeSprite(scene,'scott',SCOTT_SPR,SCOTT_PAL);
+  makeSprite(scene,'derek',DEREK_SPR,DEREK_PAL);
+}
+
+/* ---------------- AUDIO (procedural boom-bap) ---------------- */
+const Audio={
+  ctx:null, muted:false, bpm:92,
+  get beatMs(){ return 60000/this.bpm; },
+  init(){
+    if(this.ctx){ if(this.ctx.state==='suspended') this.ctx.resume(); return; }
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    try{ this.ctx=new AC(); }catch(e){ return; }
+    this.master=this.ctx.createGain(); this.master.gain.value=this.muted?0:0.45; this.master.connect(this.ctx.destination);
+    const len=Math.floor(this.ctx.sampleRate*0.5), b=this.ctx.createBuffer(1,len,this.ctx.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    this.noiseBuf=b; this.step=0; this.next=this.ctx.currentTime+0.1;
+    this.timer=setInterval(()=>this.pump(),30);
+  },
+  pump(){
+    const spb=60/this.bpm/2;
+    while(this.next<this.ctx.currentTime+0.12){ this.sched(this.step,this.next); this.next+=spb; this.step=(this.step+1)%16; }
+  },
+  sched(s,t){
+    const p=s%8;
+    if(p===0||p===3||(p===5&&s>=8)) this.kick(t);
+    if(p===2||p===6) this.snare(t);
+    this.hat(t,p%2?0.04:0.08);
+    const bass=[33,0,0,33,0,36,0,31,29,0,0,29,0,31,0,28];
+    if(bass[s]) this.tone(t,this.mtof(bass[s]),0.28,'triangle',0.32);
+    if(s===0) [57,60,64].forEach(n=>this.tone(t,this.mtof(n),0.9,'triangle',0.035));
+    if(s===8) [53,57,60,64].forEach(n=>this.tone(t,this.mtof(n),0.9,'triangle',0.035));
+  },
+  mtof(m){ return 440*Math.pow(2,(m-69)/12); },
+  tone(t,f,dur,type,vol,to){
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(f,t); if(to) o.frequency.exponentialRampToValueAtTime(to,t+dur);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.02);
+  },
+  noise(t,dur,vol,ft,freq){
+    const s=this.ctx.createBufferSource(); s.buffer=this.noiseBuf;
+    const f=this.ctx.createBiquadFilter(); f.type=ft; f.frequency.value=freq;
+    const g=this.ctx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    s.connect(f); f.connect(g); g.connect(this.master); s.start(t); s.stop(t+dur+0.02);
+  },
+  kick(t){ this.tone(t,140,0.22,'sine',0.9,42); },
+  snare(t){ this.noise(t,0.16,0.45,'bandpass',1900); this.tone(t,190,0.08,'triangle',0.2,120); },
+  hat(t,v){ this.noise(t,0.035,v,'highpass',7500); },
+  sfx(n){
+    if(!this.ctx) return; const t=this.ctx.currentTime+0.005;
+    if(n==='blip') this.tone(t,880,0.05,'square',0.05);
+    else if(n==='hit'){ this.noise(t,0.12,0.5,'lowpass',1200); this.tone(t,220,0.15,'square',0.1,80); }
+    else if(n==='crit'){ this.noise(t,0.3,0.6,'lowpass',2200); this.tone(t,330,0.35,'sawtooth',0.12,55); }
+    else if(n==='good') [0,4,7,12].forEach((k,i)=>this.tone(t+i*0.05,659*Math.pow(2,k/12),0.12,'square',0.06));
+    else if(n==='ok') this.tone(t,523,0.1,'square',0.06);
+    else if(n==='bad') this.tone(t,196,0.3,'sawtooth',0.08,100);
+    else if(n==='heal') [0,5,9].forEach((k,i)=>this.tone(t+i*0.07,523*Math.pow(2,k/12),0.15,'triangle',0.1));
+    else if(n==='buff') this.tone(t,300,0.45,'square',0.06,1300);
+  },
+  toggle(){ this.muted=!this.muted; if(this.master) this.master.gain.value=this.muted?0:0.45; return this.muted; }
+};
+['pointerup','touchend','click'].forEach(ev=>window.addEventListener(ev,()=>Audio.init(),{passive:true}));
+
+/* ---------------- DRAW HELPERS ---------------- */
+function txt(scene,x,y,s,size,color,font,extra){
+  return scene.add.text(x,y,s,Object.assign({fontFamily:font||FONT,fontSize:size+'px',color:color||'#ffffff'},extra||{}));
+}
+function fit(t,max){ let s=parseInt(t.style.fontSize,10); while(t.width>max&&s>9){ s--; t.setFontSize(s); } return t; }
+function frame(g,x,y,w,h,col,th){ g.fillStyle(col,1); g.fillRect(x,y,w,th); g.fillRect(x,y+h-th,w,th); g.fillRect(x,y,th,h); g.fillRect(x+w-th,y,th,h); }
+function box(g,x,y,w,h){ g.fillStyle(0x0d0820,0.94); g.fillRect(x,y,w,h); frame(g,x,y,w,h,0xf2eaff,2); frame(g,x+4,y+4,w-8,h-8,0x4a3a7a,1); }
+function bar(g,x,y,w,h,r,col){
+  r=Phaser.Math.Clamp(r,0,1);
+  g.fillStyle(0x000000,1).fillRect(x-1,y-1,w+2,h+2);
+  g.fillStyle(0x2a2040,1).fillRect(x,y,w,h);
+  const fw=Math.round(w*r);
+  g.fillStyle(col,1).fillRect(x,y,fw,h);
+  g.fillStyle(0xffffff,0.28).fillRect(x,y,fw,2);
+}
+const hpCol=r=>r>0.5?0x3ddc84:(r>0.25?0xffd166:0xff5c5c);
+function drawSky(g,h){
+  const bands=[0x0e0824,0x140b30,0x1a0e3c,0x211247,0x291552,0x311a5c];
+  const bh=Math.ceil(h/bands.length);
+  bands.forEach((c,i)=>{ g.fillStyle(c,1); g.fillRect(0,i*bh,W,bh); });
+  g.fillStyle(0xffffff,0.8);
+  for(let i=0;i<45;i++) g.fillRect(Phaser.Math.Between(0,W),Phaser.Math.Between(0,Math.min(h-40,170)),1,1);
+}
+function drawChart(g){
+  g.lineStyle(3,0x2ee59d,0.35); g.beginPath(); g.moveTo(10,180);
+  [[60,150],[100,166],[150,110],[190,126],[240,58]].forEach(p=>g.lineTo(p[0],p[1])); g.strokePath();
+  g.lineStyle(3,0xff5c5c,0.42); g.beginPath(); g.moveTo(240,58);
+  [[268,140],[296,118],[350,196]].forEach(p=>g.lineTo(p[0],p[1])); g.strokePath();
+}
+function typeMult(type,def){ if(!type) return 1; if(def.weak.includes(type)) return 2; if(def.resist.includes(type)) return 0.5; return 1; }
+function hitCalc(type,target,def){
+  const base=typeMult(type,def);
+  const soft=!!(type&&target&&def.soft&&def.soft[type]&&def.soft[type].includes(target));
+  if(!soft) return {mult:base,kind:base>1?'weak':(base<1?'resist':'normal'),soft:false};
+  if(base>1) return {mult:base*CRIT,kind:'crit',soft:true};
+  if(base<1) return {mult:1,kind:'bypass',soft:true};
+  return {mult:NERVE,kind:'nerve',soft:true};
+}
+const SOFT_TOTAL=Object.values(ENEMY.soft).reduce((a,l)=>a+l.length,0);
+
+/* ---------------- TITLE ---------------- */
+class Title extends Phaser.Scene{
+  constructor(){ super('Title'); }
+  create(){
+    makeTextures(this);
+    const g=this.add.graphics(); drawSky(g,H); drawChart(g);
+    g.fillStyle(0x24183f,1).fillRect(0,420,W,220); g.fillStyle(0x6a52b0,1).fillRect(0,420,W,2);
+    const st={stroke:'#3a1d00',strokeThickness:8,shadow:{offsetX:0,offsetY:5,color:'#000',blur:0,fill:true,stroke:true}};
+    txt(this,W/2,92,'$COTT',38,'#ffd166',PIX,st).setOrigin(0.5);
+    txt(this,W/2,142,'MONEY',38,'#ffd166',PIX,st).setOrigin(0.5);
+    txt(this,W/2,186,'REDEMPTION ARC',12,'#ff5c8a',PIX).setOrigin(0.5);
+    const s=this.add.image(W/2,330,'scott').setScale(5);
+    this.tweens.add({targets:s,y:324,duration:700,yoyo:true,repeat:-1,ease:'Sine.inOut'});
+    txt(this,W/2,446,"Chapter 1: Framed",22,'#ffd166').setOrigin(0.5);
+    txt(this,W/2,474,"They framed him. His Clout is gone. His crew scattered. Now $cott Money takes it all back, one diss at a time.",20,'#e2d9ff',FONT,{align:'center',wordWrap:{width:300}}).setOrigin(0.5,0);
+    const tap=txt(this,W/2,592,'TAP TO START',12,'#ffffff',PIX).setOrigin(0.5);
+    this.tweens.add({targets:tap,alpha:0.2,duration:450,yoyo:true,repeat:-1});
+    this.input.once('pointerup',()=>{ Audio.init(); Audio.sfx('good'); this.scene.start('Battle'); });
+  }
+}
+
+/* ---------------- BATTLE ---------------- */
+class Battle extends Phaser.Scene{
+  constructor(){ super('Battle'); }
+
+  create(){
+    makeTextures(this);
+    this.tapResolver=null; this.overlayOpen=false; this.menu=null; this.flashTok=0;
+    this.st={
+      scott:{clout:SCOTT.maxClout,max:SCOTT.maxClout,flow:SCOTT.maxFlow,maxFlow:SCOTT.maxFlow,status:{moon:0,rug:0}},
+      enemy:{clout:ENEMY.maxClout,max:ENEMY.maxClout,squeezed:false,rev:{weak:false,resist:false,soft:[]}},
+      crowd:0, items:{brew:2,vm:1}, turn:0
+    };
+    this.disp={sc:SCOTT.maxClout,sf:SCOTT.maxFlow,ec:ENEMY.maxClout,cr:0};
+    this.buildStage(); this.buildFighters(); this.buildHUD(); this.buildPanel(); this.buildCorner();
+    this.input.removeAllListeners('pointerdown');
+    this.input.on('pointerdown',(p,over)=>{
+      if(this.overlayOpen) return;
+      if(over&&over.length) return;
+      if(this.tapResolver){ const r=this.tapResolver; this.tapResolver=null; r(); }
+    });
+    this.redrawHUD();
+    this.loop();
+  }
+
+  /* ----- scene building ----- */
+  buildStage(){
+    const g=this.add.graphics().setDepth(0);
+    drawSky(g,204); drawChart(g);
+    let x=0;
+    while(x<W){
+      const w=Phaser.Math.Between(14,30), h=Phaser.Math.Between(18,62);
+      g.fillStyle(0x0a0618,1); g.fillRect(x,204-h,w-2,h);
+      g.fillStyle(0xffd166,0.35);
+      for(let wy=204-h+4;wy<198;wy+=7) for(let wx=x+3;wx<x+w-5;wx+=6) if(Math.random()<0.3) g.fillRect(wx,wy,2,3);
+      x+=w;
+    }
+    g.fillStyle(0x24183f,1).fillRect(0,204,W,136);
+    g.fillStyle(0x2c1f4d,1); for(let y=216;y<340;y+=14) g.fillRect(0,y,W,2);
+    g.fillStyle(0x6a52b0,1).fillRect(0,204,W,2);
+    g.fillStyle(0xffffff,0.05); g.fillTriangle(70,0,10,340,150,340); g.fillTriangle(290,0,210,340,350,340);
+
+    this.crowd=[];
+    for(let i=0;i<15;i++){
+      const cx=8+i*24+Phaser.Math.Between(-3,3), cy=218+Phaser.Math.Between(-2,2);
+      const c=this.add.container(cx,cy).setDepth(1);
+      const p=this.add.graphics(); c.add(p); c.inner=p;
+      p.fillStyle(pick([0x0f0820,0x140a2a,0x1a0f33]),1);
+      p.fillRect(-5,-20,10,9); p.fillRect(-8,-11,16,11);
+      if(Math.random()<0.35){ p.fillRect(3,-28,3,9); p.fillStyle(0xfff6c0,0.9); p.fillRect(2,-33,5,5); }
+      this.crowd.push(c);
+      this.tweens.add({targets:c,y:cy-2,duration:Phaser.Math.Between(300,500),yoyo:true,repeat:-1,ease:'Sine.inOut',delay:Phaser.Math.Between(0,400)});
+    }
+    const pg=this.add.graphics().setDepth(2);
+    pg.fillStyle(0x150d29,1); pg.fillEllipse(272,213,120,20); pg.fillEllipse(80,314,124,20);
+    txt(this,12,328,'THE SUBREDDIT SWAMPS',8,'#8f7fc0',PIX).setDepth(2);
+  }
+
+  buildFighters(){
+    this.enemySpr=this.add.image(430,150,'derek').setScale(4).setDepth(3);
+    this.scottSpr=this.add.image(-70,252,'scott').setScale(4).setDepth(3);
+    this.tweens.add({targets:this.enemySpr,x:272,duration:650,ease:'Quad.out',onComplete:()=>{
+      this.enemyBob=this.tweens.add({targets:this.enemySpr,y:146,duration:520,yoyo:true,repeat:-1,ease:'Sine.inOut'});
+    }});
+    this.tweens.add({targets:this.scottSpr,x:80,duration:650,ease:'Quad.out',onComplete:()=>{
+      this.scottBob=this.tweens.add({targets:this.scottSpr,y:249,duration:600,yoyo:true,repeat:-1,ease:'Sine.inOut'});
+    }});
+  }
+
+  buildHUD(){
+    this.hudG=this.add.graphics().setDepth(5);
+    fit(txt(this,20,14,ENEMY.name,22,'#ffffff').setDepth(6),190);
+    txt(this,20,36,TYPES[ENEMY.type].label+' TYPE',16,TYPES[ENEMY.type].color).setDepth(6);
+    this.eInfo=txt(this,20,54,'',16,'#b9acdf').setDepth(6);
+    this.eSoft=txt(this,20,71,'',16,'#ffd166').setDepth(6);
+    txt(this,20,96,'CLOUT',8,'#ffffff',PIX).setDepth(6);
+    this.eNum=txt(this,176,89,'',16,'#ffffff').setDepth(6);
+
+    txt(this,174,229,SCOTT.name,22,'#ffd166').setDepth(6);
+    this.sStatus=txt(this,174,248,'',16,'#ff9de0').setDepth(6);
+    txt(this,174,272,'CLOUT',8,'#ffffff',PIX).setDepth(6);
+    txt(this,174,292,'FLOW',8,'#ffffff',PIX).setDepth(6);
+    this.sNum=txt(this,306,265,'',16,'#ffffff').setDepth(6);
+    this.fNum=txt(this,306,285,'',16,'#ffffff').setDepth(6);
+
+    txt(this,12,350,'CROWD',8,'#ffffff',PIX).setDepth(6);
+    this.micLbl=txt(this,207,354,'MIC DROP READY!',8,'#1a1030',PIX).setOrigin(0.5).setDepth(7).setVisible(false);
+    this.tweens.add({targets:this.micLbl,alpha:0.25,duration:300,yoyo:true,repeat:-1});
+  }
+
+  redrawHUD(){
+    const g=this.hudG, s=this.st, d=this.disp; g.clear();
+    box(g,10,10,210,112);
+    bar(g,62,96,108,8,d.ec/s.enemy.max,hpCol(d.ec/s.enemy.max));
+    this.eNum.setText(String(Math.round(d.ec)));
+    this.eInfo.setFontSize(16);
+    this.eInfo.setText(`WEAK: ${s.enemy.rev.weak?ENEMY.weak.join('/'):'???'}  RESISTS: ${s.enemy.rev.resist?ENEMY.resist.join('/'):'???'}`);
+    fit(this.eInfo,194);
+    const sf=s.enemy.rev.soft;
+    this.eSoft.setFontSize(16);
+    this.eSoft.setText(`SOFT SPOTS: ${sf.length?sf.join(', '):'???'}  (${sf.length}/${SOFT_TOTAL})`);
+    fit(this.eSoft,194);
+
+    box(g,164,224,188,90);
+    bar(g,220,272,80,8,d.sc/s.scott.max,hpCol(d.sc/s.scott.max));
+    bar(g,220,292,80,8,d.sf/s.scott.maxFlow,0x4cc9f0);
+    this.sNum.setText(String(Math.round(d.sc)));
+    this.fNum.setText(String(Math.round(d.sf)));
+    const st=[]; if(s.scott.status.moon) st.push(`MOONING ${s.scott.status.moon}`); if(s.scott.status.rug) st.push(`RUG PULLED ${s.scott.status.rug}`);
+    this.sStatus.setText(st.join('  '));
+
+    const full=s.crowd>=100;
+    bar(g,66,346,282,14,d.cr/100,full?0xffd166:0xff5c8a);
+    this.micLbl.setVisible(full);
+  }
+
+  tweenHUD(){
+    const s=this.st;
+    this.tweens.killTweensOf(this.disp);
+    this.tweens.add({targets:this.disp,sc:s.scott.clout,sf:s.scott.flow,ec:s.enemy.clout,cr:s.crowd,duration:450,ease:'Quad.out',
+      onUpdate:()=>this.redrawHUD(),onComplete:()=>this.redrawHUD()});
+  }
+
+  buildPanel(){
+    const g=this.add.graphics().setDepth(10); box(g,8,372,344,258);
+    this.dlg=txt(this,22,382,'',22,'#f2eaff',FONT,{wordWrap:{width:316},lineSpacing:2}).setDepth(11);
+    this.arrow=this.add.triangle(334,610,0,0,12,0,6,8,0xffd166).setDepth(11).setVisible(false);
+    this.tweens.add({targets:this.arrow,y:614,duration:300,yoyo:true,repeat:-1});
+  }
+
+  buildCorner(){
+    this.button(282,12,30,26,[{t:'?',size:12,font:PIX,color:'#ffd166'}],{center:true,padY:7,depth:8,onClick:()=>this.showInfo()});
+    const snd=this.button(318,12,34,26,[{t:Audio.muted?'OFF':'SND',size:7,font:PIX,color:'#ffffff'}],{center:true,padY:10,depth:8,onClick:()=>{
+      const m=Audio.toggle(); snd.texts[0].setText(m?'OFF':'SND');
+    }});
+  }
+
+  /* ----- UI primitives ----- */
+  button(x,y,w,h,lines,o={}){
+    const c=this.add.container(0,0).setDepth(o.depth||20);
+    const g=this.add.graphics(); c.add(g);
+    const accent=o.accent!=null?o.accent:0xf2eaff;
+    const paint=down=>{
+      g.clear();
+      const base=o.fill!=null?o.fill:0x241a46;
+      g.fillStyle(o.disabled?0x17112b:(down?0x40307a:base),1); g.fillRect(x,y,w,h);
+      frame(g,x,y,w,h,o.disabled?0x4a3a7a:accent,2);
+    };
+    paint(false);
+    let ty=y+(o.padY!=null?o.padY:8);
+    c.texts=[];
+    lines.forEach(l=>{
+      const t=txt(this,o.center?x+w/2:x+10,ty,l.t,l.size||20,l.color||'#ffffff',l.font||FONT);
+      if(o.center) t.setOrigin(0.5,0);
+      fit(t,w-16); if(o.disabled) t.setAlpha(0.45);
+      c.add(t); c.texts.push(t); ty+=t.height+(l.gap!=null?l.gap:2);
+    });
+    const z=this.add.zone(x,y,w,h).setOrigin(0).setInteractive({useHandCursor:true}); c.add(z);
+    z.on('pointerdown',()=>paint(true));
+    z.on('pointerout',()=>paint(false));
+    z.on('pointerup',()=>{ paint(false); Audio.sfx('blip'); if(o.onClick) this.time.delayedCall(1,o.onClick); });
+    return c;
+  }
+
+  wait(ms){ return new Promise(r=>this.time.delayedCall(ms,r)); }
+
+  say(text,waitForTap=true){
+    return new Promise(res=>{
+      this.arrow.setVisible(false);
+      this.dlg.setText('');
+      let i=0;
+      const finish=()=>{
+        this.dlg.setText(text);
+        if(!waitForTap){ res(); return; }
+        this.arrow.setVisible(true);
+        this.tapResolver=()=>{ this.arrow.setVisible(false); res(); };
+      };
+      const ev=this.time.addEvent({delay:16,loop:true,callback:()=>{
+        i+=1; this.dlg.setText(text.slice(0,i));
+        if(i>=text.length){ ev.remove(); finish(); }
+      }});
+      this.tapResolver=()=>{ ev.remove(); finish(); };
+    });
+  }
+
+  flash(msg){
+    const tok=++this.flashTok, prev=this.dlg.text;
+    this.dlg.setText(msg);
+    this.time.delayedCall(1500,()=>{ if(tok===this.flashTok&&this.menu) this.dlg.setText(prev); });
+  }
+
+  lunge(spr,dir){
+    return new Promise(res=>{
+      const x=spr.x;
+      this.tweens.add({targets:spr,x:x+dir*18,duration:90,yoyo:true,ease:'Quad.out',onComplete:()=>{ spr.x=x; res(); }});
+    });
+  }
+
+  reTint(spr){
+    if(spr===this.scottSpr){ if(this.st.scott.status.moon) spr.setTint(0xfff0a0); else spr.clearTint(); }
+    else { if(this.st.enemy.squeezed) spr.setTint(0xffa0a0); else spr.clearTint(); }
+  }
+
+  hitFx(spr,dmg,res){
+    const big=res.mult>1;
+    Audio.sfx(big?'crit':'hit');
+    let n=0;
+    this.time.addEvent({delay:70,repeat:5,callback:()=>{
+      n++; if(n%2) spr.setTintFill(0xffffff); else this.reTint(spr);
+      if(n>=6) this.reTint(spr);
+    }});
+    if(big) this.cameras.main.shake(res.kind==='crit'?320:220,res.kind==='crit'?0.02:0.012);
+    const col=big?'#ffd166':(res.mult<1?'#9a92b8':'#ffffff');
+    const label=(res.kind==='crit'?'CRIT ':'')+'-'+dmg;
+    const t=txt(this,spr.x,spr.y-72,label,big?18:14,col,PIX,{stroke:'#000000',strokeThickness:5}).setOrigin(0.5).setDepth(9);
+    this.tweens.add({targets:t,y:t.y-34,alpha:0,duration:1100,ease:'Quad.out',onComplete:()=>t.destroy()});
+  }
+
+  crowdJump(){
+    this.crowd.forEach((c,i)=>this.tweens.add({targets:c.inner,y:-8,duration:120,yoyo:true,delay:i*18,ease:'Quad.out'}));
+  }
+
+  /* ----- beat-timing minigame ----- */
+  timing(speed){
+    return new Promise(res=>{
+      const c=this.add.container(0,0).setDepth(25);
+      const g=this.add.graphics(); c.add(g);
+      const y=562, x0=40, x1=320, cx=180, half=140;
+      g.fillStyle(0x0a0618,1).fillRect(x0-8,y-20,(x1-x0)+16,40);
+      frame(g,x0-8,y-20,(x1-x0)+16,40,0xf2eaff,2);
+      const band=(r,col)=>{ g.fillStyle(col,1); g.fillRect(Math.round(cx-r*half),y-14,Math.round(r*half*2),28); };
+      band(0.36,0x3a2a6a); band(0.20,0xff8c42); band(0.08,0xffd166);
+      const prompt=txt(this,W/2,y-50,'TAP ON THE BEAT!',12,'#ffd166',PIX).setOrigin(0.5); c.add(prompt);
+      this.tweens.add({targets:prompt,alpha:0.3,duration:Audio.beatMs/2,yoyo:true,repeat:-1});
+      const fromLeft=Math.random()<0.5;
+      const marker=this.add.rectangle(fromLeft?x0:x1,y,6,36,0xffffff); c.add(marker);
+      const tw=this.tweens.add({targets:marker,x:fromLeft?x1:x0,duration:Math.round(820/speed),yoyo:true,repeat:-1,ease:'Linear'});
+      const start=this.time.now;
+      const handler=()=>{
+        if(this.time.now-start<150){ this.tapResolver=handler; return; }
+        tw.stop();
+        const d=Math.abs(marker.x-cx)/half;
+        const r=RATINGS.find(q=>d<=q.max);
+        Audio.sfx(r.sfx);
+        const lbl=txt(this,W/2,y+30,r.label,16,r.color,PIX,{stroke:'#000000',strokeThickness:4}).setOrigin(0.5,0); c.add(lbl);
+        this.tweens.add({targets:lbl,scale:{from:1.6,to:1},duration:200,ease:'Back.out'});
+        this.time.delayedCall(750,()=>{ this.tweens.killTweensOf(prompt); this.tweens.killTweensOf(lbl); c.destroy(); res(r); });
+      };
+      this.tapResolver=handler;
+    });
+  }
+
+  /* ----- menus ----- */
+  clearMenu(){ if(this.menu){ this.menu.destroy(); this.menu=null; } }
+
+  chooseAction(){
+    return new Promise(res=>{ this.pick=a=>{ this.clearMenu(); res(a); }; this.showMain(); });
+  }
+
+  showMain(){
+    this.clearMenu(); this.arrow.setVisible(false);
+    this.dlg.setText("What's the play, $cott?");
+    const s=this.st, m=this.add.container(0,0).setDepth(20); this.menu=m;
+    const ready=s.crowd>=100;
+    m.add(this.button(16,414,160,94,[{t:'DISS',size:16,font:PIX,color:'#ffd166',gap:12},{t:'Spit some bars',size:18,color:'#cfc3ef'}],
+      {accent:0xffd166,onClick:()=>this.showMoves()}));
+    m.add(this.button(184,414,160,94,[{t:'BAG',size:16,font:PIX,color:'#4cc9f0',gap:12},{t:`Brew x${s.items.brew}  Voicemail x${s.items.vm}`,size:18,color:'#cfc3ef'}],
+      {accent:0x4cc9f0,onClick:()=>this.showBag()}));
+    m.add(this.button(16,516,160,94,[{t:'MIC DROP',size:14,font:PIX,color:ready?'#1a1030':'#ff5c8a',gap:12},{t:ready?'Finisher ready':`Crowd at ${Math.round(s.crowd)}%`,size:18,color:ready?'#1a1030':'#cfc3ef'}],
+      {accent:0xff5c8a,fill:ready?0xffd166:null,disabled:!ready,onClick:()=>{ if(ready) this.pick({kind:'mic'}); else this.flash("The crowd isn't hyped enough yet. Land some clean bars."); }}));
+    m.add(this.button(184,516,160,94,[{t:'RUN',size:16,font:PIX,color:'#b9acdf',gap:12},{t:'Pivot. Strategically.',size:18,color:'#cfc3ef'}],
+      {onClick:()=>this.pick({kind:'run'})}));
+  }
+
+  showMoves(){
+    this.clearMenu(); const s=this.st;
+    this.dlg.setText(`Pick your bars.  Flow: ${s.scott.flow}/${s.scott.maxFlow}`);
+    const m=this.add.container(0,0).setDepth(20); this.menu=m;
+    SCOTT_MOVES.forEach((mv,i)=>{
+      const x=i%2?184:16, y=i<2?412:500, ok=s.scott.flow>=mv.cost, tc=TYPES[mv.type];
+      m.add(this.button(x,y,160,80,[
+        {t:mv.name,size:20,color:'#ffffff'},
+        {t:tc.label+(mv.buff?' (buff)':''),size:16,color:tc.color},
+        {t:`${mv.cost} Flow`,size:16,color:'#9d90c8'}],
+        {accent:hex(tc.color),disabled:!ok,onClick:()=>{
+          if(!ok) return this.flash('Not enough Flow. Grab a Cold Brew from the bag.');
+          if(mv.buff) this.pick({kind:'move',move:mv}); else this.showTargets(mv);
+        }}));
+    });
+    m.add(this.button(16,588,328,32,[{t:'BACK',size:10,font:PIX,color:'#ffffff'}],{center:true,padY:11,onClick:()=>this.showMain()}));
+  }
+
+  showTargets(mv){
+    this.clearMenu(); const s=this.st, tc=TYPES[mv.type];
+    this.dlg.setText(`Aim your ${tc.label.toLowerCase()} at...`);
+    const m=this.add.container(0,0).setDepth(20); this.menu=m;
+    tc.targets.forEach((t,i)=>{
+      const x=i%2?184:16, y=i<2?412:500, known=s.enemy.rev.soft.includes(t);
+      m.add(this.button(x,y,160,80,[
+        {t:t,size:20,color:known?'#ffd166':'#ffffff'},
+        {t:TARGETS[t],size:16,color:'#cfc3ef'},
+        {t:known?'Soft spot':' ',size:16,color:'#ffd166'}],
+        {accent:known?0xffd166:hex(tc.color),onClick:()=>this.pick({kind:'move',move:mv,target:t})}));
+    });
+    m.add(this.button(16,588,328,32,[{t:'BACK',size:10,font:PIX,color:'#ffffff'}],{center:true,padY:11,onClick:()=>this.showMoves()}));
+  }
+
+  showBag(){
+    this.clearMenu(); const s=this.st;
+    this.dlg.setText('The bag. Mostly receipts.');
+    const m=this.add.container(0,0).setDepth(20); this.menu=m;
+    m.add(this.button(16,412,328,80,[{t:`COLD BREW  x${s.items.brew}`,size:20,color:'#4cc9f0'},{t:'+30 Flow. Tastes like ambition.',size:18,color:'#cfc3ef'}],
+      {accent:0x4cc9f0,disabled:s.items.brew<1,onClick:()=>{ if(s.items.brew<1) return this.flash('Out of Cold Brew.'); this.pick({kind:'item',item:'brew'}); }}));
+    m.add(this.button(16,500,328,80,[{t:`HYPE MAN VOICEMAIL  x${s.items.vm}`,size:20,color:'#3ddc84'},{t:'+35 Clout. "Bro. You\'re HIM."',size:18,color:'#cfc3ef'}],
+      {accent:0x3ddc84,disabled:s.items.vm<1,onClick:()=>{ if(s.items.vm<1) return this.flash('No voicemails left. The hype man is busy.'); this.pick({kind:'item',item:'vm'}); }}));
+    m.add(this.button(16,588,328,32,[{t:'BACK',size:10,font:PIX,color:'#ffffff'}],{center:true,padY:11,onClick:()=>this.showMain()}));
+  }
+
+  showInfo(){
+    if(this.overlayOpen) return; this.overlayOpen=true;
+    const c=this.add.container(0,0).setDepth(50);
+    const bg=this.add.rectangle(0,0,W,H,0x07040f,0.96).setOrigin(0).setInteractive(); c.add(bg);
+    c.add(txt(this,W/2,30,'HOW TO DISS',14,'#ffd166',PIX).setOrigin(0.5));
+    const body=txt(this,22,52,
+      "Clout is your health. Flow pays for bars. Pick a diss type, then a target, then tap as the marker crosses the gold zone.\n\n"+
+      "Rivals are weak to some types (2x) and resist others (half). Each rival also has soft spots: targets that hurt more.\n"+
+      "- Resisted type + soft spot: resistance ignored\n"+
+      "- Neutral type + soft spot: 1.5x\n"+
+      "- Weak type + soft spot: CRITICAL, 3x\n\n"+
+      "Clean bars hype the crowd. Fill it to drop the mic.",
+      19,'#e2d9ff',FONT,{wordWrap:{width:316}});
+    c.add(body);
+    let y=body.y+body.height+14;
+    Object.values(TYPES).forEach(t=>{
+      c.add(txt(this,22,y,t.label,10,t.color,PIX));
+      c.add(txt(this,22,y+13,t.targets.length?t.targets.join(', '):'Self buffs, no target',17,'#cfc3ef'));
+      y+=40;
+    });
+    c.add(txt(this,W/2,Math.min(y+8,612),'Tap anywhere to close',18,'#9d90c8').setOrigin(0.5,0));
+    bg.on('pointerup',()=>{ c.destroy(); this.overlayOpen=false; });
+  }
+
+  /* ----- battle flow ----- */
+  async loop(){
+    await this.wait(750);
+    await this.say(`${ENEMY.name} blocks the path!`);
+    await this.say(`${ENEMY.short}:\n"Your stock's crashin', Money.\nI'm BUYING THE DIP."`);
+    await this.say("Every rival has weaknesses and soft spots.\nTap ? up top for the cheat sheet.");
+    while(true){
+      this.st.turn++;
+      await this.playerTurn();
+      if(this.st.enemy.clout<=0) return this.win();
+      await this.enemyTurn();
+      if(this.st.scott.clout<=0) return this.lose();
+      await this.endRound();
+    }
+  }
+
+  async playerTurn(){
+    const s=this.st, sc=s.scott;
+    if(sc.status.rug>0){
+      sc.flow=Math.max(0,sc.flow-8); sc.status.rug--; this.tweenHUD();
+      await this.say(`The rug is still pulled. $cott bleeds 8 Flow.${sc.status.rug===0?"\n...He finds a new rug. It's fine.":''}`);
+    } else if(s.turn>1){ sc.flow=Math.min(sc.maxFlow,sc.flow+5); this.tweenHUD(); }
+    while(true){
+      const a=await this.chooseAction();
+      if(a.kind==='run'){ await this.say("$cott Money doesn't run. He PIVOTS.\n...There's nowhere to pivot to."); continue; }
+      if(a.kind==='item') return this.useItem(a.item);
+      if(a.kind==='mic') return this.attack(MIC_DROP,true);
+      if(a.kind==='move') return this.attack(a.move,false,a.target);
+    }
+  }
+
+  async useItem(item){
+    const s=this.st, sc=s.scott;
+    Audio.sfx('heal');
+    if(item==='brew'){
+      s.items.brew--; sc.flow=Math.min(sc.maxFlow,sc.flow+30); this.tweenHUD();
+      await this.say("$cott slams a Cold Brew. Single origin. Ethically sourced. Probably.\n+30 Flow");
+    } else {
+      s.items.vm--; sc.clout=Math.min(sc.max,sc.clout+35); this.tweenHUD();
+      await this.say("$cott replays a voicemail from his hype man:\n\"Bro. You're HIM. You're literally HIM.\"\n+35 Clout");
+    }
+  }
+
+  async attack(move,isMic,target){
+    const s=this.st, sc=s.scott, e=s.enemy;
+    if(!isMic){ sc.flow-=move.cost; this.tweenHUD(); }
+    this.arrow.setVisible(false);
+    this.dlg.setText(`$COTT MONEY spits ${move.name}!${target?`\nTarget: ${target}`:''}`);
+
+    if(move.buff){
+      await this.wait(400);
+      await this.lunge(this.scottSpr,1);
+      const b=pick(move.bars);
+      await this.say(`$COTT:\n${b[0]}\n${b[1]}`);
+      sc.status.moon=3; Audio.sfx('buff'); this.reTint(this.scottSpr);
+      s.crowd=Math.min(100,s.crowd+8); this.tweenHUD();
+      await this.say("$cott is MOONING! His damage is way up, but he's wide open. (3 turns)");
+      return;
+    }
+
+    const r=await this.timing(move.speed||1);
+    await this.lunge(this.scottSpr,1);
+    const pool=isMic?ENEMY.micBars:((ENEMY.scottBars[move.type]||{})[target]||[["*mumbles something about synergy*","*it does not land*"]]);
+    const b=pick(pool);
+    await this.say(`$COTT:\n${b[0]}\n${b[1]}`);
+
+    const res=isMic?{mult:1,kind:'normal',soft:false}:hitCalc(move.type,target,ENEMY);
+    const dmg=Math.max(1,Math.round(move.power*r.mult*res.mult*(sc.status.moon?1.5:1)*Phaser.Math.FloatBetween(0.9,1.1)));
+    e.clout=Math.max(0,e.clout-dmg);
+    const bonus={crit:20,weak:10,bypass:12,nerve:12,resist:-5,normal:0}[res.kind];
+    if(isMic) s.crowd=0;
+    else s.crowd=Phaser.Math.Clamp(s.crowd+r.crowd+bonus,0,100);
+    this.hitFx(this.enemySpr,dmg,res); this.tweenHUD();
+    if(r.crowd>=18||res.mult>1||isMic) this.crowdJump();
+    if(res.soft&&!e.rev.soft.includes(target)) e.rev.soft.push(target);
+    const why=res.soft?(ENEMY.softMsg[target]||''):'';
+
+    if(res.kind==='crit'){ e.rev.weak=true; this.redrawHUD(); await this.say(`CRITICAL! Soft spot found: ${target}.\n${why}`); }
+    else if(res.kind==='bypass'){ e.rev.resist=true; this.redrawHUD(); await this.say(`Crack in the armor: ${target}!\nHis ${move.type} resistance doesn't matter here.\n${why}`); }
+    else if(res.kind==='nerve'){ this.redrawHUD(); await this.say(`Hit a nerve: ${target}!\n${why}`); }
+    else if(res.kind==='weak'){ e.rev.weak=true; this.redrawHUD(); await this.say(pick(["IT'S A BODY BAG!\nSuper effective.","OHHHH! The crowd felt that one.\nSuper effective."])); }
+    else if(res.kind==='resist'){ e.rev.resist=true; this.redrawHUD(); await this.say(ENEMY.resistMsg[move.type]||"Weak bars.\nNot very effective."); }
+    else await this.wait(550);
+
+    if(isMic&&e.clout>0) await this.say("The crowd loses it. $cott drops the mic.\nHe'll expense a new one.");
+
+    if(e.clout>0&&!e.squeezed&&e.clout<=e.max*0.4){
+      e.squeezed=true; this.reTint(this.enemySpr); this.cameras.main.flash(250,255,80,80);
+      await this.say("Derek is getting SHORT SQUEEZED!\nHe has never felt more alive. Derek's damage is UP!");
+    }
+  }
+
+  async enemyTurn(){
+    const s=this.st, sc=s.scott, e=s.enemy, moves=ENEMY.moves;
+    let mv;
+    if(!sc.status.rug&&sc.flow>=15&&Math.random()<0.3) mv=moves.find(m=>m.inflict==='rug');
+    else {
+      const pool=moves.filter(m=>m.weight), tot=pool.reduce((a,m)=>a+m.weight,0);
+      let r=Math.random()*tot; mv=pool.find(m=>(r-=m.weight)<0)||pool[0];
+    }
+    this.arrow.setVisible(false);
+    this.dlg.setText(`${ENEMY.short} fires back with ${mv.name}!${mv.target?`\nTarget: ${mv.target}`:''}`);
+    await this.wait(850);
+    await this.lunge(this.enemySpr,-1);
+    const b=pick(mv.bars);
+    await this.say(`${ENEMY.short}:\n${b[0]}\n${b[1]}`);
+
+    const res=hitCalc(mv.type,mv.target,SCOTT);
+    const dmg=Math.max(1,Math.round(mv.power*res.mult*(e.squeezed?1.3:1)*(sc.status.moon?1.25:1)*Phaser.Math.FloatBetween(0.85,1.15)));
+    sc.clout=Math.max(0,sc.clout-dmg); s.crowd=Math.max(0,s.crowd-(res.kind==='crit'?10:4));
+    this.hitFx(this.scottSpr,dmg,res); this.tweenHUD();
+    const why=res.soft?(SCOTT.softMsg[mv.target]||''):'';
+
+    if(res.kind==='crit') await this.say(`CRITICAL! ${ENEMY.short} went for the ${mv.target.toLowerCase()}.\n${why}`);
+    else if(res.kind==='bypass') await this.say(`${ENEMY.short} found a crack in the armor: ${mv.target}!\n$cott's ${mv.type} resistance doesn't matter here.\n${why}`);
+    else if(res.kind==='nerve') await this.say(`That hit a nerve.\n${why}`);
+    else if(res.kind==='weak') await this.say(pick(["Right in the ego.\nSuper effective.","That one's going in the group chat.\nSuper effective."]));
+    else if(res.kind==='resist') await this.say(SCOTT_RESIST_MSG[mv.type]||"$cott barely noticed.\nNot very effective.");
+    else await this.wait(500);
+
+    if(mv.inflict==='rug'&&!sc.status.rug&&sc.clout>0){
+      sc.status.rug=2; this.redrawHUD();
+      await this.say("$cott got RUG PULLED!\nHe'll bleed Flow for the next 2 turns.");
+    }
+  }
+
+  async endRound(){
+    const sc=this.st.scott;
+    if(sc.status.moon>0){
+      sc.status.moon--; this.redrawHUD();
+      if(sc.status.moon===0){ this.reTint(this.scottSpr); await this.say("$cott comes back down to Earth.\nMOONING wore off."); }
+    }
+  }
+
+  async win(){
+    if(this.enemyBob) this.enemyBob.stop();
+    Audio.sfx('crit'); this.crowdJump();
+    this.tweens.add({targets:this.enemySpr,alpha:0,y:'+=30',angle:-20,duration:800});
+    await this.say(`${ENEMY.name} got DELISTED!`);
+    await this.say(`${ENEMY.short}:\n"I... I still like the stock."\n*logs off to touch grass*`);
+    this.endScreen(true);
+  }
+
+  async lose(){
+    if(this.scottBob) this.scottBob.stop();
+    Audio.sfx('bad');
+    this.tweens.add({targets:this.scottSpr,angle:90,y:'+=24',alpha:0.5,duration:700});
+    await this.say("$COTT MONEY got RATIO'D.\nHis Clout is now worth less than a meme coin.");
+    this.endScreen(false);
+  }
+
+  endScreen(won){
+    this.clearMenu(); this.overlayOpen=true;
+    const c=this.add.container(0,0).setDepth(50);
+    c.add(this.add.rectangle(0,0,W,H,0x07040f,0.9).setOrigin(0).setInteractive());
+    c.add(txt(this,W/2,170,won?'DELISTED!':"RATIO'D",24,won?'#ffd166':'#ff5c8a',PIX,{stroke:'#000000',strokeThickness:6}).setOrigin(0.5));
+    const body=won
+      ? `+250 Clout\n+1 Derek's gaming chair (useless)\nSoft spots found: ${this.st.enemy.rev.soft.length}/${SOFT_TOTAL}\n\n$cott's first step back to the top.\nNext stop: the overworld map.\n(Coming soon.)`
+      : "$cott's Clout hit zero.\n\nDerek is weak to FLEX, and some targets hurt him way more than others. Experiment.";
+    c.add(txt(this,W/2,222,body,22,'#f2eaff',FONT,{align:'center',wordWrap:{width:316}}).setOrigin(0.5,0));
+    this.button(70,480,220,56,[{t:'RUN IT BACK',size:12,font:PIX,color:'#ffd166'}],
+      {center:true,padY:22,depth:60,accent:0xffd166,onClick:()=>this.scene.restart()});
+  }
+}
+
+/* ---------------- BOOT ---------------- */
+const boot=()=>new Phaser.Game({
+  type:Phaser.AUTO, parent:'game', width:W, height:H, backgroundColor:'#0b0716',
+  pixelArt:true, roundPixels:true, audio:{noAudio:true},
+  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},
+  scene:[Title,Battle]
+});
+let started=false; const go=()=>{ if(!started){ started=true; boot(); } };
+try{
+  Promise.all([document.fonts.load('22px VT323'),document.fonts.load('12px "Press Start 2P"')]).then(go,go);
+  setTimeout(go,2500);
+}catch(e){ go(); }
+})();
+</script>
+</body>
+</html>
