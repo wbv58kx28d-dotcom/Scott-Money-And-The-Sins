@@ -1,8 +1,9 @@
 // Bars as a comic speech bubble over the speaker (CLAUDE.md §9).
 //
-// Words punch in one at a time, roughly on the beat, and keep jittering while
-// the bubble is up. Rhyme words land bigger and bold, with a thump, a small
-// screen shake, and a jolt of the bubble. Same tap rules as the dialog box:
+// Words punch in one at a time, roughly on the beat. Each letter is its own
+// image (see glyphs.js) and jitters on its own: plain letters only twitch now
+// and then, rhyme letters shake constantly. Rhymes land bigger and bold, with
+// a thump, a small screen shake, and a jolt of the bubble. Same tap rules as the dialog box:
 // a tap while words are landing shows them all, the next tap closes the bubble.
 // Like the timing bar, it ignores taps for a moment after it opens.
 
@@ -11,6 +12,7 @@ import { parseCouplet } from '../systems/bars.js';
 import { Audio } from '../systems/audio.js';
 import { rng } from '../systems/rng.js';
 import { label } from './text.js';
+import { glyph, prewarmGlyphs } from './glyphs.js';
 
 const INK = 0x1a1030;
 const PAPER = 0xfbf7ff;
@@ -23,6 +25,14 @@ const WORD_MS = 95; // one word per beat-ish step
 const RHYME_WINDUP_MS = 70; // a tiny pause before a rhyme lands
 const LINE_PAUSE_MS = 200;
 const JITTER_MS = 45;
+// Letter jitter. Every tick, a letter shifts up to `amp` px (rounded) with
+// probability `chance`, otherwise it sits on its spot. Landing adds `land`
+// energy on top of amp, which fades by `decay` per tick.
+const JITTER = {
+  plain: { amp: 0.8, chance: 0.12, land: 1.2, maxAngle: 0 },
+  rhyme: { amp: 1.6, chance: 1, land: 5, maxAngle: 2.5 },
+  decay: 0.7,
+};
 const IGNORE_TAPS_MS = 200; // a tap meant for something else can't skip the bars
 const ROW_H = 42;
 const LINE_GAP = 10;
@@ -46,9 +56,11 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
     : { x: Math.round(body.x + sprite.displayWidth / 2 - 10), y: Math.round(headY + sprite.displayHeight * 0.22) };
   const maxW = side === 'right' ? cfg.maxW : Math.min(cfg.maxW, cfg.right - (tip.x + cfg.gap));
 
-  // Lay the words out in rows, relative to the bubble's top-left.
+  // Lay the words out in rows, relative to the bubble's top-left. Each word's
+  // node is centered on the word, so its pop-in scales from the middle.
   const words = [];
   const lines = parseCouplet(couplet);
+  const space = Math.round(STYLE.word.size * 0.3);
   let x = PAD_X;
   let y = PAD_Y + ROW_H / 2;
   let widest = 0;
@@ -58,22 +70,15 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
       y += ROW_H + LINE_GAP;
     }
     for (const w of line.words) {
-      const style = line.direction ? STYLE.direction : w.rhyme ? STYLE.rhyme : STYLE.word;
-      const t = scene.add.text(0, 0, w.text, {
-        fontFamily: FONTS.body,
-        fontSize: `${style.size}px`,
-        color: style.color,
-        fontStyle: style.fontStyle ?? '',
-        stroke: style.stroke ?? '#000000',
-        strokeThickness: style.strokeThickness ?? 0,
-      }).setOrigin(0, 0.5);
-      const space = Math.round(STYLE.word.size * 0.3);
-      if (x > PAD_X && x + t.width > maxW - PAD_X) {
+      const styleId = line.direction ? 'direction' : w.rhyme ? 'rhyme' : 'word';
+      const word = buildWord(scene, w.text, styleId);
+      if (x > PAD_X && x + word.width > maxW - PAD_X) {
         x = PAD_X;
         y += ROW_H;
       }
-      words.push({ t, bx: x, by: y, rhyme: w.rhyme, direction: line.direction, energy: 0, shown: false });
-      x += t.width + space;
+      Object.assign(word, { bx: Math.round(x + word.width / 2), by: y, rhyme: w.rhyme, direction: line.direction, energy: 0, shown: false });
+      words.push(word);
+      x += word.width + space;
       widest = Math.max(widest, x - space);
     }
   });
@@ -101,10 +106,8 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
   }).setOrigin(0, 1);
   layer.add(tag);
   for (const word of words) {
-    word.bx += ox;
-    word.by += oy;
-    word.t.setPosition(word.bx, word.by).setAlpha(0);
-    layer.add(word.t);
+    word.node.setPosition(word.bx + ox, word.by + oy).setAlpha(0);
+    layer.add(word.node);
   }
   const arrow = scene.add.triangle(ox + w - 22, oy + h - 16, 0, 0, 14, 0, 7, 9, INK).setVisible(false);
   layer.add(arrow);
@@ -113,28 +116,37 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
   layer.setScale(0.4).setAlpha(0);
   scene.tweens.add({ targets: layer, scale: 1, alpha: 1, duration: 140, ease: 'Back.easeOut' });
 
-  // Constant jitter, stronger right after a word lands.
+  // Letter jitter, stronger right after a word lands. Stage directions stay still.
   const jitter = scene.time.addEvent({
     delay: JITTER_MS,
     loop: true,
     callback: () => {
+      const fx = rng.fx;
       for (const word of words) {
-        if (!word.shown) continue;
-        const amp = Math.round((word.direction ? 0 : word.rhyme ? 2 : 1) + word.energy);
-        word.energy *= 0.78;
-        word.t.setPosition(word.bx + rng.fx.int(-amp, amp), word.by + rng.fx.int(-amp, amp));
-        if (word.rhyme) word.t.setAngle(rng.fx.range(-3, 3));
+        if (!word.shown || word.direction) continue;
+        const j = word.rhyme ? JITTER.rhyme : JITTER.plain;
+        const amp = j.amp + word.energy;
+        const excited = word.energy > 0.3;
+        word.energy = word.energy * JITTER.decay < 0.05 ? 0 : word.energy * JITTER.decay;
+        for (const l of word.letters) {
+          if (!excited && !fx.chance(j.chance)) {
+            l.img.setPosition(l.bx, 0).setAngle(0);
+            continue;
+          }
+          l.img.setPosition(l.bx + Math.round(fx.range(-amp, amp)), Math.round(fx.range(-amp, amp)));
+          if (j.maxAngle) l.img.setAngle(fx.range(-j.maxAngle, j.maxAngle));
+        }
       }
     },
   });
 
   const land = (word, quiet = false) => {
     word.shown = true;
-    word.t.setAlpha(1);
+    word.node.setAlpha(1);
     if (quiet) return;
-    word.energy = word.rhyme ? 7 : 2;
-    word.t.setScale(word.rhyme ? 1.9 : 1.35);
-    scene.tweens.add({ targets: word.t, scale: 1, duration: word.rhyme ? 160 : 90, ease: 'Back.easeOut' });
+    word.energy = (word.rhyme ? JITTER.rhyme : JITTER.plain).land;
+    word.node.setScale(word.rhyme ? 1.9 : 1.35);
+    scene.tweens.add({ targets: word.node, scale: 1, duration: word.rhyme ? 160 : 90, ease: 'Back.easeOut' });
     if (word.rhyme) {
       Audio.sfx('punch');
       scene.cameras.main.shake(80, 0.004);
@@ -191,6 +203,45 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
     bus.on('tap', onTap);
     if (instant) finishReveal();
   });
+}
+
+const textStyle = (st) => ({
+  fontFamily: FONTS.body,
+  fontSize: `${st.size}px`,
+  color: st.color,
+  fontStyle: st.fontStyle ?? '',
+  stroke: st.stroke ?? '#000000',
+  strokeThickness: st.strokeThickness ?? 0,
+});
+
+/**
+ * One word as a container centered on the word. Bars words are one Image per
+ * letter (so letters can jitter); stage directions are a single italic Text.
+ */
+function buildWord(scene, text, styleId) {
+  const node = scene.add.container(0, 0);
+  if (styleId === 'direction') {
+    const t = scene.add.text(0, 0, text, textStyle(STYLE.direction)).setOrigin(0.5);
+    node.add(t);
+    return { node, width: t.width, letters: [] };
+  }
+  const style = textStyle(STYLE[styleId]);
+  const glyphs = [...text].map((ch) => glyph(scene, styleId, style, ch));
+  const width = Math.round(glyphs.reduce((sum, g) => sum + g.advance, 0));
+  let x = -width / 2;
+  const letters = glyphs.map((g) => {
+    const bx = Math.round(x + g.advance / 2);
+    x += g.advance;
+    return { img: scene.add.image(bx, 0, g.key), bx };
+  });
+  node.add(letters.map((l) => l.img));
+  return { node, width, letters };
+}
+
+/** Render the bubble's letters ahead of time (call once fonts are loaded). */
+export function prewarmBubbleGlyphs(scene) {
+  prewarmGlyphs(scene, 'word', textStyle(STYLE.word));
+  prewarmGlyphs(scene, 'rhyme', textStyle(STYLE.rhyme));
 }
 
 /** White bubble with a dark outline, a hard shadow, and a tail to the tip at (0, 0). */

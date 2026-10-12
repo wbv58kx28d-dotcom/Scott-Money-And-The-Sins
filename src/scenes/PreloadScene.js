@@ -7,6 +7,7 @@ import { DEFAULT_ENEMY } from '../data/enemies/index.js';
 import { DEBUG } from '../systems/debug.js';
 import { makePlaceholder } from '../systems/placeholders.js';
 import { label } from '../ui/text.js';
+import { prewarmBubbleGlyphs } from '../ui/speechBubble.js';
 
 export default class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -34,6 +35,8 @@ export default class PreloadScene extends Phaser.Scene {
     for (const img of IMAGES) {
       if (!this.textures.exists(img.key)) makePlaceholder(this, img.key, img.placeholder);
     }
+    // Render the speech-bubble letters now, so the first bars don't stutter.
+    prewarmBubbleGlyphs(this);
     if (this.missing.length) {
       console.info(`[$cott] using placeholders for missing art: ${this.missing.join(', ')}`);
     }

@@ -28,8 +28,10 @@ the new art and layout. It has debug mode and a Playwright smoke test
   2. STALL replaces RUN when $cott has no Flow for any diss, no items, and no
      mic. The prototype soft-locked there.
 - **Speech bubbles:** bars play in a bubble over the speaker instead of the
-  bottom panel. Words punch in on a beat and jitter, and rhymes land bold with
-  a thump (`src/ui/speechBubble.js`, rhyme parsing in `src/systems/bars.js`).
+  bottom panel. Words punch in on a beat, letters jitter individually (tune
+  `JITTER` in `src/ui/speechBubble.js`), and rhymes land bold with a thump.
+  Rhyme parsing is in `src/systems/bars.js`; letters are cached glyph images
+  (`src/ui/glyphs.js`), rendered once during Preload.
 - **Layout changes on purpose** (HANDOFF said to re-lay, not double): $cott
   lower-right and Derek upper-left, the HUD and menu at the `CLAUDE.md` §8.2
   positions, and dialog speaker names in a tab instead of inline.
