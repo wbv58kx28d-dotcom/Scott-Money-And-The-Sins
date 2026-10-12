@@ -23,10 +23,10 @@ export const CROWD = {
   enemyCritHit: -10,
   mooning: 8, // Mooning hypes the crowd a little
   bigHitJump: 18, // the crowd silhouettes jump on a FIRE or better
-  // Once full, the meter stays at max until Drop the Mic is used. The legacy
-  // prototype didn't do this, and there the enemy's hit (which always lands
-  // before $cott's next turn) knocked it back under 100, so the finisher could
-  // never fire. Set to false for the prototype's behavior.
+  // Once full, the meter stays at max until Drop the Mic is used (approved
+  // fix, CLAUDE.md §5.5). In the legacy prototype the enemy's hit, which always
+  // lands before $cott's next turn, knocked it back under 100, so the finisher
+  // could never fire. Set to false for the prototype's behavior.
   lockWhenFull: true,
 };
 

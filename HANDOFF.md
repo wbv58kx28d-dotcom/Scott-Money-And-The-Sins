@@ -21,7 +21,7 @@ the new art and layout. It has debug mode and a Playwright smoke test
   evaluating the prototype's data block. Turn flow, timing-bar math, status
   timing, crowd math, menus, cheat sheet, mute button, crowd silhouettes,
   and end screens follow it too.
-- **Two deliberate differences, pending a yes or no (`CLAUDE.md` §10):**
+- **Two deliberate differences, both approved (`CLAUDE.md` §5.5, §5.8):**
   1. The crowd meter locks at 100 until Drop the Mic is used
      (`CROWD.lockWhenFull`). In the prototype, Derek's hit always knocks it
      back under 100 before $cott's turn, so the finisher could never fire.
@@ -40,10 +40,12 @@ the new art and layout. It has debug mode and a Playwright smoke test
   (the procedural one is only a fallback now), and `vince.png`, `max.png`, and
   `fulfiller.png` wait for their villain data files.
 
-**Phase 2:** the repo is public. Turn on GitHub Pages under Settings → Pages →
-*Deploy from a branch* → `main` / `(root)`. The site is then at
-`https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/`. A `.nojekyll`
-file is in place so Pages serves the files as-is.
+**Phase 2 is done.** The repo is public and GitHub Pages deploys `main` on
+every push to `https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/`
+(a `.nojekyll` file makes Pages serve the files as-is). Pages caches for about
+10 minutes, so give a push a few minutes before sharing the link.
+
+**Next: Phase 3**, starting with the save system and the first Sin summon.
 
 ## Where things stand
 

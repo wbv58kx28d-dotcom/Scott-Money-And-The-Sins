@@ -120,7 +120,7 @@ A marker sweeps across a bar, bouncing end to end from a random starting side, a
 - Mooning adds 8.
 - Each enemy hit lowers it by 4, or by 10 on a crit against $cott.
 - At 100, **Drop the Mic** unlocks. Using it resets the meter to 0, and the finisher earns no crowd itself.
-- **Locked at 100 (pending confirmation, §10):** once full, the meter stays at 100 until the mic is dropped. In the prototype, the enemy's hit always lands before $cott's next turn and knocks the meter back under 100, so the finisher could never fire.
+- **Locked at 100:** once full, the meter stays at 100 until the mic is dropped. This fixes a prototype bug: there, the enemy's hit always landed before $cott's next turn and knocked the meter back under 100, so the finisher could never fire.
 
 ### 5.6 Damage formula
 - $cott's damage = power × timing multiplier × hit multiplier × 1.5 if Mooning × a random factor from 0.9 to 1.1.
@@ -137,7 +137,7 @@ A marker sweeps across a bar, bouncing end to end from a random starting side, a
 - **Cold Brew** (2 per fight): restores 30 Flow.
 - **Hype Man Voicemail** (1 per fight): restores 35 Clout.
 - Using an item takes the turn. **Run** doesn't consume a turn ("$cott doesn't run. He pivots.").
-- **STALL (pending confirmation, §10):** if $cott can't afford any diss, has no items left, and the mic isn't ready, RUN becomes STALL, which skips his turn so Flow can regen. The prototype soft-locked here.
+- **STALL:** if $cott can't afford any diss, has no items left, and the mic isn't ready, RUN becomes STALL, which skips his turn so Flow can regen. This fixes a prototype soft-lock.
 
 ### 5.9 Derek's AI
 - If $cott isn't Rug Pulled and has at least 15 Flow, there's a 30% chance Derek uses **Pump & Dump**.
@@ -273,7 +273,6 @@ From the art chat's portrait mockup:
 - Prologue parley: skip it, or a $cott-only tutorial version?
 - Parley outcome sizes: how much Clout *Rattled* removes, how much crowd hype a good result gives, and so on.
 - Question banks for the cat quiz and lore quiz.
-- Two fixes to prototype bugs, waiting for a yes or no: the **crowd meter locking at 100** (§5.5) and **STALL** (§5.8).
 
 ## 11. Decision log
 
@@ -289,3 +288,4 @@ From the art chat's portrait mockup:
 - The build moved to Claude Code and GitHub. Art and lore stay in claude.ai chats.
 - The repo is **public**, so the game is hosted on **GitHub Pages** from `main`.
 - Bars play in **speech bubbles** over the speaker (rhymes bolded, jittery delivery), not in the bottom text panel. The panel keeps narration and hit messages.
+- Two fixes to prototype bugs are in: the **crowd meter locks at 100** until the mic drops (§5.5), and **STALL** replaces RUN when $cott is out of options (§5.8).

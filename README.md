@@ -13,7 +13,7 @@ It runs in a phone browser, in portrait, from a shared link. No install.
 ## Play
 
 **Live link:** <https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/>
-(GitHub Pages from `main`; works once Pages is turned on under Settings → Pages).
+(GitHub Pages, deployed from `main` on every push).
 
 After a push, give it a few minutes before sharing: GitHub Pages caches files
 for about 10 minutes.
