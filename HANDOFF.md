@@ -47,7 +47,15 @@ every push to `https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/`
 (a `.nojekyll` file makes Pages serve the files as-is). Pages caches for about
 10 minutes, so give a push a few minutes before sharing the link.
 
-**Next: Phase 3**, starting with the save system and the first Sin summon.
+**Phase 3 progress:**
+- Step 1, **save system**: done (`src/systems/save.js`). Debug presets:
+  `&cleared=start,isles`, `&sins=lilturnt,babarbara:2` (in memory only), and
+  `&reset=1`.
+- Step 5, **overworld map**: done, built ahead of steps 2–4 because the map
+  art arrived (`src/scenes/OverworldScene.js`, gating rules in
+  `src/systems/progress.js`, art in `assets/map/`). `?debug=1` now opens the map.
+- Next: step 2, **Sin summons** (Lil' Turnt first). Its effect, cooldown, and
+  feature lines still need to come from the art/writing chat.
 
 ## Where things stand
 

@@ -252,6 +252,51 @@ async function main() {
       failures.push(...errors.map((e) => `timed run: ${e}`));
       await page.context().close();
     }
+    // 4. The journey: map -> Derek -> back to the map with Tier 1 unlocked -> reload keeps it.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      const url = `${base}?debug=1&perfect=1&seed=123&fast=1`;
+      await page.goto(url);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Overworld', null, { timeout: 20_000 });
+      await sleep(600);
+      let map = await state(page);
+      await page.screenshot({ path: path.join(SHOTS, '11-map-start.png') });
+      const locked = Object.entries(map.statuses).filter(([, v]) => v === 'locked').length;
+      if (map.statuses.start !== 'open' || locked !== 8) failures.push(`map: fresh save should open only start (${JSON.stringify(map.statuses)})`);
+      if (map.selected !== 'start') failures.push(`map: should start with start selected, got ${map.selected}`);
+
+      const enter = map.buttons.find((b) => b.text === 'ENTER');
+      if (!enter) throw new Error('map: no ENTER button for the Subreddit Swamps');
+      await tapGame(page, enter.x, enter.y);
+      const result = await playBattle(page, { label: 'map run' });
+      if (result.result !== 'victory') failures.push(`map run: expected victory, got ${result.result}`);
+      const cont = result.buttons.find((b) => b.text === 'CONTINUE');
+      if (!cont) throw new Error('map run: no CONTINUE button after the win');
+      await tapGame(page, cont.x, cont.y);
+      await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 10_000 });
+      await sleep(900);
+      await page.screenshot({ path: path.join(SHOTS, '12-map-unlocking.png') });
+      await page.waitForFunction(() => window.__smm.state().revealing === false, null, { timeout: 10_000 });
+      await sleep(300);
+      map = await state(page);
+      await page.screenshot({ path: path.join(SHOTS, '13-map-tier1.png') });
+      const want = { start: 'cleared', isles: 'open', ratio: 'open', riviera: 'locked' };
+      for (const [id, st] of Object.entries(want)) if (map.statuses[id] !== st) failures.push(`map: after the win ${id} should be ${st}, got ${map.statuses[id]}`);
+      if (!map.buttons.some((b) => b.text === 'SOON' && !b.enabled)) failures.push('map: an unwritten region should show a disabled SOON button');
+
+      const [rx, ry] = map.nodes.ratio;
+      await tapGame(page, rx, ry);
+      await sleep(300);
+      if ((await state(page)).selected !== 'ratio') failures.push('map: tapping Mount Ratio did not select it');
+
+      await page.reload();
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Overworld', null, { timeout: 20_000 });
+      if ((await state(page)).statuses.start !== 'cleared') failures.push('map: progress was not saved across a reload');
+      console.log(`map run: ${result.result}, then ${Object.values(map.statuses).filter((v) => v === 'open').length} regions open`);
+      failures.push(...errors.map((e) => `map run: ${e}`));
+      await page.context().close();
+    }
   } catch (err) {
     failures.push(err.stack ?? String(err));
   } finally {

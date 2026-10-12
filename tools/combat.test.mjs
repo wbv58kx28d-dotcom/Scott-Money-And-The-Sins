@@ -18,6 +18,9 @@ import { Crowd } from '../src/systems/crowd.js';
 import { chooseEnemyMove } from '../src/systems/ai.js';
 import { createRng } from '../src/systems/rng.js';
 import { parseCouplet, plainCouplet } from '../src/systems/bars.js';
+import { REGIONS, regionById } from '../src/data/regions.js';
+import { CREW } from '../src/data/crew.js';
+import { allStatuses, newlyOpened } from '../src/systems/progress.js';
 
 const noVariance = { range: () => 1 };
 
@@ -284,4 +287,52 @@ test('bars: *stage directions* never rhyme', () => {
 
 test('bars: plainCouplet removes markup', () => {
   assert.deepEqual(plainCouplet(['a [b] c', '[d e]']), ['a b c', 'd e']);
+});
+
+test('regions: the map pack and regions.js agree', async () => {
+  const fs = await import('node:fs');
+  const map = JSON.parse(fs.readFileSync(new URL('../assets/map/map_regions.json', import.meta.url), 'utf8'));
+  const byKey = Object.fromEntries(map.regions.map((r) => [r.key, r]));
+  assert.deepEqual(REGIONS.map((r) => r.id).sort(), Object.keys(byKey).sort());
+  for (const r of REGIONS) {
+    assert.equal(r.name, byKey[r.id].name, r.id);
+    if (r.villain) assert.ok(ENEMIES[r.villain], `${r.id} villain ${r.villain}`);
+    if (r.recruit) assert.ok(CREW[r.recruit], `${r.id} recruit ${r.recruit}`);
+  }
+  // Map order never goes backwards in tier, and every route step joins real regions.
+  const ordered = [...map.regions].sort((a, b) => a.order - b.order).map((r) => regionById(r.key).tier);
+  assert.deepEqual(ordered, [...ordered].sort((a, b) => a - b));
+  for (const seg of map.route) assert.ok(byKey[seg.frm] && byKey[seg.to], `${seg.frm}->${seg.to}`);
+});
+
+test('progress: tiers open in pairs, finale, then the tower', () => {
+  const status = (...cleared) => allStatuses(new Set(cleared));
+  let s = status();
+  assert.equal(s.start, 'open');
+  assert.ok(REGIONS.filter((r) => r.id !== 'start').every((r) => s[r.id] === 'locked'));
+
+  s = status('start');
+  assert.equal(s.start, 'cleared');
+  assert.equal(s.isles, 'open');
+  assert.equal(s.ratio, 'open');
+  assert.equal(s.riviera, 'locked');
+
+  s = status('start', 'ratio'); // either order within a tier
+  assert.equal(s.isles, 'open');
+  assert.equal(s.riviera, 'locked', 'needs both tier 1 regions');
+
+  s = status('start', 'ratio', 'isles');
+  assert.equal(s.riviera, 'open');
+  assert.equal(s.lofi, 'open');
+
+  s = status('start', 'isles', 'ratio', 'riviera', 'lofi', 'bubble', 'offshore');
+  assert.equal(s.apex, 'open');
+  assert.equal(s.citadel, 'locked');
+  assert.equal(status('start', 'isles', 'ratio', 'riviera', 'lofi', 'bubble', 'offshore', 'apex').citadel, 'open');
+});
+
+test('progress: clearing a region reports what it opened', () => {
+  assert.deepEqual(newlyOpened(new Set(['start']), 'start'), ['isles', 'ratio']);
+  assert.deepEqual(newlyOpened(new Set(['start', 'isles']), 'isles'), [], 'tier 2 waits for Mount Ratio');
+  assert.deepEqual(newlyOpened(new Set(['start', 'isles', 'ratio']), 'ratio'), ['riviera', 'lofi']);
 });

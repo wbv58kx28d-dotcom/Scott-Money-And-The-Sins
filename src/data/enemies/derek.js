@@ -129,7 +129,7 @@ export default {
   endScreen: {
     victory: {
       title: 'DELISTED!',
-      body: "+250 Clout\n+1 Derek's gaming chair (useless)\nSoft spots found: {soft}/{softTotal}\n\n$cott's first step back to the top.\nNext stop: the overworld map.\n(Coming soon.)",
+      body: "+250 Clout\n+1 Derek's gaming chair (useless)\nSoft spots found: {soft}/{softTotal}\n\n$cott's first step back to the top.\nNext stop: the overworld map.",
     },
     defeat: {
       title: "RATIO'D",

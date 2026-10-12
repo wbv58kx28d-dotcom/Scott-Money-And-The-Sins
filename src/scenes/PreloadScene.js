@@ -3,7 +3,6 @@
 
 import { GAME_W, GAME_H, COLORS } from '../config.js';
 import { IMAGES } from '../data/assets.js';
-import { DEFAULT_ENEMY } from '../data/enemies/index.js';
 import { DEBUG } from '../systems/debug.js';
 import { makePlaceholder } from '../systems/placeholders.js';
 import { label } from '../ui/text.js';
@@ -41,7 +40,8 @@ export default class PreloadScene extends Phaser.Scene {
       console.info(`[$cott] using placeholders for missing art: ${this.missing.join(', ')}`);
     }
 
-    if (DEBUG.enabled) this.scene.start('Battle', { enemy: DEBUG.battle ?? DEFAULT_ENEMY });
+    if (DEBUG.battle) this.scene.start('Battle', { enemy: DEBUG.battle });
+    else if (DEBUG.enabled) this.scene.start('Overworld');
     else this.scene.start('Title');
   }
 }

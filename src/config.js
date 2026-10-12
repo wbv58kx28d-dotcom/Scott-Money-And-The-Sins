@@ -81,6 +81,22 @@ export const LAYOUT = {
   idleBob: { px: 3, ms: 1400 },
 };
 
+// Overworld map layout (assets/map/README.md). The map art fills the canvas
+// at scale 1; the bottom band is kept clear for the region info panel.
+export const MAP = {
+  panel: { x: 16, y: 1112, w: 688, h: 152 },
+  enterButton: { w: 176, h: 104 }, // right side of the panel
+  sndButton: { x: 56, y: 44, w: 72, h: 40 },
+  pin: { radius: 11, labelGap: 18 }, // region names sit below their pin
+  token: { radius: 22, lift: 40, bob: 4 }, // $cott's coin floats above the pin
+  route: { dash: 12, gap: 9, width: 4 },
+  highlight: { tint: 0xffe68c, min: 0.06, max: 0.26, ms: 900 },
+  tapSlop: 24, // a press that moves farther than this is a drag, not a tap
+  fogFadeMs: 1400,
+  routeDrawMs: 900,
+  travelMs: 500,
+};
+
 // Placeholder sprites bake this many screen pixels into each sprite pixel,
 // so a ~29-row sprite stands ~320 px tall (HANDOFF.md Phase 1, step 6).
 export const PLACEHOLDER_PX = 11;

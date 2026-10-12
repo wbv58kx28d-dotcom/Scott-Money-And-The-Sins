@@ -9,6 +9,8 @@
 import { GAME_W, GAME_H, COLORS, LAYOUT } from '../config.js';
 import SCOTT from '../data/scott.js';
 import { ENEMIES, DEFAULT_ENEMY } from '../data/enemies/index.js';
+import { regionById } from '../data/regions.js';
+import { Save } from '../systems/save.js';
 import { DISS_TYPES, HIT_KINDS, TARGET_INFO } from '../data/types.js';
 import { ITEMS } from '../data/items.js';
 import { STATUSES } from '../data/statuses.js';
@@ -46,6 +48,10 @@ export default class BattleScene extends Phaser.Scene {
 
   init(data) {
     this.enemyId = ENEMIES[data?.enemy] ? data.enemy : DEFAULT_ENEMY;
+    // The map region this fight is for; null for debug battles (&battle=).
+    this.regionId = regionById(data?.region)?.id ?? null;
+    // Only a first clear unlocks anything (a rematch win shouldn't replay the reveal).
+    this.firstClear = !!this.regionId && !Save.cleared.has(this.regionId);
   }
 
   create() {
@@ -62,7 +68,7 @@ export default class BattleScene extends Phaser.Scene {
     this.enemy = createBattler(def);
     this.crowd = new Crowd();
 
-    this.add.image(0, 0, def.background).setOrigin(0);
+    this.add.image(0, 0, regionById(this.regionId)?.background ?? def.background).setOrigin(0);
     this.crowdPeople = this.makeCrowd();
     if (def.stage) label(this, LAYOUT.stageLabel.x, LAYOUT.stageLabel.y, def.stage, 14, { color: '#8f7fc0' });
     this.enemyChar = this.makeCharacter(def.texture, LAYOUT.enemySlots[0], -1);
@@ -487,6 +493,7 @@ export default class BattleScene extends Phaser.Scene {
     }
     for (const line of won ? this.def.script.victory : this.def.script.defeat) await this.sayLine(line);
     this.dialog.hide();
+    if (won && this.regionId) Save.clearRegion(this.regionId);
     this.showEndScreen(won);
   }
 
@@ -503,14 +510,15 @@ export default class BattleScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setDepth(51);
     this.phase = 'over';
-    new Button(this, {
-      x: GAME_W / 2, y: 1000, w: 440, h: 112, text: 'RUN IT BACK', size: 24, accent: GOLD, textColor: '#ffd166', depth: 60,
-      onPress: () => this.scene.restart({ enemy: this.enemyId }),
-    });
-    new Button(this, {
-      x: GAME_W / 2, y: 1140, w: 440, h: 80, text: 'TITLE', size: 18, depth: 60,
-      onPress: () => this.scene.start('Title'),
-    });
+    // A win heads back to the map (which reveals what just opened); a loss
+    // offers the rematch first.
+    const toMap = () => this.scene.start('Overworld', { justCleared: won && this.firstClear ? this.regionId : null });
+    const rematch = () => this.scene.restart({ enemy: this.enemyId, region: this.regionId });
+    const [first, second] = won
+      ? [{ text: 'CONTINUE', onPress: toMap }, { text: 'RUN IT BACK', onPress: rematch }]
+      : [{ text: 'RUN IT BACK', onPress: rematch }, { text: 'MAP', onPress: toMap }];
+    new Button(this, { x: GAME_W / 2, y: 1000, w: 440, h: 112, size: 24, accent: GOLD, textColor: '#ffd166', depth: 60, ...first });
+    new Button(this, { x: GAME_W / 2, y: 1140, w: 440, h: 80, size: 18, depth: 60, ...second });
   }
 
   /** Read by the debug hook / smoke test. */

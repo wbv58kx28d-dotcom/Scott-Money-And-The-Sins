@@ -1,20 +1,33 @@
 // Debug mode. Off unless the URL has `?debug=1`; every other flag only
 // works alongside it, so a stray parameter in a shared link does nothing.
 //
-//   ?debug=1          skip the title screen
-//   &battle=derek     jump straight to that battle
-//   &perfect=1        every timing tap lands PERFECT
-//   &seed=123         seed the random number source
-//   &fast=1           dialog appears instantly
+//   ?debug=1             skip the title (goes to the map, or a battle with &battle=)
+//   &battle=derek        jump straight to that battle
+//   &perfect=1           every timing tap lands PERFECT
+//   &seed=123            seed the random number source
+//   &fast=1              dialog appears instantly
+//   &cleared=start,isles preset cleared regions (in memory only; the real save is untouched)
+//   &sins=lilturnt,babarbara:2
+//                        preset recruited Sins, with optional levels (in memory only)
+//   &reset=1             wipe the saved progress
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
 
 const params = new URLSearchParams(globalThis.location?.search ?? '');
 const enabled = params.get('debug') === '1';
 const flag = (name) => enabled && params.get(name) === '1';
+const list = (name) => (enabled && params.has(name) ? params.get(name).split(',').map((s) => s.trim()).filter(Boolean) : null);
 
 const seedParam = enabled ? params.get('seed') : null;
 const seed = seedParam !== null && /^-?\d+$/.test(seedParam) ? Number(seedParam) : null;
+
+const sinList = list('sins');
+const sins = sinList
+  ? Object.fromEntries(sinList.map((entry) => {
+    const [id, level] = entry.split(':');
+    return [id, Math.min(3, Math.max(1, Number(level) || 1))];
+  }))
+  : null;
 
 export const DEBUG = Object.freeze({
   enabled,
@@ -22,4 +35,7 @@ export const DEBUG = Object.freeze({
   perfect: flag('perfect'),
   fast: flag('fast'),
   seed,
+  cleared: list('cleared'),
+  sins,
+  reset: flag('reset'),
 });

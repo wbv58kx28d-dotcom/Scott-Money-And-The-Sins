@@ -23,14 +23,16 @@ A joke pixel-art RPG for a friend group, starring **$cott Money**, a character Z
 
 $cott is **framed** and loses his status, fortune, and fame. To win them back, he travels a **Lord of the Rings–style overworld map** (a weathered, illustrated journey map), recruits his crew of **seven Sins** one region at a time (like *Octopath Traveler*), and ends at the **final villain's tower**.
 
-| Step | Regions | Recruits | Notes |
+| Step | Regions (map key) | Recruits | Notes |
 |---|---|---|---|
-| Prologue | Subreddit Swamps | none | $cott alone vs. **Diamond Hands Derek** (built) |
-| Tier 1 | 2 regions, either order | **Lil' Turnt** (Envy), **Babarbara** (Wrath) | Simplest minigames; teaches the systems |
-| Tier 2 | 2 regions, either order | **Susan G. Kummin** (Lust), **J.R.R Toking** (Sloth) | Knowledge and dialogue minigames |
-| Tier 3 | 2 regions, either order | **Keezus** (Gluttony), **Louis Change** (Greed) | Money-themed, high-risk minigames |
-| Finale | 1 solo region | **Six Pac** (Pride) | Pride is traditionally the deadliest sin |
-| Tower | Final boss | — | The everything-store overlord |
+| Prologue | Subreddit Swamps (`start`) | none | $cott alone vs. **Diamond Hands Derek** (built) |
+| Tier 1 | Influencer Isles (`isles`), Mount Ratio (`ratio`), either order | **Lil' Turnt** (Envy), **Babarbara** (Wrath) | Simplest minigames; teaches the systems |
+| Tier 2 | Swipe Right Riviera (`riviera`), Lo-Fi Lowlands (`lofi`), either order | **Susan G. Kummin** (Lust), **J.R.R Toking** (Sloth) | Knowledge and dialogue minigames |
+| Tier 3 | Bubble Bay (`bubble`), Offshore Archipelago (`offshore`), either order | **Keezus** (Gluttony), **Louis Change** (Greed) | Money-themed, high-risk minigames |
+| Finale | Apex Launch Range (`apex`) | **Six Pac** (Pride) | Pride is traditionally the deadliest sin |
+| Tower | The Fulfillment Citadel (`citadel`) | — | The everything-store overlord |
+
+Region names come from the overworld map pack (`assets/map/`).
 
 - Both regions in a tier must be cleared before the next tier opens. That gives players a choice while difficulty only steps up four times.
 - Whichever region in a tier is played second will be a bit easier, because $cott has one more Sin. That's intended: the order is a strategic choice. If it feels too easy, villains can gain a small amount of Clout for each Sin already recruited.
@@ -206,10 +208,12 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - Each Sin goes from **level 1 to 3.** A level makes their parley minigame easier and strengthens their summon.
 - **Side quests** are optional stops on the overworld map. They reuse the existing systems (short battles, parleys, minigames) and reward Sin levels.
 
-### 6.5 Overworld map
-- A LOTR-style illustrated map, portrait, scrolling if needed.
-- Regions open by tier (§2). Side-quest stops sit inside each region. The path ends at the tower.
-- Progress saves in `localStorage` (recruited Sins, Sin levels, cleared regions and quests).
+### 6.5 Overworld map (built)
+- An illustrated portrait map from the map pack (`assets/map/`, see its README): a base image, plus fog, highlight, and gold-outline layers per region, tap polygons, landmark points, and the route.
+- Flow: Title → map → tap a region → ENTER → its fight → back to the map. Regions open by tier (§2): locked ones are fogged, open ones glow, cleared ones get a check. Clearing a region lifts the fog off whatever it opened and extends the dashed route. An open region without a villain file shows "coming soon".
+- $cott's gold coin token stands on the last region he entered.
+- Progress saves in `localStorage` (cleared regions, recruited Sins and levels, quests, token position). Clearing a region recruits its Sin at level 1.
+- Not built yet: side-quest stops inside regions.
 
 ## 7. Tech stack
 
@@ -267,7 +271,7 @@ From the art chat's portrait mockup:
 
 ## 10. Open questions
 
-- About 5 more regional villain archetypes, plus region names and themes.
+- Villains for the seven remaining regions. Art exists for three (Vince, Max, Fulfiller); the map's Apex Launch Range has a rocket, which fits the rocket-billionaire idea (`max.png`). The Fulfillment Citadel is the everything-store overlord's (`fulfiller.png`).
 - Which region the Tokyo background belongs to.
 - Final Sin-to-target mapping, summon effects, and cooldown lengths. These should check against the lore writer's material.
 - Prologue parley: skip it, or a $cott-only tutorial version?
@@ -289,3 +293,4 @@ From the art chat's portrait mockup:
 - The repo is **public**, so the game is hosted on **GitHub Pages** from `main`.
 - Bars play in **speech bubbles** over the speaker (rhymes bolded, jittery delivery), not in the bottom text panel. The panel keeps narration and hit messages.
 - Two fixes to prototype bugs are in: the **crowd meter locks at 100** until the mic drops (§5.5), and **STALL** replaces RUN when $cott is out of options (§5.8).
+- The **overworld map** is the hub between fights, built from the map pack; region names come from it (§2, §6.5).

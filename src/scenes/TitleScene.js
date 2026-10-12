@@ -1,8 +1,7 @@
-// Title screen (text from the legacy prototype). Tap to start; until the
-// overworld exists, that goes straight to the prologue fight.
+// Title screen (text from the legacy prototype). Tap to start the journey
+// on the overworld map.
 
 import { GAME_W, GAME_H, LAYOUT } from '../config.js';
-import { DEFAULT_ENEMY } from '../data/enemies/index.js';
 import { Audio } from '../systems/audio.js';
 import { label, body } from '../ui/text.js';
 
@@ -46,7 +45,7 @@ export default class TitleScene extends Phaser.Scene {
       Audio.unlock();
       Audio.sfx('good');
       this.cameras.main.fadeOut(250, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Battle', { enemy: DEFAULT_ENEMY }));
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Overworld'));
     });
   }
 }
