@@ -1,0 +1,284 @@
+# $cott Money: Redemption Arc — Project Brief
+
+Shared context for every chat and for Claude Code. In the repo this file is `CLAUDE.md`. In claude.ai, keep it in Project knowledge.
+
+_Last updated: Oct 11, 2026. Replaces `SCOTT_MONEY_RPG.md`._
+
+**Who does what**
+- **claude.ai chats** handle art, lore, writing, and design decisions.
+- **Claude Code** builds the game in the GitHub repo.
+- When a decision changes, update this file first.
+
+---
+
+## 1. What this is
+
+A joke pixel-art RPG for a friend group, starring **$cott Money**, a character Zach created over the years. $cott is an over-the-top egomaniac tech/crypto bro (think *American Psycho*, but for tech-bro culture). Combat is turn-based, and **the attacks are disses**, with heavy rap and diss-track flavor.
+
+- Played on phones through a shared link, so it runs in the browser, in portrait.
+- Villains are **original parodies only**. Never real, named people.
+- Another friend has written lore and character material that is still being folded in.
+
+## 2. Story and structure
+
+$cott is **framed** and loses his status, fortune, and fame. To win them back, he travels a **Lord of the Rings–style overworld map** (a weathered, illustrated journey map), recruits his crew of **seven Sins** one region at a time (like *Octopath Traveler*), and ends at the **final villain's tower**.
+
+| Step | Regions | Recruits | Notes |
+|---|---|---|---|
+| Prologue | Subreddit Swamps | none | $cott alone vs. **Diamond Hands Derek** (built) |
+| Tier 1 | 2 regions, either order | **Lil' Turnt** (Envy), **Babarbara** (Wrath) | Simplest minigames; teaches the systems |
+| Tier 2 | 2 regions, either order | **Susan G. Kummin** (Lust), **J.R.R Toking** (Sloth) | Knowledge and dialogue minigames |
+| Tier 3 | 2 regions, either order | **Keezus** (Gluttony), **Louis Change** (Greed) | Money-themed, high-risk minigames |
+| Finale | 1 solo region | **Six Pac** (Pride) | Pride is traditionally the deadliest sin |
+| Tower | Final boss | — | The everything-store overlord |
+
+- Both regions in a tier must be cleared before the next tier opens. That gives players a choice while difficulty only steps up four times.
+- Whichever region in a tier is played second will be a bit easier, because $cott has one more Sin. That's intended: the order is a strategic choice. If it feels too easy, villains can gain a small amount of Clout for each Sin already recruited.
+- Each region has its own villain, a Sin to recruit, and optional side quests.
+
+## 3. The crew
+
+Only **$cott is on screen in battle.** The Sins are summons and parley partners (§6), not party members.
+
+| Character | Sin | Look (short) | Parley minigame | Proposed summon targets |
+|---|---|---|---|---|
+| **$cott Money** | Leader | Crypto bro: slicked hair, shades, vest | — | — |
+| **Lil' Turnt** | Envy | Orange tabby kitten, pearls, pink tutu, jealous side-eye | Cat quiz | REP |
+| **Babarbara** | Wrath | Pink-red curly mohawk, black leather jumpsuit, scowl | Rage meter | any ROAST |
+| **Susan G. Kummin** | Lust | Long wavy red hair, red leather dress, sly smirk | Rizz check | LOOKS, STYLE |
+| **J.R.R Toking** | Sloth | Elderly wizard, huge white beard, velvet robe, long pipe | Lore quiz | INTELLECT |
+| **Keezus** | Gluttony | Beard, aviators, open white hoodie, maxed-out credit cards | Crypto bet | LIFESTYLE |
+| **Louis Change** | Greed | Frosted tips, hot pink brocade suit, fanning cash | Haggle | WEALTH |
+| **Six Pac** | Pride | Shirtless, abs, admiring his own bicep | Flex hold | PHYSIQUE, STATUS |
+
+Keezus's gluttony is **financial**: FOMO, excessive borrowing, scheming, and risky bets. It's never food.
+
+## 4. Villains
+
+**Built: Diamond Hands Derek** (prologue), a meme-stock trader on the Subreddit Swamps stage.
+- HYPE type, 150 Clout. Weak to FLEX, resists ROAST.
+- Soft spots: FLEX→WEALTH (crit), ROAST→INTELLECT (bypass), WORDPLAY→CAREER (nerve).
+- Status: becomes *Short Squeezed* at 40% Clout or below.
+
+**Planned archetypes:**
+- A thrift-shop rapper.
+- A rocket-obsessed billionaire. One idea is pairing him with Six Pac's (Pride) finale region.
+- The **everything-store overlord** who rules from the final tower.
+
+**Still needed:** about **5 more regional villains**, for 7 regional villains total plus the final boss. Pairing each villain thematically with their region's Sin is encouraged. A villain's soft spots can reward that tier's Sin summons, but no summon should ever be required.
+
+## 5. Combat (built in the prototype)
+
+The legacy prototype (`legacy/scott-money-battle.html`) is the **source of truth for every number** below.
+
+### 5.1 Stats and turn flow
+- **Clout** is HP. $cott has 100.
+- **Flow** is MP and pays for disses. $cott has 60 max and regains 5 at the start of each of his turns after the first.
+- Turn order: $cott acts, Derek acts, then end-of-round status ticks.
+- Diss flow: pick a diss, pick a target, play the timing minigame, deliver the bars, then damage resolves.
+
+### 5.2 Diss types and targets
+| Type | Targets |
+|---|---|
+| FLEX | WEALTH, PHYSIQUE, STYLE, STATUS |
+| ROAST | LOOKS, INTELLECT, LIFESTYLE, FAMILY |
+| WORDPLAY | NAME, CAREER, REP |
+| HYPE | Self-buffs, no target |
+
+$cott's moves:
+
+| Move | Type | Flow cost | Power | Timing speed |
+|---|---|---|---|---|
+| Lambo Lullaby | FLEX | 8 | 20 | 1.0 |
+| Series A Slaughter | WORDPLAY | 12 | 23 | 1.25 |
+| Cap Table Clapback | ROAST | 10 | 22 | 1.1 |
+| Mooning | HYPE (buff) | 15 | — | — |
+| Drop the Mic | none (finisher) | free | 45 | 1.4 |
+
+### 5.3 Weaknesses, resistances, and soft spots
+- A type the target is **weak** to does 2×. A type it **resists** does 0.5×.
+- **Soft spots** are specific targets that hurt more:
+  - Resisted type + soft spot: the resistance is ignored (1×). Called a *bypass*.
+  - Neutral type + soft spot: 1.5×. Called a *nerve*.
+  - Weak type + soft spot: **critical**, 3× total.
+- The rules apply **both ways.** $cott is weak to ROAST (fragile ego) and resists FLEX. His soft spots are ROAST→LOOKS (the hairline, a crit) and FLEX→STYLE (the vest, a bypass).
+- An enemy's weakness, resistance, and soft spots show as "???" on its HUD until discovered.
+
+### 5.4 Beat-timing minigame
+A marker sweeps across a bar, and the player taps when it's centered. A full sweep takes 820 ms divided by the move's speed.
+
+| Rating | Distance from center | Damage | Crowd change |
+|---|---|---|---|
+| PERFECT | ≤ 8% | 1.5× | +25 |
+| FIRE | ≤ 20% | 1.25× | +18 |
+| MID | ≤ 36% | 1.0× | +10 |
+| WACK | beyond that | 0.6× | −5 |
+
+### 5.5 Crowd meter and Drop the Mic
+- The crowd meter runs from 0 to 100.
+- It gains the rating amount above, plus a bonus by hit result: crit +20, bypass +12, nerve +12, weak +10, resisted −5.
+- Each enemy hit lowers it by 4, or by 10 on a crit against $cott.
+- At 100, **Drop the Mic** unlocks. Using it resets the meter to 0.
+
+### 5.6 Damage formula
+- $cott's damage = power × timing multiplier × hit multiplier × 1.5 if Mooning × a random factor from 0.9 to 1.1.
+- Enemy damage = power × hit multiplier × 1.3 if Short Squeezed × 1.25 if $cott is Mooning × a random factor from 0.85 to 1.15.
+- Both round to a whole number, with a minimum of 1.
+
+### 5.7 Status effects
+- **Mooning** ($cott, 3 turns): he deals 1.5× damage and takes 1.25×.
+- **Rug Pulled** ($cott, 2 turns): he loses 8 Flow at the start of each of his turns, with no regen.
+- **Short Squeezed** (enemy, at 40% Clout or below): the enemy deals 1.3× damage for the rest of the fight.
+- Ideas not built yet: *Ratio'd*, *Cancelled*.
+
+### 5.8 Items
+- **Cold Brew** (2 per fight): restores 30 Flow.
+- **Hype Man Voicemail** (1 per fight): restores 35 Clout.
+- **Run** doesn't consume a turn ("$cott doesn't run. He pivots.").
+
+### 5.9 Derek's AI
+- If $cott isn't Rug Pulled and has at least 15 Flow, there's a 30% chance Derek uses **Pump & Dump**.
+- Otherwise Derek picks by weight: Loss Porn 30, Due Diligence 20, Apes Together Strong 20, Hairline Short 15, Drip Check 15, Tendie Tower 10.
+
+### 5.10 Audio
+- The beat is a procedural boom-bap loop at 92 BPM, generated with WebAudio. Sound effects use the same system.
+- Phaser's own audio is disabled.
+
+## 6. Planned systems (decided, not built)
+
+### 6.1 Sin summons
+- Once a Sin is recruited, $cott can **call them in** after choosing a type and target, but only when the target matches that Sin's trait (see the proposed targets in §3).
+- The Sin appears as a **cut-in portrait** sliding in from the screen edge, adds a feature verse, applies their effect, and leaves. No extra characters stay on screen.
+- Each summon has a **cooldown** measured in turns.
+- Proposed effects (not final):
+  - **Louis Change:** steals Flow from the enemy.
+  - **Six Pac:** big crit chance.
+  - **Susan G. Kummin:** charms the enemy so their next diss misfires.
+  - **Babarbara:** ignores resistance, but $cott takes recoil damage.
+  - **Lil' Turnt:** copies the enemy's last buff.
+  - **Keezus:** double or nothing.
+  - **J.R.R Toking:** slows the timing marker, and the enemy skips a turn.
+- **Posse Cut** (idea): Drop the Mic upgrades into a finisher where every recruited Sin jumps in.
+- **Writing cost:** $cott keeps his per-villain bars (about 11 couplets per villain, one per type and target). Each Sin needs one **feature line per eligible target**, and those lines work against **every** villain. A `{villain}` placeholder can personalize them.
+
+### 6.2 Pre-battle parley
+- Before each fight there's a short RPG-style conversation with the villain, with **1 to 3 choices**.
+- Each choice is a recruited Sin's approach, and it's resolved by **that Sin's minigame**. There are no dice.
+- Results:
+  - **Good results:** reveal a soft spot early, the enemy starts *Rattled* (lower Clout), or $cott starts with crowd hype.
+  - **Bad results:** the enemy starts buffed, or $cott starts shaken.
+  - **Legendary or Fail:** something absurd happens.
+- Each villain's parley lives in that villain's data file. This is a natural place for the lore writer to contribute.
+- Open question: the prologue (Derek) has no Sins yet. It could skip the parley, or use a $cott-only tutorial version.
+
+### 6.3 Sin minigames
+Every minigame follows **one contract**, so the parley and side quests can use any of them:
+
+```js
+// src/minigames/<sin>.js
+export default {
+  id: 'catquiz', sin: 'lilturnt', title: "Lil' Turnt's Cat Quiz",
+  // Launched as an overlay scene; resolves when finished.
+  run(scene, { difficulty, level, context }) { /* ... */ return Promise.resolve({ grade, score }); }
+};
+// grade: 'fail' | 'pass' | 'great' | 'legendary'
+```
+
+A Sin's **level** makes their minigame easier: more time, fewer wrong options, or bigger payouts.
+
+| Sin | Minigame | How it plays |
+|---|---|---|
+| Lil' Turnt | Cat quiz | Multiple choice. The right answer is **always** the one about cats being superior, however illogical. Players slowly figure out that logic doesn't matter. |
+| Babarbara | Rage meter | Tap to build fury up to the max line without overflowing. Push your luck. |
+| Susan G. Kummin | Rizz check | Pick the pickup line that fits the target's personality, scored on charm. |
+| J.R.R Toking | Lore quiz | Multiple choice about the Sins' lore, drawn from the lore writer's material. Toking may "forget" to show the timer. |
+| Keezus | Crypto bet | Live candle chart. Go long, go short, or cash out; leverage multiplies the result both ways. |
+| Louis Change | Haggle | Push a price slider against the rival's patience meter. Push too hard and the deal walks. |
+| Six Pac | Flex hold | Hold a pose while the meter climbs. Release in the sweet spot; hold too long and you pull something. |
+
+Content these need: question banks for the cat quiz and lore quiz, and pickup lines matched to each villain's personality.
+
+### 6.4 Sin levels and side quests
+- Each Sin goes from **level 1 to 3.** A level makes their parley minigame easier and strengthens their summon.
+- **Side quests** are optional stops on the overworld map. They reuse the existing systems (short battles, parleys, minigames) and reward Sin levels.
+
+### 6.5 Overworld map
+- A LOTR-style illustrated map, portrait, scrolling if needed.
+- Regions open by tier (§2). Side-quest stops sit inside each region. The path ends at the tower.
+- Progress saves in `localStorage` (recruited Sins, Sin levels, cleared regions and quests).
+
+## 7. Tech stack
+
+- **Engine:** Phaser **3.80.1**, pinned. Ask before changing versions.
+- **Canvas:** **720×1280 portrait.** The prototype ran at 360×640, so its layout and font sizes double.
+- **Config:** `pixelArt: true`, `roundPixels: true`, `scale: { mode: FIT, autoCenter: CENTER_BOTH }`, `audio: { noAudio: true }` until real audio files are added.
+- **Fonts:** Press Start 2P (headers and labels) and VT323 (body text), from Google Fonts. Wait for both to load before booting the game.
+- **Repo:** GitHub, plain ES modules with no build step. Deployed as a static site (see `HANDOFF.md`).
+
+## 8. Art pipeline
+
+### 8.1 Character sprites
+Source art is generated in GPT and cleaned up in a claude.ai chat:
+1. Background and baked-in effects are removed. Effects come back as animated layers.
+2. Sprites are mirrored so everyone **faces left**, toward the enemies.
+3. They're snapped to a true pixel grid and quantized to a shared 128-color palette.
+4. A 3 px dark outline is baked in.
+
+In-engine rules:
+- Draw at **scale 1**. Never use `setScale` on finished art.
+- **Exception:** procedural placeholder sprites (like Derek's) bake an integer pixel size into their texture at creation, rather than being scaled later.
+- Use `setOrigin(0.5, 1)` so the origin is at the feet, and keep positions on whole pixels.
+- Humans are about 320 px tall. Lil' Turnt is about 175 px.
+- Idle animation: a 2–3 px sine bob tween.
+- Active-turn highlight: `preFX.addGlow(0x9fdcff, 4, 0, false)`. It's WebGL-only, so guard it with `if (sprite.preFX)`.
+- Now that only $cott is on screen, the 7 Sin sprites are used as **summon cut-ins** and **parley portraits**.
+
+### 8.2 Battle layout (720×1280)
+From the art chat's portrait mockup:
+- Enemies stand upper-left, with feet around y 735. Allow 1–2 enemies per fight.
+- The menu panel spans y 1090 to 1260.
+- The mockup's party positions were (345, 905), (585, 860), and (540, 1050). With only $cott on screen, he takes a single lower-right spot. Something like (500, 1040) is a starting point; tune it in-engine.
+- Sin cut-ins slide in from the right edge.
+
+### 8.3 Backgrounds
+- Size: 720×1280 WebP, pre-dimmed, with the bottom band darkened for the menu.
+- Built: `bg_tokyo.webp` (a portrait crop of the Tokyo street scene). Its region is still to be decided.
+- GPT prompts for new backgrounds:
+  - Ask for **9:16 portrait at 1080×1920**.
+  - Put the horizon about halfway down, with open ground below it for both sides.
+  - Keep the bottom 15% dark and simple.
+
+## 9. Content and data conventions
+
+- **Data-driven:** adding a diss, villain, Sin, quest, or minigame question should mean editing data files, not game logic.
+- **One file per villain** (`src/data/enemies/<id>.js`) containing:
+  - Stats, type, weaknesses, resistances, and soft spots, plus the messages shown when each is hit.
+  - `scottBars[type][target]`: $cott's couplets against this villain.
+  - Their moves, each with a type, target, power, AI weight, and bars.
+  - Their parley script.
+- **Crew** (`src/data/crew.js`): each Sin's eligible targets, summon effect, cooldown, feature lines by target, minigame id, and per-level modifiers.
+- **Regions** (`src/data/regions.js`): tier, villain, Sin recruit, background, and side quests.
+- **Bars are couplets:** two lines, delivered after the timing minigame.
+
+## 10. Open questions
+
+- About 5 more regional villain archetypes, plus region names and themes.
+- Which region the Tokyo background belongs to.
+- Final Sin-to-target mapping, summon effects, and cooldown lengths. These should check against the lore writer's material.
+- Prologue parley: skip it, or a $cott-only tutorial version?
+- Parley outcome sizes: how much Clout *Rattled* removes, how much crowd hype a good result gives, and so on.
+- Question banks for the cat quiz and lore quiz.
+- Public vs. private repo, depending on whether the crew is based on real friends.
+
+## 11. Decision log
+
+- Browser game in Phaser, played on phones through a link.
+- Combat is disses. Types and targets, with weaknesses, resistances, and soft spots applied both ways.
+- Parody villains only.
+- 720×1280 portrait canvas, with GPT art cleaned into pixel sprites.
+- **Only $cott is on screen. Sins are summons, not party members.** This replaced the earlier party-of-3 plan.
+- Pre-battle **parley uses Sin minigames, not dice.**
+- Sins are recruited **one per region**, Octopath-style. Regions come in **pairs by tier**, plus a solo finale.
+- Tier pairings: Lil' Turnt and Babarbara, then Susan and Toking, then Keezus and Louis, with Six Pac as the solo finale.
+- Side quests raise Sin levels (1 to 3).
+- The build moved to Claude Code and GitHub. Art and lore stay in claude.ai chats.
