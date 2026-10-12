@@ -54,6 +54,11 @@ export const LAYOUT = {
     { x: 330, y: 650 },
   ],
   scott: { x: 500, y: 1040 },
+  // TEMPORARY: $cott is in the foreground, so he should look bigger than the
+  // enemies. Until the art chat re-exports scott.png at ~420 px tall, he's
+  // stretched in-engine (an approved exception to "never setScale finished
+  // art", CLAUDE.md §8.1). Set back to 1 when the new file lands.
+  scottScale: 1.3,
 
   // Lunges move toward the opponent. All art faces left.
   scottLunge: { dx: -56, dy: -40 },

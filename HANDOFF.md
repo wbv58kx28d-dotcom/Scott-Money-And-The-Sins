@@ -37,7 +37,9 @@ the new art and layout. It has debug mode and a Playwright smoke test
   positions, and dialog speaker names in a tab instead of inline.
 - **Art:** the crew pack is in. The 8 crew sprites are in
   `assets/sprites/crew/` and `bg_tokyo.webp` is in `assets/bg/`. `scott.png`
-  was mirrored so he faces the enemy. The 7 Sin sprites wait for Phase 3.
+  was mirrored so he faces the enemy, and is drawn at 1.3× in battle as a
+  stopgap (`LAYOUT.scottScale`) until a ~420 px re-export arrives. The 7 Sin
+  sprites wait for Phase 3.
   The enemy pack is in `assets/sprites/enemies/`: Derek's real sprite is live
   (the procedural one is only a fallback now), and `vince.png`, `max.png`, and
   `fulfiller.png` wait for their villain data files.

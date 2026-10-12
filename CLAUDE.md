@@ -234,6 +234,7 @@ Source art is generated in GPT and cleaned up in a claude.ai chat:
 
 In-engine rules:
 - Draw at **scale 1**. Never use `setScale` on finished art.
+  - **Temporary exception:** $cott is drawn at **1.3×** in battle (`LAYOUT.scottScale` in `src/config.js`), because he stands in the foreground and should read bigger than the enemies. **Art request:** re-export `scott.png` at about **420 px tall**, with the same 3 px outline and mirrored like the current repo copy; then the scale goes back to 1.
 - **Exception:** procedural placeholder sprites (like Derek's) bake an integer pixel size into their texture at creation, rather than being scaled later.
 - Use `setOrigin(0.5, 1)` so the origin is at the feet, and keep positions on whole pixels.
 - Humans are about 320 px tall. Lil' Turnt is about 175 px.
@@ -245,7 +246,8 @@ In-engine rules:
 From the art chat's portrait mockup:
 - Enemies stand upper-left, with feet around y 735. Allow 1–2 enemies per fight.
 - The menu panel spans y 1090 to 1260.
-- The mockup's party positions were (345, 905), (585, 860), and (540, 1050). With only $cott on screen, he takes a single lower-right spot. Something like (500, 1040) is a starting point; tune it in-engine.
+- The mockup's party positions were (345, 905), (585, 860), and (540, 1050). With only $cott on screen, he takes a single lower-right spot, feet at (500, 1040).
+- Depth: $cott is in the foreground, so he's drawn about 30% bigger than the enemies (about 420 px vs. about 330 px).
 - Sin cut-ins slide in from the right edge.
 
 ### 8.3 Backgrounds
@@ -267,7 +269,7 @@ From the art chat's portrait mockup:
 - **Crew** (`src/data/crew.js`): each Sin's eligible targets, summon effect, cooldown, feature lines by target, minigame id, and per-level modifiers.
 - **Regions** (`src/data/regions.js`): tier, villain, Sin recruit, background, and side quests.
 - **Bars are couplets:** two lines, delivered after the timing minigame. Every bar slot holds a **pool** of couplets, and one is picked at random, so adding variety means adding a couplet to the list.
-- **Bars play as speech bubbles** over whoever is spitting. Words punch in one at a time, and individual **letters** jitter: plain letters only twitch now and then, rhyme letters shake constantly. **Rhyme words** are bolded: by default the last word of each line. To choose them yourself (internal or multi-word rhymes), wrap them in `[brackets]`, as in `"and your portfolio's [peak] was a Tuesday last [week]."`. A line wrapped in `*asterisks*` is a stage direction, shown as an italic action.
+- **Bars play as speech bubbles** over whoever is spitting. If a couplet is too tall for its space, the text steps down in size to fit. Words punch in one at a time, and individual **letters** jitter: plain letters only twitch now and then, rhyme letters shake constantly. **Rhyme words** are bolded: by default the last word of each line. To choose them yourself (internal or multi-word rhymes), wrap them in `[brackets]`, as in `"and your portfolio's [peak] was a Tuesday last [week]."`. A line wrapped in `*asterisks*` is a stage direction, shown as an italic action.
 
 ## 10. Open questions
 
@@ -294,3 +296,4 @@ From the art chat's portrait mockup:
 - Bars play in **speech bubbles** over the speaker (rhymes bolded, jittery delivery), not in the bottom text panel. The panel keeps narration and hit messages.
 - Two fixes to prototype bugs are in: the **crowd meter locks at 100** until the mic drops (§5.5), and **STALL** replaces RUN when $cott is out of options (§5.8).
 - The **overworld map** is the hub between fights, built from the map pack; region names come from it (§2, §6.5).
+- **$cott is ~30% bigger than the enemies in battle** to sell depth (§8.2). In-engine 1.3× scaling is a stopgap until a ~420 px re-export of his sprite arrives (§8.1).

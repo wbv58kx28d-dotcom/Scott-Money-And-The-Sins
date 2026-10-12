@@ -7,7 +7,7 @@
 // a tap while words are landing shows them all, the next tap closes the bubble.
 // Like the timing bar, it ignores taps for a moment after it opens.
 
-import { FONTS, LAYOUT } from '../config.js';
+import { FONTS, GAME_H, LAYOUT } from '../config.js';
 import { parseCouplet } from '../systems/bars.js';
 import { Audio } from '../systems/audio.js';
 import { rng } from '../systems/rng.js';
@@ -38,14 +38,17 @@ const ROW_H = 42;
 const LINE_GAP = 10;
 const PAD_X = 24;
 const PAD_Y = 26;
+// If a couplet is too tall for the room it has, the text steps down in size.
+const FIT_STEPS = [1, 0.9, 0.8, 0.7];
 
 /**
  * Spit a couplet in a bubble. Resolves when the player taps past it.
  * @param {Phaser.Scene} scene
  * @param {import('./tapBus.js').TapBus} bus
- * @param {{ couplet: string[], speaker: string, character: object, side: 'left'|'right', tagColor?: string, instant?: boolean }} o
+ * @param {{ couplet: string[], speaker: string, character: object, side: 'left'|'right', tagColor?: string, instant?: boolean, maxBottom?: number }} o
+ *   maxBottom: the lowest y the bubble may reach (e.g. just above $cott's head for an enemy's bars)
  */
-export function spitBars(scene, bus, { couplet, speaker, character, side, tagColor = '#ffd166', instant = false }) {
+export function spitBars(scene, bus, { couplet, speaker, character, side, tagColor = '#ffd166', instant = false, maxBottom = Infinity }) {
   const cfg = LAYOUT.bubble;
   const { container: body, sprite } = character;
   const headY = Math.round(body.y - sprite.displayHeight);
@@ -56,39 +59,20 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
     : { x: Math.round(body.x + sprite.displayWidth / 2 - 10), y: Math.round(headY + sprite.displayHeight * 0.22) };
   const maxW = side === 'right' ? cfg.maxW : Math.min(cfg.maxW, cfg.right - (tip.x + cfg.gap));
 
-  // Lay the words out in rows, relative to the bubble's top-left. Each word's
-  // node is centered on the word, so its pop-in scales from the middle.
-  const words = [];
+  // $cott's bubble sits above his head; the enemy's starts at the top of the
+  // stage and grows down beside them. Either way, shrink the text to fit.
   const lines = parseCouplet(couplet);
-  const space = Math.round(STYLE.word.size * 0.3);
-  let x = PAD_X;
-  let y = PAD_Y + ROW_H / 2;
-  let widest = 0;
-  lines.forEach((line, li) => {
-    if (li > 0) {
-      x = PAD_X;
-      y += ROW_H + LINE_GAP;
-    }
-    for (const w of line.words) {
-      const styleId = line.direction ? 'direction' : w.rhyme ? 'rhyme' : 'word';
-      const word = buildWord(scene, w.text, styleId);
-      if (x > PAD_X && x + word.width > maxW - PAD_X) {
-        x = PAD_X;
-        y += ROW_H;
-      }
-      Object.assign(word, { bx: Math.round(x + word.width / 2), by: y, rhyme: w.rhyme, direction: line.direction, energy: 0, shown: false });
-      words.push(word);
-      x += word.width + space;
-      widest = Math.max(widest, x - space);
-    }
-  });
-  const w = Math.min(maxW, Math.round(widest + PAD_X));
-  const h = Math.round(y + ROW_H / 2 + PAD_Y);
+  const room = side === 'right' ? tip.y - cfg.gap - cfg.minTop : Math.min(maxBottom, GAME_H) - cfg.minTop;
+  let layout;
+  for (const fit of FIT_STEPS) {
+    layout?.words.forEach((word) => word.node.destroy());
+    layout = layoutWords(scene, lines, maxW, fit);
+    if (layout.h <= room) break;
+  }
+  const { words, w, h } = layout;
 
   // Place the bubble: up and to the right of the speaker, inside the stage area.
   const left = side === 'right' ? cfg.right - w : tip.x + cfg.gap;
-  // $cott's sits above his head; the enemy's starts at the top of the stage,
-  // so a long couplet grows down beside them instead of over $cott.
   const top = side === 'right' ? Math.max(cfg.minTop, tip.y - cfg.gap - h) : cfg.minTop;
 
   // Everything lives in a container at the tail tip, so the pop-in grows from the speaker.
@@ -205,6 +189,39 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
   });
 }
 
+/**
+ * Lay the words out in rows, relative to the bubble's top-left, with text at
+ * `fit` times its normal size. Each word's node is centered on the word, so
+ * its pop-in scales from the middle.
+ */
+function layoutWords(scene, lines, maxW, fit) {
+  const rowH = Math.round(ROW_H * fit);
+  const space = Math.round(STYLE.word.size * fit * 0.3);
+  const words = [];
+  let x = PAD_X;
+  let y = PAD_Y + rowH / 2;
+  let widest = 0;
+  lines.forEach((line, li) => {
+    if (li > 0) {
+      x = PAD_X;
+      y += rowH + LINE_GAP;
+    }
+    for (const w of line.words) {
+      const styleId = line.direction ? 'direction' : w.rhyme ? 'rhyme' : 'word';
+      const word = buildWord(scene, w.text, styleId, fit);
+      if (x > PAD_X && x + word.width > maxW - PAD_X) {
+        x = PAD_X;
+        y += rowH;
+      }
+      Object.assign(word, { bx: Math.round(x + word.width / 2), by: y, rhyme: w.rhyme, direction: line.direction, energy: 0, shown: false });
+      words.push(word);
+      x += word.width + space;
+      widest = Math.max(widest, x - space);
+    }
+  });
+  return { words, w: Math.min(maxW, Math.round(widest + PAD_X)), h: Math.round(y + rowH / 2 + PAD_Y) };
+}
+
 const textStyle = (st) => ({
   fontFamily: FONTS.body,
   fontSize: `${st.size}px`,
@@ -218,15 +235,16 @@ const textStyle = (st) => ({
  * One word as a container centered on the word. Bars words are one Image per
  * letter (so letters can jitter); stage directions are a single italic Text.
  */
-function buildWord(scene, text, styleId) {
+function buildWord(scene, text, styleId, fit = 1) {
   const node = scene.add.container(0, 0);
+  const st = fit === 1 ? STYLE[styleId] : { ...STYLE[styleId], size: Math.round(STYLE[styleId].size * fit) };
   if (styleId === 'direction') {
-    const t = scene.add.text(0, 0, text, textStyle(STYLE.direction)).setOrigin(0.5);
+    const t = scene.add.text(0, 0, text, textStyle(st)).setOrigin(0.5);
     node.add(t);
     return { node, width: t.width, letters: [] };
   }
-  const style = textStyle(STYLE[styleId]);
-  const glyphs = [...text].map((ch) => glyph(scene, styleId, style, ch));
+  const style = textStyle(st);
+  const glyphs = [...text].map((ch) => glyph(scene, `${styleId}@${st.size}`, style, ch));
   const width = Math.round(glyphs.reduce((sum, g) => sum + g.advance, 0));
   let x = -width / 2;
   const letters = glyphs.map((g) => {
@@ -240,8 +258,8 @@ function buildWord(scene, text, styleId) {
 
 /** Render the bubble's letters ahead of time (call once fonts are loaded). */
 export function prewarmBubbleGlyphs(scene) {
-  prewarmGlyphs(scene, 'word', textStyle(STYLE.word));
-  prewarmGlyphs(scene, 'rhyme', textStyle(STYLE.rhyme));
+  prewarmGlyphs(scene, `word@${STYLE.word.size}`, textStyle(STYLE.word));
+  prewarmGlyphs(scene, `rhyme@${STYLE.rhyme.size}`, textStyle(STYLE.rhyme));
 }
 
 /** White bubble with a dark outline, a hard shadow, and a tail to the tip at (0, 0). */

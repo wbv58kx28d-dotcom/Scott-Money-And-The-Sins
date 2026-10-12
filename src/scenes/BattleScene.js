@@ -72,7 +72,7 @@ export default class BattleScene extends Phaser.Scene {
     this.crowdPeople = this.makeCrowd();
     if (def.stage) label(this, LAYOUT.stageLabel.x, LAYOUT.stageLabel.y, def.stage, 14, { color: '#8f7fc0' });
     this.enemyChar = this.makeCharacter(def.texture, LAYOUT.enemySlots[0], -1);
-    this.scottChar = this.makeCharacter(SCOTT.texture, LAYOUT.scott, 1);
+    this.scottChar = this.makeCharacter(SCOTT.texture, LAYOUT.scott, 1, LAYOUT.scottScale);
 
     this.enemyHud = new EnemyHud(this, this.enemy);
     this.crowdMeter = new CrowdMeter(this, this.crowd);
@@ -94,11 +94,11 @@ export default class BattleScene extends Phaser.Scene {
   // ---- Stage --------------------------------------------------------------
 
   /** A character is a container at the feet holding a feet-origin sprite. */
-  makeCharacter(texture, { x, y }, enterFrom) {
+  makeCharacter(texture, { x, y }, enterFrom, scale = 1) {
     const { offscreen, ms } = LAYOUT.entrance;
     const startX = enterFrom < 0 ? -offscreen : GAME_W + offscreen;
     const container = this.add.container(startX, y);
-    const sprite = this.add.image(0, 0, texture).setOrigin(0.5, 1);
+    const sprite = this.add.image(0, 0, texture).setOrigin(0.5, 1).setScale(scale);
     container.add(sprite);
     this.tweens.add({ targets: container, x, duration: ms, ease: 'Quad.easeOut' });
     const { px, ms: bobMs } = LAYOUT.idleBob;
@@ -191,6 +191,8 @@ export default class BattleScene extends Phaser.Scene {
       side: isScott ? 'right' : 'left',
       tagColor: isScott ? '#ffd166' : DISS_TYPES[this.def.type]?.color,
       instant: DEBUG.fast,
+      // An enemy's bubble mustn't run down over $cott's head.
+      maxBottom: this.scottChar.container.y - this.scottChar.sprite.displayHeight - 12,
     });
     this.bubbleSpeaker = null;
   }
