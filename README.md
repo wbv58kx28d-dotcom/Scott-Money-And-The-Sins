@@ -12,9 +12,11 @@ It runs in a phone browser, in portrait, from a shared link. No install.
 
 ## Play
 
-**Live link:** not deployed yet. The repo is private, so hosting will be
-Cloudflare Pages or Netlify (see `HANDOFF.md`, Phase 2). The link goes here
-once it's live.
+**Live link:** <https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/>
+(GitHub Pages from `main`; works once Pages is turned on under Settings → Pages).
+
+After a push, give it a few minutes before sharing: GitHub Pages caches files
+for about 10 minutes.
 
 ## Run it locally
 
@@ -47,7 +49,7 @@ The game itself has no dependencies. Dev tooling needs Node 18+:
 
 ```sh
 npm install      # once: installs Playwright (dev only)
-npm test         # unit tests for the combat math (no browser)
+npm test         # combat math + parity with the legacy prototype (no browser)
 npm run smoke    # plays full battles in headless Chromium, saves screenshots
 ```
 
