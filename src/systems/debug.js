@@ -10,6 +10,7 @@
 //   &sins=lilturnt,babarbara:2
 //                        preset recruited Sins, with optional levels (in memory only)
 //   &reset=1             wipe the saved progress
+//   &bubble=compact      try a speech-bubble style: classic, compact, ribbon, thread
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
 
@@ -38,4 +39,5 @@ export const DEBUG = Object.freeze({
   cleared: list('cleared'),
   sins,
   reset: flag('reset'),
+  bubble: enabled ? params.get('bubble') : null,
 });

@@ -78,7 +78,8 @@ export const LAYOUT = {
   stageLabel: { x: 28, y: 300 },
   // Speech bubbles for bars: $cott's sits up-left of his head, the enemy's to
   // the right of their face. Both stay right of x=316 and below minTop.
-  bubble: { maxW: 384, right: 700, gap: 22, minTop: 318 },
+  // style: classic | compact | ribbon | thread (see ui/speechBubble.js; debug &bubble= overrides)
+  bubble: { style: 'classic', right: 700, gap: 22, minTop: 318 },
   // The crowd: silhouettes along the horizon, behind the fighters.
   crowdRow: { y: 700, count: 15, spacing: 48 },
   entrance: { offscreen: 260, ms: 650 }, // fighters slide in from the sides
