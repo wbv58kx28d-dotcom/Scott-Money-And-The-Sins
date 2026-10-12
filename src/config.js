@@ -30,29 +30,20 @@ export const COLORS = {
   textCool: '#9fdcff',
   outline: '#120d1c',
 
-  clout: 0x4ade80,
-  cloutLow: 0xef4444,
-  flow: 0x38bdf8,
-  crowd: 0xf472b6,
-  crowdFull: 0xf4d35e,
-  barBack: 0x0c0914,
+  // Clout bars go green → yellow → red (above 50%, above 25%, below).
+  cloutHigh: 0x3ddc84,
+  cloutMid: 0xffd166,
+  cloutLow: 0xff5c5c,
+  flow: 0x4cc9f0,
+  crowd: 0xff5c8a,
+  crowdFull: 0xffd166,
+  barBack: 0x2a2040,
 
   glow: 0x9fdcff, // active-turn highlight (CLAUDE.md §8.1)
 };
 
-// Text color per hit result and timing rating.
-export const RESULT_COLORS = {
-  crit: '#ff4d6d',
-  bypass: '#ffb347',
-  nerve: '#ffd166',
-  weak: '#7cf29c',
-  resisted: '#8a8496',
-  normal: '#f5f1e8',
-  PERFECT: '#f4d35e',
-  FIRE: '#ff8c42',
-  MID: '#9fdcff',
-  WACK: '#8a8496',
-};
+/** Clout bar color for a fill ratio (from the prototype). */
+export const cloutColor = (ratio) => (ratio > 0.5 ? COLORS.cloutHigh : ratio > 0.25 ? COLORS.cloutMid : COLORS.cloutLow);
 
 // Battle layout for the 720×1280 portrait canvas (CLAUDE.md §8.2).
 // Characters use feet origins: x, y is where the feet touch the ground.
@@ -72,11 +63,17 @@ export const LAYOUT = {
   headroom: 30, // gap above the head for damage numbers
 
   enemyHud: { x: 24, y: 24, w: 672, h: 196 },
+  cornerButtons: { y: 52, h: 40, gap: 8, right: 682 }, // ? and SND, inside the enemy panel
   crowd: { x: 24, y: 232, w: 672, h: 56 },
   scottHud: { x: 24, y: 850, w: 300, h: 196 },
 
   panel: { x: 16, y: 1090, w: 688, h: 170, pad: 8, gap: 6 },
   timingBar: { x: 60, y: 1186, w: 600, h: 44 },
+
+  stageLabel: { x: 28, y: 300 },
+  // The crowd: silhouettes along the horizon, behind the fighters.
+  crowdRow: { y: 700, count: 15, spacing: 48 },
+  entrance: { offscreen: 260, ms: 650 }, // fighters slide in from the sides
 
   idleBob: { px: 3, ms: 1400 },
 };

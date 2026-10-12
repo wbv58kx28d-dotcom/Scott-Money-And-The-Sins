@@ -8,10 +8,9 @@ import SCOTT from '../src/data/scott.js';
 import derek from '../src/data/enemies/derek.js';
 import { ENEMIES } from '../src/data/enemies/index.js';
 import { DISS_TYPES } from '../src/data/types.js';
-import { STATUSES } from '../src/data/statuses.js';
 import { CROWD } from '../src/data/rules.js';
 import {
-  createBattler, resolveHit, rollDamage, startOfTurnFlow, checkStatusTriggers, discover, softSpotKey, restore,
+  createBattler, resolveHit, rollDamage, startOfTurnFlow, checkStatusTriggers, discover, softSpotKey, restore, scottBarsFor,
 } from '../src/systems/combat.js';
 import { rateTiming, markerPosition, sweepMs } from '../src/systems/timing.js';
 import { StatusSet } from '../src/systems/status.js';
@@ -39,13 +38,14 @@ test('hit results against Derek match CLAUDE.md §4', () => {
   }
 });
 
-test("hit results against $cott apply the same rules (§5.3)", () => {
+test('hit results against $cott apply the same rules (§5.3)', () => {
   const s = createBattler(SCOTT);
   assert.equal(resolveHit(s, 'ROAST', 'LOOKS').id, 'crit'); // the hairline
   assert.equal(resolveHit(s, 'FLEX', 'STYLE').id, 'bypass'); // the vest
-  assert.equal(resolveHit(s, 'ROAST', 'FAMILY').id, 'weak');
+  assert.equal(resolveHit(s, 'ROAST', 'LIFESTYLE').id, 'weak');
   assert.equal(resolveHit(s, 'FLEX', 'WEALTH').id, 'resisted');
   assert.equal(resolveHit(s, 'WORDPLAY', 'CAREER').id, 'normal');
+  assert.equal(resolveHit(s, 'HYPE', null).id, 'normal'); // Pump & Dump
 });
 
 test('damage formula (§5.6)', () => {
@@ -75,16 +75,16 @@ test('damage variance stays inside its range', () => {
   }
 });
 
-test('timing ratings (§5.4)', () => {
+test('timing ratings measure distance against half the bar (§5.4)', () => {
   const at = (pos) => rateTiming(pos).id;
   assert.equal(at(0.5), 'PERFECT');
-  assert.equal(at(0.58), 'PERFECT');
-  assert.equal(at(0.42), 'PERFECT');
-  assert.equal(at(0.59), 'FIRE');
-  assert.equal(at(0.7), 'FIRE');
-  assert.equal(at(0.71), 'MID');
-  assert.equal(at(0.86), 'MID');
-  assert.equal(at(0.87), 'WACK');
+  assert.equal(at(0.54), 'PERFECT'); // 8% of the half-bar
+  assert.equal(at(0.46), 'PERFECT');
+  assert.equal(at(0.545), 'FIRE');
+  assert.equal(at(0.6), 'FIRE');
+  assert.equal(at(0.605), 'MID');
+  assert.equal(at(0.68), 'MID');
+  assert.equal(at(0.685), 'WACK');
   assert.equal(at(0), 'WACK');
   assert.equal(rateTiming(0.5).mult, 1.5);
   assert.equal(rateTiming(0).crowd, -5);
@@ -98,49 +98,58 @@ test('timing marker bounces end to end, 820 ms per sweep at speed 1', () => {
   assert.equal(markerPosition(820, 1), 1);
   assert.equal(markerPosition(1230, 1), 0.5);
   assert.equal(markerPosition(1640, 1), 0);
+  assert.equal(markerPosition(0, 1, true), 1);
+  assert.equal(markerPosition(820, 1, true), 0);
 });
 
-test('statuses skip the tick of the round they were applied in', () => {
+test('Mooning counts down at the end of every round, including the first', () => {
   const set = new StatusSet();
-  set.apply('rugPulled');
-  assert.deepEqual(set.tick(), []); // applied this round
-  assert.equal(set.get('rugPulled').turns, 2);
-  assert.deepEqual(set.tick(), []);
-  assert.equal(set.get('rugPulled').turns, 1);
-  assert.deepEqual(set.tick().map((s) => s.id), ['rugPulled']);
-  assert.equal(set.has('rugPulled'), false);
-
-  set.apply('shortSqueezed'); // permanent
-  for (let i = 0; i < 10; i++) set.tick();
-  assert.equal(set.has('shortSqueezed'), true);
-});
-
-test('Mooning lasts for 3 of $cott\'s following turns', () => {
-  const set = new StatusSet();
-  set.apply('mooning');
-  let boostedTurns = 0;
-  set.tick(); // end of the round it was used
+  set.apply('mooning'); // used in round 1
+  assert.equal(set.get('mooning').turns, 3);
+  let boostedAttacks = 0;
+  set.tick(); // end of round 1
   while (set.has('mooning')) {
-    boostedTurns += 1; // $cott attacks this round
+    boostedAttacks += 1; // $cott attacks in this round
     set.tick();
   }
-  assert.equal(boostedTurns, STATUSES.mooning.turns);
+  assert.equal(boostedAttacks, 2);
 });
 
-test('Flow: +5 regen after the first turn, Rug Pulled drains 8 instead (§5.1, §5.7)', () => {
+test('Rug Pulled drains 8 Flow twice, then regen resumes (§5.7)', () => {
   const s = createBattler(SCOTT);
-  assert.deepEqual(startOfTurnFlow(s, true), { kind: 'none', amount: 0 });
-  assert.equal(s.flow, 60);
-  assert.deepEqual(startOfTurnFlow(s, false), { kind: 'regen', amount: 0 }); // capped
-  s.flow = 20;
-  assert.deepEqual(startOfTurnFlow(s, false), { kind: 'regen', amount: 5 });
-  assert.equal(s.flow, 25);
+  s.flow = 40;
   s.statuses.apply('rugPulled');
-  assert.deepEqual(startOfTurnFlow(s, false), { kind: 'drain', amount: 8 });
-  assert.equal(s.flow, 17);
+  assert.equal(s.statuses.tick().length, 0, "end of round doesn't touch it");
+  let r = startOfTurnFlow(s, false);
+  assert.equal(r.kind, 'drain');
+  assert.equal(s.flow, 32);
+  assert.equal(s.statuses.get('rugPulled').turns, 1);
+  r = startOfTurnFlow(s, false);
+  assert.equal(s.flow, 24);
+  assert.deepEqual(r.expired.map((x) => x.id), ['rugPulled']);
+  assert.equal(startOfTurnFlow(s, false).kind, 'regen');
+  assert.equal(s.flow, 29);
+});
+
+test('Flow regen: +5 after the first turn, capped (§5.1)', () => {
+  const s = createBattler(SCOTT);
+  assert.equal(startOfTurnFlow(s, true).kind, 'none');
+  assert.equal(startOfTurnFlow(s, false).amount, 0); // already full
+  s.flow = 20;
+  assert.equal(startOfTurnFlow(s, false).amount, 5);
+  assert.equal(s.flow, 25);
   s.flow = 3;
-  assert.deepEqual(startOfTurnFlow(s, false), { kind: 'drain', amount: 3 });
+  s.statuses.apply('rugPulled');
+  assert.equal(startOfTurnFlow(s, false).amount, 3); // can't go below 0
   assert.equal(s.flow, 0);
+});
+
+test('Short Squeezed is permanent', () => {
+  const set = new StatusSet();
+  set.apply('shortSqueezed');
+  for (let i = 0; i < 10; i++) set.tick();
+  assert.equal(set.has('shortSqueezed'), true);
+  assert.equal(set.tint(), 0xffa0a0);
 });
 
 test('items and restores cap at max', () => {
@@ -165,10 +174,10 @@ test('crowd meter clamps, unlocks at 100, and locks until the mic drops (§5.5)'
   c.reset();
   assert.equal(c.value, 0);
 
-  const unlocked = new Crowd({ lockWhenFull: false });
-  unlocked.add(100);
-  unlocked.add(-4);
-  assert.equal(unlocked.value, 96);
+  const prototype = new Crowd({ lockWhenFull: false });
+  prototype.add(100);
+  prototype.add(-4);
+  assert.equal(prototype.value, 96, "the prototype's behavior");
 });
 
 test('Short Squeezed triggers at 40% Clout or below (§4)', () => {
@@ -201,8 +210,8 @@ test("Derek's AI: Pump & Dump rule, then weights (§5.9)", () => {
     const m = chooseEnemyMove(d, s, r);
     counts[m.id] = (counts[m.id] ?? 0) + 1;
   }
-  const share = (id) => counts[id] / N;
-  assert.ok(Math.abs(share('pumpDump') - 0.3) < 0.02, `pumpDump ${share('pumpDump')}`);
+  const share = (id) => (counts[id] ?? 0) / N;
+  assert.ok(Math.abs(share('pump') - 0.3) < 0.02, `pump ${share('pump')}`);
   // The other 70% splits by weight: 30/20/20/15/15/10 (out of 110).
   const total = derek.moves.reduce((sum, m) => sum + m.weight, 0);
   for (const move of derek.moves.filter((m) => m.weight > 0)) {
@@ -211,10 +220,20 @@ test("Derek's AI: Pump & Dump rule, then weights (§5.9)", () => {
   }
 
   s.statuses.apply('rugPulled');
-  for (let i = 0; i < 500; i++) assert.notEqual(chooseEnemyMove(d, s, r).id, 'pumpDump');
+  for (let i = 0; i < 500; i++) assert.notEqual(chooseEnemyMove(d, s, r).id, 'pump');
   s.statuses.remove('rugPulled');
   s.flow = 14;
-  for (let i = 0; i < 500; i++) assert.notEqual(chooseEnemyMove(d, s, r).id, 'pumpDump');
+  for (let i = 0; i < 500; i++) assert.notEqual(chooseEnemyMove(d, s, r).id, 'pump');
+});
+
+test('bars come from couplet pools', () => {
+  const r = createRng(3);
+  const lambo = SCOTT.moves.find((m) => m.id === 'lambo');
+  const seen = new Set();
+  for (let i = 0; i < 50; i++) seen.add(scottBarsFor(derek, lambo, 'WEALTH', r)[0]);
+  assert.equal(seen.size, 2, 'both WEALTH couplets show up');
+  assert.deepEqual(scottBarsFor(derek, SCOTT.micDrop, null, r), derek.micBars[0]);
+  assert.equal(scottBarsFor(derek, SCOTT.moves.find((m) => m.id === 'mooning'), null, r).length, 2);
 });
 
 test('seeded rng is repeatable', () => {
@@ -223,20 +242,17 @@ test('seeded rng is repeatable', () => {
   for (let i = 0; i < 50; i++) assert.equal(a.random(), b.random());
 });
 
-test('every villain has a couplet for every type and target, and for each move', () => {
+test('every villain has couplets for every type and target, and for each move', () => {
+  const isCouplet = (c) => Array.isArray(c) && c.length === 2 && c.every((l) => typeof l === 'string' && l.length);
+  const isPool = (p) => Array.isArray(p) && p.length > 0 && p.every(isCouplet);
   for (const enemy of Object.values(ENEMIES)) {
     for (const [type, { targets }] of Object.entries(DISS_TYPES)) {
-      for (const target of targets) {
-        const bars = enemy.scottBars[type]?.[target];
-        assert.ok(Array.isArray(bars) && bars.length === 2, `${enemy.id} scottBars.${type}.${target}`);
-      }
+      for (const target of targets) assert.ok(isPool(enemy.scottBars[type]?.[target]), `${enemy.id} scottBars.${type}.${target}`);
     }
-    assert.equal(enemy.scottBars.MIC?.length, 2, `${enemy.id} scottBars.MIC`);
+    assert.ok(isPool(enemy.micBars), `${enemy.id} micBars`);
     for (const move of enemy.moves) {
-      assert.equal(move.bars?.length, 2, `${enemy.id} ${move.id} bars`);
-      if (move.type && move.type !== 'HYPE') {
-        assert.ok(DISS_TYPES[move.type].targets.includes(move.target), `${enemy.id} ${move.id} target`);
-      }
+      assert.ok(isPool(move.bars), `${enemy.id} ${move.id} bars`);
+      if (move.target) assert.ok(DISS_TYPES[move.type].targets.includes(move.target), `${enemy.id} ${move.id} target`);
     }
     for (const rule of enemy.ai?.rules ?? []) {
       assert.ok(enemy.moves.some((m) => m.id === rule.move), `${enemy.id} AI rule ${rule.move}`);

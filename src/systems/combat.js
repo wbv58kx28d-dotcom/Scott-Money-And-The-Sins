@@ -91,19 +91,20 @@ export function restore(battler, { clout = 0, flow = 0 }) {
 }
 
 /**
- * Start of $cott's turn (§5.1, §5.7): +5 Flow after the first turn, unless a
- * status like Rug Pulled drains Flow instead.
+ * Start of $cott's turn (§5.1, §5.7). If a status like Rug Pulled is draining
+ * him, he loses that Flow and gets no regen; otherwise he regains 5, except on
+ * his first turn. Returns { kind: 'none' | 'regen' | 'drain', amount, expired }.
  */
 export function startOfTurnFlow(battler, isFirstTurn) {
-  if (isFirstTurn) return { kind: 'none', amount: 0 };
-  const drain = battler.statuses.flowDrain();
-  if (drain > 0 || battler.statuses.blocksRegen()) {
+  const { amount, drained, expired } = battler.statuses.drain();
+  if (drained.length) {
     const before = battler.flow;
-    battler.flow = Math.max(0, battler.flow - drain);
-    return { kind: 'drain', amount: before - battler.flow };
+    battler.flow = Math.max(0, battler.flow - amount);
+    return { kind: 'drain', amount: before - battler.flow, drained, expired };
   }
+  if (isFirstTurn) return { kind: 'none', amount: 0, drained, expired };
   const { flow } = restore(battler, { flow: FLOW.regenPerTurn });
-  return { kind: 'regen', amount: flow };
+  return { kind: 'regen', amount: flow, drained, expired };
 }
 
 /** Status triggers like Short Squeezed at 40% Clout. Returns the ones that just fired. */
@@ -119,8 +120,14 @@ export function checkStatusTriggers(battler) {
   return fired;
 }
 
-/** Bars for $cott's diss against this villain. */
-export function scottBarsFor(enemyDef, move, target) {
-  if (move.finisher) return enemyDef.scottBars.MIC;
-  return enemyDef.scottBars[move.type]?.[target] ?? ['...', '(No bars written for this target yet.)'];
+const MUMBLE = [['*mumbles something about synergy*', '*it does not land*']];
+
+/** One couplet from a pool of couplets. */
+export const pickCouplet = (pool, rng) => rng.pick(pool);
+
+/** The couplet $cott spits for this move (and target) against this villain. */
+export function scottBarsFor(enemyDef, move, target, rng) {
+  if (move.finisher) return pickCouplet(enemyDef.micBars, rng);
+  if (move.bars) return pickCouplet(move.bars, rng);
+  return pickCouplet(enemyDef.scottBars[move.type]?.[target] ?? MUMBLE, rng);
 }

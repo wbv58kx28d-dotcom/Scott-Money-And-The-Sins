@@ -1,38 +1,34 @@
 // Diamond Hands Derek — prologue villain, Subreddit Swamps (CLAUDE.md §4).
+// Every number and line here comes from legacy/scott-money-battle.html.
 //
-// Stats, weaknesses, soft spots, AI weights, and the Pump & Dump rule come
-// from CLAUDE.md §4–5. Values marked RECONSTRUCTED (move powers, move
-// type/targets, the heal) and every couplet were written while the legacy
-// prototype was missing; reconcile them with legacy/scott-money-battle.html.
+// Bars are pools: each entry is a list of couplets, and one is picked at
+// random each time. Add a couplet to a list to give it more variety.
 
 export default {
   id: 'derek',
-  name: 'Diamond Hands Derek',
+  name: 'DIAMOND HANDS DEREK',
   short: 'DEREK',
-  title: 'Meme-Stock Trader',
   type: 'HYPE',
   maxClout: 150,
   texture: 'derek',
   background: 'bg_tokyo', // the Subreddit Swamps background doesn't exist yet
+  stage: 'THE SUBREDDIT SWAMPS',
 
   weak: ['FLEX'],
   resist: ['ROAST'],
   softSpots: [
-    { type: 'FLEX', target: 'WEALTH', msg: 'Right in the brokerage account! Those diamond hands are shaking.' }, // crit
-    { type: 'ROAST', target: 'INTELLECT', msg: 'The "I did my own research" armor cracks wide open.' }, // bypass
-    { type: 'WORDPLAY', target: 'CAREER', msg: 'That one hit his night shift. Derek felt it.' }, // nerve
+    { type: 'FLEX', target: 'WEALTH', msg: "He's broke, and now the whole crowd knows it." }, // crit
+    { type: 'ROAST', target: 'INTELLECT', msg: 'He can lose money. He cannot lose an argument about money.' }, // bypass
+    { type: 'WORDPLAY', target: 'CAREER', msg: '"Day trader" is not a job, and deep down he knows it.' }, // nerve
   ],
-  messages: {
-    weak: "Derek can't handle a FLEX. His bags feel heavier already.",
-    resisted: 'Derek gets roasted by the internet daily. It barely stings.',
-  },
+  resistMsg: { ROAST: 'Derek has no shame left to lose.\nNot very effective.' },
 
   // Fires when Clout drops to `atCloutPct` of max or below (§4, §5.7).
   statusTriggers: [
     {
       status: 'shortSqueezed',
       atCloutPct: 0.4,
-      msg: 'DEREK IS SHORT SQUEEZED! A cornered ape hits harder.',
+      msg: "Derek is getting SHORT SQUEEZED!\nHe has never felt more alive. Derek's damage is UP!",
     },
   ],
 
@@ -40,7 +36,7 @@ export default {
   ai: {
     rules: [
       {
-        move: 'pumpDump',
+        move: 'pump',
         chance: 0.3,
         when: { targetLacksStatus: 'rugPulled', targetFlowAtLeast: 15 },
       },
@@ -49,88 +45,36 @@ export default {
 
   moves: [
     {
-      id: 'lossPorn',
-      name: 'Loss Porn',
-      type: 'WORDPLAY',
-      target: 'CAREER',
-      power: 12, // RECONSTRUCTED
-      weight: 30,
+      id: 'loss', name: 'LOSS PORN', type: 'ROAST', target: 'LIFESTYLE', power: 13, weight: 30,
+      bars: [["You're down bad, Money, and I know down bad.", "I'm the CEO of down bad. Inherited it from my dad."]],
+    },
+    {
+      id: 'hair', name: 'HAIRLINE SHORT', type: 'ROAST', target: 'LOOKS', power: 10, weight: 15,
+      bars: [["Your hairline's in a bear market, it's been retreating all year.", "I'd short it, Money, but it's already outta here."]],
+    },
+    {
+      id: 'dd', name: 'DUE DILIGENCE', type: 'WORDPLAY', target: 'CAREER', power: 14, weight: 20,
+      bars: [["They found your laptop, Money. They found your little scheme.", "You're the only founder whose cap table is a crime scene."]],
+    },
+    {
+      id: 'apes', name: 'APES TOGETHER STRONG', type: 'WORDPLAY', target: 'REP', power: 14, weight: 20,
       bars: [
-        'I lost two hundred K and I posted it with pride,',
-        "You lost your whole empire, bro, and now you've got to hide.",
+        ["Apes together strong, but you? You're alone.", 'Your whole crew left the group chat. Even Greed blocked your phone.'],
+        ['I got ten million apes. You got ten million in debt.', 'I hold the line. You hold a press conference of regret.'],
       ],
     },
     {
-      id: 'dueDiligence',
-      name: 'Due Diligence',
-      type: 'ROAST',
-      target: 'INTELLECT',
-      power: 9, // RECONSTRUCTED
-      weight: 20,
-      bars: [
-        'I did the due diligence on your so-called genius plan,',
-        "It's a pitch deck and a vibe, bro — your brain's a ceiling fan.",
-      ],
+      id: 'drip', name: 'DRIP CHECK', type: 'FLEX', target: 'STYLE', power: 14, weight: 15,
+      bars: [['Patagonia vest on a button-down? Groundbreaking.', 'You dress like a LinkedIn post about networking.']],
     },
     {
-      id: 'apesStrong',
-      name: 'Apes Together Strong',
-      type: 'HYPE',
-      heal: 15, // RECONSTRUCTED
-      weight: 20,
-      bars: [
-        "Apes together strong, the whole swamp's got my back,",
-        'One upvote at a time — watch my Clout come right back.',
-      ],
+      id: 'tendie', name: 'TENDIE TOWER', type: 'FLEX', target: 'WEALTH', power: 16, weight: 10,
+      bars: [["Stimmy check stacked, YOLO'd every cent on calls!", "I'm flexin' on you, Money. Wait, why's it not working at all?"]],
     },
     {
-      id: 'hairlineShort',
-      name: 'Hairline Short',
-      type: 'ROAST',
-      target: 'LOOKS',
-      power: 9, // RECONSTRUCTED
-      weight: 15,
-      bars: [
-        "I'm shorting your hairline, it's been bearish for a decade,",
-        'Your forehead has more runway than the startups that you made.',
-      ],
-    },
-    {
-      id: 'dripCheck',
-      name: 'Drip Check',
-      type: 'FLEX',
-      target: 'STYLE',
-      power: 13, // RECONSTRUCTED
-      weight: 15,
-      bars: [
-        "That vest's a life jacket for a sinking finance bro,",
-        'Your drip is a leaky faucet and the whole swamp saw it go.',
-      ],
-    },
-    {
-      id: 'tendieTower',
-      name: 'Tendie Tower',
-      type: 'FLEX',
-      target: 'WEALTH',
-      power: 16, // RECONSTRUCTED
-      weight: 10,
-      bars: [
-        'My tendie tower is taller than your credit score,',
-        "I'm eating gains for breakfast while you're begging at the door.",
-      ],
-    },
-    {
-      id: 'pumpDump',
-      name: 'Pump & Dump',
-      type: 'WORDPLAY',
-      target: 'REP',
-      power: 8, // RECONSTRUCTED
-      weight: 0, // only used through the AI rule above
+      id: 'pump', name: 'PUMP & DUMP', type: 'HYPE', target: null, power: 7, weight: 0, // only via the AI rule
       applyStatus: 'rugPulled',
-      bars: [
-        'I pumped your little token, then I dumped it on the fans,',
-        "Now your Flow is draining out — rug pulled, that's the plan.",
-      ],
+      bars: [["I'll pump you to the moon, then I dump you on your head.", "Not financial advice, but your Flow is lookin' red."]],
     },
   ],
 
@@ -138,77 +82,57 @@ export default {
   scottBars: {
     FLEX: {
       WEALTH: [
-        'My net worth has a net worth, and my yacht has got a yacht,',
-        'Your diamond hands are holding every bag that I forgot.',
+        ["My watch costs more than your portfolio's peak,", "and your portfolio's peak was a Tuesday last week."],
+        ["I tip my valet in equity, my barista's on the board.", "You tip in Dogecoin. That's the most you can afford."],
       ],
-      PHYSIQUE: [
-        'I got a private trainer and a chef who preps my greens,',
-        "You got carpal tunnel from refreshing ticker screens.",
-      ],
-      STYLE: [
-        'My vest is bespoke merino, hand-stitched by the elite,',
-        "You're in a stained hoodie and some Crocs with no heat.",
-      ],
-      STATUS: [
-        'I got a blue check, a green room, and a seat at every table,',
-        'You got a flair on a forum and a username that\'s unstable.',
-      ],
+      PHYSIQUE: [["I got abs on my abs and a cold plunge on the yacht.", "Your only cardio's running from the margin calls you got."]],
+      STYLE: [['My vest costs more than your four-monitor setup.', 'You wear a hoodie with a rocket on it. Grow up.']],
+      STATUS: [['I keynote in Davos, got a TED Talk in the can.', "You're famous on a forum where your username's banned."]],
     },
     ROAST: {
-      LOOKS: [
-        'Your face looks like a chart in a market correction,',
-        'Red all over, sagging in every direction.',
-      ],
+      LOOKS: [['You look like an energy drink that learned how to type.', "Your skin's been in a downtrend since you first bought the hype."]],
       INTELLECT: [
-        'You call it due diligence — it\'s a meme and a hunch,',
-        'You ate the crayons, Derek, then you shorted your own lunch.',
+        ['Your due diligence is a meme and a gut feeling.', 'You read candlestick charts like tea leaves on the ceiling.'],
+        ['You think a P/E ratio is something from gym class.', "Your whole investing thesis is 'trust me, it'll pass.'"],
       ],
-      LIFESTYLE: [
-        "You trade from mom's basement on her Wi-Fi and her dime,",
-        "You're long on the future but you're short on rent every time.",
-      ],
-      FAMILY: [
-        'Your mom put down her savings on your "can\'t-lose" play,',
-        "Now Thanksgiving's just a margin call served up on a tray.",
-      ],
+      LIFESTYLE: [['Gaming chair, energy drink, four monitors, no job.', "You're not a trader, Derek. You're a Discord mod."]],
+      FAMILY: [['You call it diamond hands. I call it a cry for help.', "Your wife's boyfriend runs your 401(k) himself."]],
     },
     WORDPLAY: {
-      NAME: [
-        'They call you Diamond Hands — I call you Cubic Zirconia,',
-        "Fake from the start and you're losing to my persona.",
-      ],
+      NAME: [['Diamond Hands Derek? More like Paper Wallet Pete.', "Your name's got more letters than your wins this week."]],
       CAREER: [
-        'You list "full-time trader" but you stock shelves at night,',
-        'The only bags you hold are paper ones — and that sounds right.',
+        ['I close a Series A while you close a position.', 'I raise capital. You raise suspicion.'],
+        ["You call yourself a day trader. That's not a career.", "That's a gambling problem with a Wi-Fi bill and a chair."],
       ],
-      REP: [
-        'Your rep\'s a penny stock that the market forgot,',
-        'Even the bots in your replies just said "nah, I\'m not."',
-      ],
+      REP: [['You buy high, sell low, and call it a strategy.', "I call it charity, and Derek, you're the charity."]],
     },
-    // Drop the Mic (finisher, no type or target).
-    MIC: [
-      'Tell the apes to hold THIS: my name, my bag, my crown,',
-      "The mic drops like your portfolio — and it ain't coming back around.",
-    ],
   },
+  micBars: [["This is the part where the founder gets the final say:", "you're a ticker symbol, Derek, and I just delisted you today."]],
 
   script: {
+    // Each line is { text, speaker? }; a speaker shows as a name tab.
     intro: [
-      { text: 'The Subreddit Swamps. Something blocks the path, clutching a glowing rock.' },
-      { speaker: 'DEREK', text: 'Well, well. The great $cott Money. Heard you got framed, bro. Clout at all-time lows.' },
-      { speaker: '$COTT', text: "Framed? I'm a limited edition. Step aside, bagholder." },
-      { speaker: 'DEREK', text: "Apes don't step aside. Apes HODL. Let's do this." },
+      { text: 'DIAMOND HANDS DEREK blocks the path!' },
+      { speaker: 'DEREK', text: '"Your stock\'s crashin\', Money.\nI\'m BUYING THE DIP."' },
+      { text: 'Every rival has weaknesses and soft spots.\nTap ? up top for the cheat sheet.' },
     ],
     victory: [
-      { speaker: 'DEREK', text: 'Paper... hands... I have... paper hands...' },
-      { speaker: '$COTT', text: 'Hold that L, Derek. Hold it with both hands.' },
-      { text: 'The swamp parts. The road to the Sins is open.' },
+      { text: 'DIAMOND HANDS DEREK got DELISTED!' },
+      { speaker: 'DEREK', text: '"I... I still like the stock."\n*logs off to touch grass*' },
     ],
-    defeat: [
-      { speaker: 'DEREK', text: "Apes together strong. $cott together... alone." },
-      { text: '$cott got cooked in the Subreddit Swamps.' },
-    ],
+    defeat: [{ text: "$COTT MONEY got RATIO'D.\nHis Clout is now worth less than a meme coin." }],
+  },
+
+  // End-of-fight screen. {soft} = soft spots found, {softTotal} = how many exist.
+  endScreen: {
+    victory: {
+      title: 'DELISTED!',
+      body: "+250 Clout\n+1 Derek's gaming chair (useless)\nSoft spots found: {soft}/{softTotal}\n\n$cott's first step back to the top.\nNext stop: the overworld map.\n(Coming soon.)",
+    },
+    defeat: {
+      title: "RATIO'D",
+      body: "$cott's Clout hit zero.\n\nDerek is weak to FLEX, and some targets hurt him way more than others. Experiment.",
+    },
   },
 
   // Pre-battle parley (CLAUDE.md §6.2). Open question for the prologue: skip it,

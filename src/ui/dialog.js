@@ -7,7 +7,7 @@
 import { COLORS, LAYOUT } from '../config.js';
 import { body, label, fitWrapped } from './text.js';
 
-const CHAR_MS = 22;
+const CHAR_MS = 16;
 
 export class DialogBox {
   constructor(scene, bus, { instant = false } = {}) {
@@ -74,6 +74,16 @@ export class DialogBox {
         },
       });
     });
+  }
+
+  /** Show a line without waiting for a tap (e.g. "DEREK fires back..."). */
+  show(text, speaker = null) {
+    this.visible(true);
+    this.speaker.setText(speaker ?? '').setVisible(!!speaker);
+    this.text.setColor(COLORS.text);
+    const wrapped = fitWrapped(this.text, text, { maxWidth: this.box.w, maxHeight: this.box.h, maxSize: 36, minSize: 24 });
+    this.text.setText(wrapped);
+    this.arrow.setVisible(false);
   }
 
   visible(on) {

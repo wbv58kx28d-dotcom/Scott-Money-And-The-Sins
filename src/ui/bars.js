@@ -7,9 +7,10 @@ import { COLORS } from '../config.js';
 import { label, body } from './text.js';
 
 export class StatBar {
-  constructor(scene, { x, y, w, h, color, lowColor = null, lowAt = 0.25, title = '', value, max, numbers = true }) {
+  /** `color` is a fill color, or a function of the fill ratio returning one. */
+  constructor(scene, { x, y, w, h, color, title = '', value, max, numbers = true }) {
     this.scene = scene;
-    Object.assign(this, { x, y, w, h, color, lowColor, lowAt, max });
+    Object.assign(this, { x, y, w, h, color, max });
     this.value = value;
     this.display = { v: value };
     this.g = scene.add.graphics();
@@ -46,7 +47,7 @@ export class StatBar {
   draw() {
     const { g, x, y, w, h } = this;
     const ratio = Math.max(0, Math.min(1, this.display.v / this.max));
-    const fill = this.lowColor !== null && ratio <= this.lowAt ? this.lowColor : this.color;
+    const fill = typeof this.color === 'function' ? this.color(ratio) : this.color;
     g.clear();
     g.fillStyle(COLORS.barBack, 1);
     g.fillRect(x, y, w, h);

@@ -1,18 +1,18 @@
-// Status effects on one battler (CLAUDE.md §5.7). Definitions live in
-// src/data/statuses.js.
+// Status effects on one battler (CLAUDE.md §5.7). Definitions, including
+// when each one counts down, live in src/data/statuses.js.
 
 import { STATUSES } from '../data/statuses.js';
 
 export class StatusSet {
   constructor() {
-    this.active = new Map(); // id -> { def, turns, fresh }
+    this.active = new Map(); // id -> { def, turns }
   }
 
   /** Apply (or refresh) a status. Returns its definition. */
   apply(id) {
     const def = STATUSES[id];
     if (!def) throw new Error(`Unknown status: ${id}`);
-    this.active.set(id, { def, turns: def.turns, fresh: true });
+    this.active.set(id, { def, turns: def.turns });
     return def;
   }
 
@@ -42,32 +42,38 @@ export class StatusSet {
     return mult;
   }
 
-  /** Total Flow lost at the start of the holder's turn. */
-  flowDrain() {
-    let total = 0;
-    for (const { def } of this.active.values()) total += def.flowDrain ?? 0;
-    return total;
-  }
-
-  blocksRegen() {
-    for (const { def } of this.active.values()) if (def.blocksRegen) return true;
-    return false;
+  /** The tint of the first active status that has one, or null. */
+  tint() {
+    for (const { def } of this.active.values()) if (def.tint) return def.tint;
+    return null;
   }
 
   /**
-   * End-of-round tick. A status applied this round doesn't count down until
-   * the next one, so "2 turns" means two full rounds. Returns expired defs.
+   * Start of the holder's turn: statuses with a flowDrain take their Flow and
+   * count down. Returns { amount, drained: [defs], expired: [defs] }.
    */
+  drain() {
+    let amount = 0;
+    const drained = [];
+    const expired = [];
+    for (const [id, entry] of this.active) {
+      if (!entry.def.flowDrain) continue;
+      amount += entry.def.flowDrain;
+      drained.push(entry.def);
+      if (entry.def.countdown === 'onDrain' && --entry.turns <= 0) {
+        this.active.delete(id);
+        expired.push(entry.def);
+      }
+    }
+    return { amount, drained, expired };
+  }
+
+  /** End of round: 'roundEnd' statuses count down. Returns expired defs. */
   tick() {
     const expired = [];
     for (const [id, entry] of this.active) {
-      if (entry.turns === null) continue;
-      if (entry.fresh) {
-        entry.fresh = false;
-        continue;
-      }
-      entry.turns -= 1;
-      if (entry.turns <= 0) {
+      if (entry.def.countdown !== 'roundEnd' || entry.turns === null) continue;
+      if (--entry.turns <= 0) {
         this.active.delete(id);
         expired.push(entry.def);
       }

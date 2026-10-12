@@ -117,19 +117,25 @@ async function playBattle(page, { plan = [], shots = {}, label }) {
       return { ...s, actions };
     }
 
-    const enabled = s.buttons.filter((b) => b.enabled);
-    if (s.phase === 'menu' && enabled.length) {
-      const has = (text) => enabled.find((b) => b.text === text);
-      await snap(has('LAMBO LULLABY') ? 'dissMenu' : has('WEALTH') ? 'targetMenu' : 'menu');
+    // Corner buttons (? and SND) are "system" buttons; the policy skips them.
+    const enabled = s.buttons.filter((b) => b.enabled && !b.system);
+    if (s.phase === 'menu' && enabled.length && !s.overlay) {
+      const has = (text) => enabled.find((b) => b.text === text || b.text.startsWith(`${text} x`));
+      await snap(has('LAMBO LULLABY') ? 'dissMenu' : has('WEALTH') ? 'targetMenu' : has('COLD BREW') ? 'bagMenu' : 'menu');
       const planned = queue.length ? has(queue[0]) : null;
       if (planned) queue.shift();
+      // Like a player: finish when the mic is ready, diss while there's Flow,
+      // otherwise reach into the bag (or STALL once it's empty).
+      const canDiss = s.scott.flow >= 8;
       const pick =
         planned ??
-        has('DROP THE MIC') ??
-        has('DISS') ??
+        has('MIC DROP') ??
+        (canDiss ? has('DISS') : has('STALL') ?? has('BAG')) ??
         has('LAMBO LULLABY') ??
         has('CAP TABLE CLAPBACK') ??
         has('WEALTH') ??
+        has('COLD BREW') ??
+        has('HYPE MAN VOICEMAIL') ??
         enabled.find((b) => b.text !== 'BACK') ??
         enabled[0];
       await tapGame(page, pick.x, pick.y);
@@ -177,14 +183,33 @@ async function main() {
       await page.goto(`${base}?debug=1&battle=derek&perfect=1&seed=123&fast=1`);
       await page.waitForFunction(() => window.__smm?.state().scene === 'Battle', null, { timeout: 15_000 });
       const renderer = await page.evaluate(() => (window.__smm.game.renderer.type === 2 ? 'WebGL' : 'Canvas'));
+
+      // The "?" cheat sheet opens over the menu and closes on a tap.
+      for (let i = 0; i < 40 && (await state(page)).phase !== 'menu'; i++) {
+        await tapGame(page, 360, 560);
+        await sleep(STEP_MS);
+      }
+      const help = (await state(page)).buttons.find((b) => b.text === '?');
+      if (!help) failures.push('perfect run: no ? button');
+      else {
+        await tapGame(page, help.x, help.y);
+        await sleep(300);
+        if (!(await state(page)).overlay) failures.push('perfect run: ? did not open the cheat sheet');
+        await page.screenshot({ path: path.join(SHOTS, '10-how-to.png') });
+        await tapGame(page, 360, 640);
+        await sleep(300);
+        if ((await state(page)).overlay) failures.push('perfect run: cheat sheet did not close');
+      }
+
       const result = await playBattle(page, {
         label: 'perfect run',
-        plan: ['MOONING', 'RUN', 'ITEMS', 'COLD BREW'],
+        plan: ['MOONING', 'RUN', 'BAG', 'COLD BREW'],
         shots: {
           dialog: '02-intro.png',
           menu: '03-menu.png',
           dissMenu: '04-diss-menu.png',
           targetMenu: '05-target-menu.png',
+          bagMenu: '05b-bag-menu.png',
           timing: '06-timing.png',
           squeezed: '07-short-squeezed.png',
           over: '08-victory.png',

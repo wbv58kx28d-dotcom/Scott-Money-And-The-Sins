@@ -105,7 +105,7 @@ $cott's moves:
 - An enemy's weakness, resistance, and soft spots show as "???" on its HUD until discovered.
 
 ### 5.4 Beat-timing minigame
-A marker sweeps across a bar, and the player taps when it's centered. A full sweep takes 820 ms divided by the move's speed.
+A marker sweeps across a bar, bouncing end to end from a random starting side, and the player taps when it's centered. A full sweep takes 820 ms divided by the move's speed. Distance is measured from the center as a fraction of **half** the bar (0 at center, 1 at either end), so PERFECT is the middle 8% of each half.
 
 | Rating | Distance from center | Damage | Crowd change |
 |---|---|---|---|
@@ -117,8 +117,10 @@ A marker sweeps across a bar, and the player taps when it's centered. A full swe
 ### 5.5 Crowd meter and Drop the Mic
 - The crowd meter runs from 0 to 100.
 - It gains the rating amount above, plus a bonus by hit result: crit +20, bypass +12, nerve +12, weak +10, resisted −5.
+- Mooning adds 8.
 - Each enemy hit lowers it by 4, or by 10 on a crit against $cott.
-- At 100, **Drop the Mic** unlocks. Using it resets the meter to 0.
+- At 100, **Drop the Mic** unlocks. Using it resets the meter to 0, and the finisher earns no crowd itself.
+- **Locked at 100 (pending confirmation, §10):** once full, the meter stays at 100 until the mic is dropped. In the prototype, the enemy's hit always lands before $cott's next turn and knocks the meter back under 100, so the finisher could never fire.
 
 ### 5.6 Damage formula
 - $cott's damage = power × timing multiplier × hit multiplier × 1.5 if Mooning × a random factor from 0.9 to 1.1.
@@ -126,19 +128,21 @@ A marker sweeps across a bar, and the player taps when it's centered. A full swe
 - Both round to a whole number, with a minimum of 1.
 
 ### 5.7 Status effects
-- **Mooning** ($cott, 3 turns): he deals 1.5× damage and takes 1.25×.
-- **Rug Pulled** ($cott, 2 turns): he loses 8 Flow at the start of each of his turns, with no regen.
+- **Mooning** ($cott, 3 turns): he deals 1.5× damage and takes 1.25×. It counts down at the end of every round, including the one it's used in, so it boosts his next 2 attacks.
+- **Rug Pulled** ($cott, 2 turns): he loses 8 Flow at the start of each of his next 2 turns, with no regen. It counts down as it drains.
 - **Short Squeezed** (enemy, at 40% Clout or below): the enemy deals 1.3× damage for the rest of the fight.
 - Ideas not built yet: *Ratio'd*, *Cancelled*.
 
 ### 5.8 Items
 - **Cold Brew** (2 per fight): restores 30 Flow.
 - **Hype Man Voicemail** (1 per fight): restores 35 Clout.
-- **Run** doesn't consume a turn ("$cott doesn't run. He pivots.").
+- Using an item takes the turn. **Run** doesn't consume a turn ("$cott doesn't run. He pivots.").
+- **STALL (pending confirmation, §10):** if $cott can't afford any diss, has no items left, and the mic isn't ready, RUN becomes STALL, which skips his turn so Flow can regen. The prototype soft-locked here.
 
 ### 5.9 Derek's AI
 - If $cott isn't Rug Pulled and has at least 15 Flow, there's a 30% chance Derek uses **Pump & Dump**.
 - Otherwise Derek picks by weight: Loss Porn 30, Due Diligence 20, Apes Together Strong 20, Hairline Short 15, Drip Check 15, Tendie Tower 10.
+- His moves (type→target, power): Loss Porn ROAST→LIFESTYLE 13, Hairline Short ROAST→LOOKS 10, Due Diligence WORDPLAY→CAREER 14, Apes Together Strong WORDPLAY→REP 14, Drip Check FLEX→STYLE 14, Tendie Tower FLEX→WEALTH 16, Pump & Dump HYPE 7 (+ Rug Pulled).
 
 ### 5.10 Audio
 - The beat is a procedural boom-bap loop at 92 BPM, generated with WebAudio. Sound effects use the same system.
@@ -258,7 +262,7 @@ From the art chat's portrait mockup:
   - Their parley script.
 - **Crew** (`src/data/crew.js`): each Sin's eligible targets, summon effect, cooldown, feature lines by target, minigame id, and per-level modifiers.
 - **Regions** (`src/data/regions.js`): tier, villain, Sin recruit, background, and side quests.
-- **Bars are couplets:** two lines, delivered after the timing minigame.
+- **Bars are couplets:** two lines, delivered after the timing minigame. Every bar slot holds a **pool** of couplets, and one is picked at random, so adding variety means adding a couplet to the list.
 
 ## 10. Open questions
 
@@ -268,8 +272,7 @@ From the art chat's portrait mockup:
 - Prologue parley: skip it, or a $cott-only tutorial version?
 - Parley outcome sizes: how much Clout *Rattled* removes, how much crowd hype a good result gives, and so on.
 - Question banks for the cat quiz and lore quiz.
-- Public vs. private repo, depending on whether the crew is based on real friends. (The GitHub repo was created **private**, so hosting points to Cloudflare Pages or Netlify.)
-- Combat details reconstructed while the legacy prototype was missing, waiting to be confirmed or corrected: Derek's move powers and targets, status-duration timing, the crowd meter locking at 100, and the placeholder bars. The full list is in `HANDOFF.md` under "Build status".
+- Two fixes to prototype bugs, waiting for a yes or no: the **crowd meter locking at 100** (§5.5) and **STALL** (§5.8).
 
 ## 11. Decision log
 
@@ -283,3 +286,4 @@ From the art chat's portrait mockup:
 - Tier pairings: Lil' Turnt and Babarbara, then Susan and Toking, then Keezus and Louis, with Six Pac as the solo finale.
 - Side quests raise Sin levels (1 to 3).
 - The build moved to Claude Code and GitHub. Art and lore stay in claude.ai chats.
+- The repo is **public**, so the game is hosted on **GitHub Pages** from `main`.

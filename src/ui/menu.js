@@ -1,24 +1,28 @@
 // Button grid inside the bottom panel. `choose()` resolves with the picked
 // item's id, so a menu tree reads as a few awaits in the battle loop.
 
-import { LAYOUT } from '../config.js';
+import { COLORS, LAYOUT } from '../config.js';
 import { Button } from './button.js';
-import { label } from './text.js';
+import { label, fitWidth } from './text.js';
+
+const FLASH_MS = 1500;
+const PROMPT_SIZE = 16;
 
 export class Menu {
   constructor(scene) {
     this.scene = scene;
     this.buttons = [];
     const p = LAYOUT.panel;
-    this.prompt = label(scene, p.x + 14, p.y - 6, '', 16, {
+    this.prompt = label(scene, p.x + 14, p.y - 6, '', PROMPT_SIZE, {
       backgroundColor: '#2a2140',
       padding: { x: 10, y: 6 },
       strokeThickness: 0,
     }).setOrigin(0, 1).setVisible(false);
+    this.promptText = '';
   }
 
   /**
-   * @param {Array<{id, text, sub?, enabled?, accent?, sfx?}>} items
+   * @param {Array<{id, text, sub?, enabled?, accent?, fill?, textColor?, subColor?, disabledMsg?}>} items
    * @param {{prompt?: string, columns?: number}} opts
    */
   choose(items, { prompt = '', columns = 2 } = {}) {
@@ -30,31 +34,48 @@ export class Menu {
     const bw = Math.floor((innerW - p.gap * (columns - 1)) / columns);
     const bh = Math.floor((innerH - p.gap * (rows - 1)) / rows);
     const size = bh >= 70 ? 22 : 16;
-
-    this.prompt.setText(prompt).setVisible(!!prompt);
+    this.setPrompt(prompt);
 
     return new Promise((resolve) => {
       items.forEach((item, i) => {
         const col = i % columns;
         const row = Math.floor(i / columns);
         const button = new Button(this.scene, {
+          ...item,
           x: p.x + p.pad + col * (bw + p.gap) + bw / 2,
           y: p.y + p.pad + row * (bh + p.gap) + bh / 2,
           w: bw,
           h: bh,
-          text: item.text,
-          sub: item.sub ?? null,
           enabled: item.enabled !== false,
-          accent: item.accent ?? null,
-          sfx: item.sfx ?? 'blip',
           size,
           onPress: () => {
             this.clear();
             resolve(item.id);
           },
+          onDisabledPress: item.disabledMsg ? () => this.flash(item.disabledMsg) : null,
         });
         this.buttons.push(button);
       });
+    });
+  }
+
+  setPrompt(text) {
+    this.promptText = text;
+    this.flashToken = (this.flashToken ?? 0) + 1;
+    this.showPrompt(text, COLORS.text);
+  }
+
+  showPrompt(text, color) {
+    this.prompt.setFontSize(PROMPT_SIZE).setColor(color).setText(text).setVisible(!!text);
+    fitWidth(this.prompt, LAYOUT.panel.w - 28, 8);
+  }
+
+  /** Briefly replace the prompt with a message, then restore it. */
+  flash(message) {
+    const token = (this.flashToken = (this.flashToken ?? 0) + 1);
+    this.showPrompt(message, COLORS.textGold);
+    this.scene.time.delayedCall(FLASH_MS, () => {
+      if (token === this.flashToken && this.buttons.length) this.showPrompt(this.promptText, COLORS.text);
     });
   }
 

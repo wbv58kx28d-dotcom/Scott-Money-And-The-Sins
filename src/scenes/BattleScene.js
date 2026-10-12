@@ -1,20 +1,22 @@
-// Battle: $cott vs. one villain (CLAUDE.md §5).
+// Battle: $cott vs. one villain (CLAUDE.md §5), following the turn flow of
+// legacy/scott-money-battle.html on the 720×1280 layout.
 //
 // The whole fight is one async loop. Every dialog line, menu, and timing bar
 // is an `await`, so the turn order reads top to bottom (HANDOFF quirk: keep it).
 // Rules and numbers come from src/data/ and src/systems/combat.js; this scene
 // only sequences them and draws the results.
 
-import { COLORS, LAYOUT, RESULT_COLORS } from '../config.js';
+import { GAME_W, GAME_H, COLORS, LAYOUT } from '../config.js';
 import SCOTT from '../data/scott.js';
 import { ENEMIES, DEFAULT_ENEMY } from '../data/enemies/index.js';
-import { DISS_TYPES } from '../data/types.js';
+import { DISS_TYPES, HIT_KINDS, TARGET_INFO } from '../data/types.js';
 import { ITEMS } from '../data/items.js';
 import { STATUSES } from '../data/statuses.js';
 import { CROWD, DAMAGE } from '../data/rules.js';
+import { HIT_TEXT } from '../data/battleText.js';
 import {
   createBattler, resolveHit, rollDamage, discover, applyDamage, restore,
-  startOfTurnFlow, checkStatusTriggers, scottBarsFor, softSpotKey,
+  startOfTurnFlow, checkStatusTriggers, scottBarsFor, pickCouplet, softSpotKey,
 } from '../systems/combat.js';
 import { chooseEnemyMove } from '../systems/ai.js';
 import { Crowd } from '../systems/crowd.js';
@@ -24,14 +26,17 @@ import { DEBUG } from '../systems/debug.js';
 import { TapBus } from '../ui/tapBus.js';
 import { DialogBox } from '../ui/dialog.js';
 import { Menu } from '../ui/menu.js';
+import { Button } from '../ui/button.js';
 import { TimingBar } from '../ui/timingBar.js';
 import { EnemyHud, ScottHud, CrowdMeter } from '../ui/hud.js';
 import { drawPanel } from '../ui/panel.js';
-import { floatText, headPoint, lunge, hitShake, wait } from '../ui/fx.js';
-import { label } from '../ui/text.js';
+import { showHowTo } from '../ui/howTo.js';
+import { lunge, hitFx, reTint, wait } from '../ui/fx.js';
+import { label, body } from '../ui/text.js';
 
-const GOLD = 0xf4d35e;
+const GOLD = 0xffd166;
 const fill = (template, vars) => template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+const hexColor = (css) => Phaser.Display.Color.HexStringToColor(css).color;
 
 export default class BattleScene extends Phaser.Scene {
   constructor() {
@@ -47,7 +52,7 @@ export default class BattleScene extends Phaser.Scene {
     this.phase = 'intro';
     this.result = null;
     this.round = 0;
-    this.pendingCrowdFull = false;
+    this.overlayOpen = false;
 
     const def = ENEMIES[this.enemyId];
     this.def = def;
@@ -56,22 +61,21 @@ export default class BattleScene extends Phaser.Scene {
     this.crowd = new Crowd();
 
     this.add.image(0, 0, def.background).setOrigin(0);
-    this.enemyChar = this.makeCharacter(def.texture, LAYOUT.enemySlots[0], 0);
-    this.scottChar = this.makeCharacter(SCOTT.texture, LAYOUT.scott, 300);
+    this.crowdPeople = this.makeCrowd();
+    if (def.stage) label(this, LAYOUT.stageLabel.x, LAYOUT.stageLabel.y, def.stage, 14, { color: '#8f7fc0' });
+    this.enemyChar = this.makeCharacter(def.texture, LAYOUT.enemySlots[0], -1);
+    this.scottChar = this.makeCharacter(SCOTT.texture, LAYOUT.scott, 1);
 
     this.enemyHud = new EnemyHud(this, this.enemy);
     this.crowdMeter = new CrowdMeter(this, this.crowd);
     this.scottHud = new ScottHud(this, this.scott);
     drawPanel(this, LAYOUT.panel);
+    this.makeCornerButtons();
 
     this.bus = new TapBus(this);
     this.dialog = new DialogBox(this, this.bus, { instant: DEBUG.fast });
     this.menu = new Menu(this);
     this.timing = new TimingBar(this, this.bus);
-
-    Audio.startBeat();
-    this.events.once('shutdown', () => Audio.stopBeat());
-    this.cameras.main.fadeIn(250, 0, 0, 0);
 
     this.run().catch((err) => {
       console.error('[$cott] battle loop crashed', err);
@@ -79,13 +83,18 @@ export default class BattleScene extends Phaser.Scene {
     });
   }
 
+  // ---- Stage --------------------------------------------------------------
+
   /** A character is a container at the feet holding a feet-origin sprite. */
-  makeCharacter(texture, { x, y }, bobDelay) {
-    const container = this.add.container(x, y);
+  makeCharacter(texture, { x, y }, enterFrom) {
+    const { offscreen, ms } = LAYOUT.entrance;
+    const startX = enterFrom < 0 ? -offscreen : GAME_W + offscreen;
+    const container = this.add.container(startX, y);
     const sprite = this.add.image(0, 0, texture).setOrigin(0.5, 1);
     container.add(sprite);
-    const { px, ms } = LAYOUT.idleBob;
-    this.tweens.add({ targets: sprite, y: -px, duration: ms / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: bobDelay });
+    this.tweens.add({ targets: container, x, duration: ms, ease: 'Quad.easeOut' });
+    const { px, ms: bobMs } = LAYOUT.idleBob;
+    const bob = this.tweens.add({ targets: sprite, y: -px, duration: bobMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: ms });
     // Active-turn glow is WebGL-only (CLAUDE.md §8.1).
     let glow = null;
     if (sprite.preFX) {
@@ -93,7 +102,58 @@ export default class BattleScene extends Phaser.Scene {
       glow = sprite.preFX.addGlow(COLORS.glow, 4, 0, false);
       glow.active = false;
     }
-    return { container, sprite, glow };
+    return { container, sprite, glow, bob };
+  }
+
+  /** The crowd: silhouettes bobbing along the horizon (from the prototype). */
+  makeCrowd() {
+    const { y, count, spacing } = LAYOUT.crowdRow;
+    const fx = rng.fx;
+    const people = [];
+    for (let i = 0; i < count; i++) {
+      const cx = 16 + i * spacing + fx.int(-6, 6);
+      const cy = y + fx.int(-4, 4);
+      const person = this.add.container(cx, cy);
+      const g = this.add.graphics();
+      g.fillStyle(fx.pick([0x0f0820, 0x140a2a, 0x1a0f33]), 1);
+      g.fillRect(-10, -40, 20, 18);
+      g.fillRect(-16, -22, 32, 22);
+      if (fx.chance(0.35)) {
+        g.fillRect(6, -56, 6, 18); // a raised phone
+        g.fillStyle(0xfff6c0, 0.9);
+        g.fillRect(4, -66, 10, 10);
+      }
+      person.add(g);
+      person.inner = g;
+      this.tweens.add({ targets: person, y: cy - 4, duration: fx.int(300, 500), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: fx.int(0, 400) });
+      people.push(person);
+    }
+    return people;
+  }
+
+  crowdJump() {
+    this.crowdPeople.forEach((p, i) =>
+      this.tweens.add({ targets: p.inner, y: -16, duration: 120, yoyo: true, delay: i * 18, ease: 'Quad.easeOut' }),
+    );
+  }
+
+  /** "?" opens the cheat sheet; SND toggles sound. */
+  makeCornerButtons() {
+    const { y, h, gap, right } = LAYOUT.cornerButtons;
+    const sndW = 72;
+    const helpW = 52;
+    const snd = new Button(this, {
+      x: right - sndW / 2, y, w: sndW, h, text: Audio.muted ? 'OFF' : 'SND', size: 14, system: true, depth: 30,
+      onPress: () => snd.setText(Audio.toggleMute() ? 'OFF' : 'SND'),
+    });
+    new Button(this, {
+      x: right - sndW - gap - helpW / 2, y, w: helpW, h, text: '?', size: 20, textColor: COLORS.textGold, system: true, depth: 30,
+      onPress: () => {
+        if (this.overlayOpen) return;
+        this.overlayOpen = true;
+        showHowTo(this, () => (this.overlayOpen = false));
+      },
+    });
   }
 
   setActiveTurn(active) {
@@ -107,10 +167,15 @@ export default class BattleScene extends Phaser.Scene {
     return this.dialog.say(text, speaker, opts);
   }
 
+  sayLine(line) {
+    return this.say(line.text, line.speaker ?? null);
+  }
+
   // ---- Turn loop ----------------------------------------------------------
 
   async run() {
-    for (const line of this.def.script.intro) await this.say(line.text, line.speaker ?? null);
+    await wait(this, LAYOUT.entrance.ms + 100);
+    for (const line of this.def.script.intro) await this.sayLine(line);
 
     for (this.round = 1; ; this.round += 1) {
       await this.scottTurn(this.round === 1);
@@ -125,14 +190,9 @@ export default class BattleScene extends Phaser.Scene {
     this.setActiveTurn(this.scottChar);
     const flow = startOfTurnFlow(this.scott, isFirstTurn);
     this.scottHud.refresh();
-    if (flow.kind === 'regen' && flow.amount > 0) {
-      const p = headPoint(this.scottChar);
-      floatText(this, p.x, p.y, `+${flow.amount} FLOW`, { color: COLORS.textCool, size: 20 });
-    }
     if (flow.kind === 'drain') {
-      Audio.sfx('debuff');
-      const rug = this.scott.statuses.get('rugPulled');
-      await this.say(fill(rug.def.drainMsg, { name: SCOTT.short, n: flow.amount }), null, { color: COLORS.textBad });
+      const ended = flow.expired.map((s) => `\n${s.endMsg}`).join('');
+      await this.say(flow.drained.map((s) => s.drainMsg).join('\n') + ended);
     }
 
     for (;;) {
@@ -143,8 +203,9 @@ export default class BattleScene extends Phaser.Scene {
       }
       if (action.kind === 'item') return this.useItem(action.item);
       if (action.kind === 'stall') return this.say(SCOTT.lines.stall);
-      if (action.move.type === 'HYPE') return this.useBuff(action.move);
-      return this.diss(action.move, action.target);
+      if (action.kind === 'mic') return this.attack(SCOTT.micDrop, null);
+      if (action.move.applyStatus) return this.useBuff(action.move);
+      return this.attack(action.move, action.target);
     }
   }
 
@@ -152,131 +213,117 @@ export default class BattleScene extends Phaser.Scene {
     const { enemy, scott, def } = this;
     this.setActiveTurn(this.enemyChar);
     const move = chooseEnemyMove(enemy, scott, rng);
-    await this.say(`${def.short} hits back with ${move.name.toUpperCase()}!`);
-    await this.say(move.bars, def.short);
-    this.dialog.hide();
     this.phase = 'anim';
-
-    if (move.heal) {
-      const { clout } = restore(enemy, { clout: move.heal });
-      Audio.sfx('heal');
-      const p = headPoint(this.enemyChar);
-      floatText(this, p.x, p.y, `+${clout}`, { color: COLORS.textGood, size: 34 });
-      this.enemyHud.refresh();
-      await wait(this, 500);
-      await this.say(clout > 0 ? `${def.short} recovers ${clout} Clout.` : `${def.short} is already at full Clout.`);
-      return;
-    }
-
+    this.dialog.show(`${def.short} fires back with ${move.name}!${move.target ? `\nTarget: ${move.target}` : ''}`);
+    await wait(this, 850);
     await lunge(this, this.enemyChar, LAYOUT.enemyLunge);
+    await this.say(pickCouplet(move.bars, rng.fx), def.short);
+
     const hit = resolveHit(scott, move.type, move.target);
     const dmg = rollDamage({
       power: move.power, hitMult: hit.mult, attacker: enemy, defender: scott,
       variance: DAMAGE.enemyVariance, rng,
     });
     applyDamage(scott, dmg);
-    Audio.sfx('hurt');
-    hitShake(this, this.scottChar, hit.id === 'crit' ? 16 : 10);
-    this.popDamage(this.scottChar, dmg, hit);
     this.addCrowd(hit.id === 'crit' ? CROWD.enemyCritHit : CROWD.enemyHit);
+    this.dialog.hide();
+    hitFx(this, this.scottChar, scott, dmg, hit);
     this.scottHud.refresh();
-    await wait(this, 550);
 
-    const msg = this.hitMessage(SCOTT, hit);
-    if (msg) await this.say(msg, null, { color: RESULT_COLORS[hit.id] });
-    if (move.applyStatus && scott.clout > 0) {
+    const msg = this.hitMessage(HIT_TEXT.onScott, SCOTT, move.type, move.target, hit);
+    if (msg) await this.say(msg);
+    else await wait(this, 500);
+
+    if (move.applyStatus && !scott.statuses.has(move.applyStatus) && scott.clout > 0) {
       const status = scott.statuses.apply(move.applyStatus);
-      Audio.sfx('debuff');
       this.scottHud.refresh();
-      await this.say(fill(status.applyMsg, { name: SCOTT.short }), null, { color: status.color });
+      await this.say(status.applyMsg);
     }
   }
 
   async endOfRound() {
-    for (const battler of [this.scott, this.enemy]) {
+    for (const [battler, character] of [[this.scott, this.scottChar], [this.enemy, this.enemyChar]]) {
       for (const status of battler.statuses.tick()) {
-        if (status.endMsg) await this.say(fill(status.endMsg, { name: battler.short }));
+        reTint(character, battler);
+        this.scottHud.refresh();
+        this.enemyHud.refresh();
+        if (status.endMsg) await this.say(status.endMsg);
       }
     }
-    this.scottHud.refresh();
-    this.enemyHud.refresh();
   }
 
   // ---- $cott's actions ----------------------------------------------------
 
-  async diss(move, target) {
+  async attack(move, target) {
     const { scott, enemy, def } = this;
-    scott.flow -= move.cost;
-    this.scottHud.refresh();
-    if (move.finisher) {
-      this.crowd.reset(); // using Drop the Mic empties the meter (§5.5)
-      this.crowdMeter.refresh();
+    const isMic = !!move.finisher;
+    if (!isMic) {
+      scott.flow -= move.cost;
+      this.scottHud.refresh();
     }
 
     this.dialog.hide();
     this.phase = 'timing';
-    const title = move.finisher ? move.name : `${move.name} on ${target}`;
+    const title = `$COTT SPITS ${move.name}!${target ? ` · ${target}` : ''}`;
     const rating = await this.timing.play({ speed: move.speed, title, perfect: DEBUG.perfect });
-    Audio.sfx(rating.id);
-    const sp = headPoint(this.scottChar);
-    floatText(this, sp.x, sp.y, `${rating.id}!`, { color: RESULT_COLORS[rating.id], size: 30 });
-    if (!move.finisher) this.addCrowd(rating.crowd);
-
-    await this.say(scottBarsFor(def, move, target), SCOTT.short);
-    this.dialog.hide();
     this.phase = 'anim';
-
     await lunge(this, this.scottChar, LAYOUT.scottLunge);
-    const hit = resolveHit(enemy, move.type, target);
+    await this.say(scottBarsFor(def, move, target, rng.fx), SCOTT.short);
+
+    const hit = isMic ? { ...HIT_KINDS.normal, softSpot: null } : resolveHit(enemy, move.type, target);
     const dmg = rollDamage({
       power: move.power, timingMult: rating.mult, hitMult: hit.mult,
       attacker: scott, defender: enemy, variance: DAMAGE.scottVariance, rng,
     });
     applyDamage(enemy, dmg);
-    Audio.sfx(move.finisher ? 'mic' : hit.id === 'crit' ? 'crit' : 'hit');
-    hitShake(this, this.enemyChar, hit.id === 'crit' || move.finisher ? 18 : 10);
-    if (move.finisher) this.cameras.main.shake(260, 0.012);
-    this.popDamage(this.enemyChar, dmg, hit);
+    if (isMic) {
+      this.crowd.reset(); // using Drop the Mic empties the meter (§5.5)
+      this.crowdMeter.refresh();
+    } else {
+      this.addCrowd(rating.crowd + hit.crowd);
+    }
+    this.dialog.hide();
+    hitFx(this, this.enemyChar, enemy, dmg, hit);
+    if (rating.crowd >= CROWD.bigHitJump || hit.mult > 1 || isMic) this.crowdJump();
     discover(enemy, move.type, hit);
-    if (!move.finisher) this.addCrowd(hit.crowd);
     this.enemyHud.refresh();
-    await wait(this, 550);
 
-    const msg = this.hitMessage(def, hit);
-    if (msg) await this.say(msg, null, { color: RESULT_COLORS[hit.id] });
+    const msg = isMic ? null : this.hitMessage(HIT_TEXT.onEnemy, def, move.type, target, hit);
+    if (msg) await this.say(msg);
+    else await wait(this, 550);
+    if (isMic && enemy.clout > 0) await this.say(SCOTT.lines.micDropped);
+
     if (enemy.clout > 0) {
       for (const trigger of checkStatusTriggers(enemy)) {
-        Audio.sfx('buff');
+        reTint(this.enemyChar, enemy);
+        this.cameras.main.flash(250, 255, 80, 80);
         this.enemyHud.refresh();
-        const status = STATUSES[trigger.status];
-        await this.say(trigger.msg ?? fill(status.applyMsg, { name: def.short }), null, { color: status.color });
+        await this.say(trigger.msg ?? STATUSES[trigger.status].applyMsg);
       }
     }
-    await this.announceCrowd();
   }
 
   async useBuff(move) {
     this.scott.flow -= move.cost;
     this.scottHud.refresh();
-    await this.say(SCOTT.lines.mooning, SCOTT.short);
+    this.phase = 'anim';
+    this.dialog.show(`$COTT MONEY spits ${move.name}!`);
+    await wait(this, 400);
+    await lunge(this, this.scottChar, LAYOUT.scottLunge);
+    await this.say(scottBarsFor(this.def, move, null, rng.fx), SCOTT.short);
     const status = this.scott.statuses.apply(move.applyStatus);
     Audio.sfx('buff');
-    const p = headPoint(this.scottChar);
-    floatText(this, p.x, p.y, `${status.tag}!`, { color: status.color, size: 26 });
+    reTint(this.scottChar, this.scott);
+    this.addCrowd(CROWD.mooning);
     this.scottHud.refresh();
-    await this.say(fill(status.applyMsg, { name: SCOTT.short }), null, { color: status.color });
+    await this.say(status.applyMsg);
   }
 
   async useItem(id) {
     const item = ITEMS[id];
     this.scott.items[id] -= 1;
-    const gained = restore(this.scott, item.restore);
+    restore(this.scott, item.restore);
     Audio.sfx('heal');
-    const p = headPoint(this.scottChar);
-    const parts = [];
-    if (gained.clout) parts.push(`+${gained.clout} CLOUT`);
-    if (gained.flow) parts.push(`+${gained.flow} FLOW`);
-    floatText(this, p.x, p.y, parts.join(' ') || 'MAXED', { color: COLORS.textGood, size: 22 });
     this.scottHud.refresh();
     await this.say(item.line);
   }
@@ -287,20 +334,29 @@ export default class BattleScene extends Phaser.Scene {
     this.dialog.hide();
     for (;;) {
       this.phase = 'menu';
-      const canDiss = SCOTT.moves.some((m) => this.canUse(m));
-      const hasItems = Object.values(this.scott.items).some((n) => n > 0);
+      const { scott, crowd } = this;
+      const ready = crowd.full;
+      const affordable = SCOTT.moves.some((m) => scott.flow >= m.cost);
+      const hasItems = Object.values(scott.items).some((n) => n > 0);
+      const bag = SCOTT.items.map((id) => `${ITEMS[id].short} x${scott.items[id]}`).join('  ');
       const options = [
-        { id: 'diss', text: 'DISS', sub: this.crowd.full ? 'MIC READY!' : null, accent: this.crowd.full ? GOLD : null },
-        { id: 'items', text: 'ITEMS', enabled: hasItems },
-        { id: 'run', text: 'RUN', sfx: 'back' },
+        { id: 'diss', text: 'DISS', sub: 'Spit some bars', accent: GOLD, textColor: '#ffd166' },
+        { id: 'bag', text: 'BAG', sub: bag, accent: 0x4cc9f0, textColor: '#4cc9f0' },
+        ready
+          ? { id: 'mic', text: 'MIC DROP', sub: 'Finisher ready', accent: 0xff5c8a, fill: GOLD, textColor: '#1a1030', subColor: '#1a1030' }
+          : { id: 'mic', text: 'MIC DROP', sub: `Crowd at ${Math.round(crowd.value)}%`, accent: 0xff5c8a, textColor: '#ff5c8a', enabled: false, disabledMsg: SCOTT.lines.micNotReady },
+        // Soft-lock guard: with no Flow for any diss, no items, and no mic,
+        // RUN (which doesn't use the turn) becomes STALL (which does).
+        !affordable && !hasItems && !ready
+          ? { id: 'stall', text: 'STALL', sub: 'Catch your breath.', textColor: '#b9acdf' }
+          : { id: 'run', text: 'RUN', sub: 'Pivot. Strategically.', textColor: '#b9acdf' },
       ];
-      // Soft-lock guard: no affordable diss and no items left.
-      if (!canDiss && !hasItems) options.push({ id: 'stall', text: 'STALL', sub: 'catch your breath' });
 
-      const pick = await this.menu.choose(options, { prompt: "WHAT'S THE PLAY?", columns: options.length === 4 ? 2 : 3 });
+      const pick = await this.menu.choose(options, { prompt: "WHAT'S THE PLAY, $COTT?" });
       if (pick === 'run') return { kind: 'run' };
       if (pick === 'stall') return { kind: 'stall' };
-      if (pick === 'items') {
+      if (pick === 'mic') return { kind: 'mic' };
+      if (pick === 'bag') {
         const item = await this.chooseItem();
         if (item) return { kind: 'item', item };
       }
@@ -311,108 +367,131 @@ export default class BattleScene extends Phaser.Scene {
     }
   }
 
-  canUse(move) {
-    return move.finisher ? this.crowd.full : this.scott.flow >= move.cost;
-  }
-
   async chooseDiss() {
     for (;;) {
-      const options = SCOTT.moves.map((m) => ({
-        id: m.id,
-        text: m.name.toUpperCase(),
-        sub: m.finisher ? (this.crowd.full ? 'FINISHER · FREE' : 'NEEDS FULL CROWD') : `${m.type} · ${m.cost} FLOW`,
-        enabled: this.canUse(m),
-        accent: m.finisher && this.crowd.full ? GOLD : null,
-      }));
-      options.push({ id: 'back', text: 'BACK', sfx: 'back' });
-      const id = await this.menu.choose(options, { prompt: 'PICK A DISS' });
+      const { flow, maxFlow } = this.scott;
+      const options = SCOTT.moves.map((m) => {
+        const type = DISS_TYPES[m.type];
+        return {
+          id: m.id,
+          text: m.name,
+          sub: `${m.type}${m.applyStatus ? ' (buff)' : ''} · ${m.cost} Flow`,
+          subColor: type.color,
+          accent: hexColor(type.color),
+          enabled: flow >= m.cost,
+          disabledMsg: SCOTT.lines.noFlow,
+        };
+      });
+      options.push({ id: 'back', text: 'BACK' });
+      const id = await this.menu.choose(options, { prompt: `PICK YOUR BARS. FLOW: ${flow}/${maxFlow}` });
       if (id === 'back') return null;
 
       const move = SCOTT.moves.find((m) => m.id === id);
-      if (move.type === 'HYPE' || move.finisher) return { kind: 'diss', move, target: null };
+      if (move.applyStatus) return { kind: 'move', move, target: null };
       const target = await this.chooseTarget(move);
-      if (target) return { kind: 'diss', move, target };
+      if (target) return { kind: 'move', move, target };
     }
   }
 
   async chooseTarget(move) {
+    const type = DISS_TYPES[move.type];
     const known = this.enemy.discovered.softSpots;
-    const options = DISS_TYPES[move.type].targets.map((t) => {
+    const options = type.targets.map((t) => {
       const soft = known.has(softSpotKey(move.type, t));
-      return { id: t, text: t, sub: soft ? 'SOFT SPOT' : null, accent: soft ? 0xff4d6d : null };
+      return {
+        id: t,
+        text: t,
+        sub: soft ? 'Soft spot' : TARGET_INFO[t],
+        textColor: soft ? '#ffd166' : COLORS.text,
+        subColor: soft ? '#ffd166' : '#cfc3ef',
+        accent: soft ? GOLD : hexColor(type.color),
+      };
     });
-    options.push({ id: 'back', text: 'BACK', sfx: 'back' });
-    const id = await this.menu.choose(options, { prompt: `${move.type}: AIM AT...`, columns: options.length > 4 ? 3 : 2 });
+    options.push({ id: 'back', text: 'BACK' });
+    const id = await this.menu.choose(options, { prompt: `AIM YOUR ${move.type} AT...`, columns: options.length > 4 ? 3 : 2 });
     return id === 'back' ? null : id;
   }
 
   async chooseItem() {
     const options = SCOTT.items.map((id) => {
       const item = ITEMS[id];
-      const gives = Object.entries(item.restore).map(([stat, n]) => `+${n} ${stat.toUpperCase()}`).join(' ');
-      return { id, text: item.name.toUpperCase(), sub: `x${this.scott.items[id]} · ${gives}`, enabled: this.scott.items[id] > 0 };
+      return {
+        id,
+        text: `${item.name.toUpperCase()} x${this.scott.items[id]}`,
+        sub: item.desc,
+        textColor: item.color,
+        accent: hexColor(item.color),
+        enabled: this.scott.items[id] > 0,
+        disabledMsg: item.emptyMsg,
+      };
     });
-    options.push({ id: 'back', text: 'BACK', sfx: 'back' });
-    const id = await this.menu.choose(options, { prompt: 'ITEMS', columns: 1 });
+    options.push({ id: 'back', text: 'BACK' });
+    const id = await this.menu.choose(options, { prompt: 'THE BAG. MOSTLY RECEIPTS.', columns: 1 });
     return id === 'back' ? null : id;
   }
 
   // ---- Helpers ------------------------------------------------------------
 
-  popDamage(character, dmg, hit) {
-    const p = headPoint(character);
-    floatText(this, p.x, p.y, `-${dmg}`, { color: RESULT_COLORS[hit.id], size: hit.id === 'crit' ? 46 : 36 });
-    if (hit.label) floatText(this, p.x, p.y - 56, hit.label, { color: RESULT_COLORS[hit.id], size: 20, delay: 120 });
-  }
-
-  /** The line shown after a hit: soft spot first, then weak/resisted. */
-  hitMessage(defenderDef, hit) {
-    if (hit.softSpot) return hit.softSpot.msg;
-    if (hit.id === 'weak') return defenderDef.messages.weak;
-    if (hit.id === 'resisted') return defenderDef.messages.resisted;
-    return null;
+  /** The line after a hit, from battleText.js templates; null for a plain hit. */
+  hitMessage(templates, defenderDef, type, target, hit) {
+    if (hit.id === 'normal') return null;
+    if (hit.id === 'resisted') return defenderDef.resistMsg?.[type] ?? templates.resisted;
+    const template = templates[hit.id];
+    const text = Array.isArray(template) ? rng.fx.pick(template) : template;
+    return fill(text, {
+      enemy: this.def.short,
+      target,
+      targetLower: target?.toLowerCase(),
+      type,
+      why: hit.softSpot?.msg ?? '',
+    }).trimEnd();
   }
 
   addCrowd(amount) {
-    const { becameFull } = this.crowd.add(amount);
+    this.crowd.add(amount);
     this.crowdMeter.refresh();
-    if (becameFull) {
-      this.pendingCrowdFull = true;
-      Audio.sfx('crowd');
-    }
-  }
-
-  async announceCrowd() {
-    if (!this.pendingCrowdFull) return;
-    this.pendingCrowdFull = false;
-    await this.say(SCOTT.lines.crowdFull, null, { color: COLORS.textGold });
   }
 
   async finish(result) {
     this.result = result;
     this.setActiveTurn(null);
-    Audio.stopBeat();
-    const loser = result === 'victory' ? this.enemyChar : this.scottChar;
-    this.tweens.add({ targets: loser.sprite, alpha: 0, angle: result === 'victory' ? -12 : 12, duration: 700 });
-    Audio.sfx(result);
-
-    const lines = result === 'victory' ? this.def.script.victory : this.def.script.defeat;
-    for (const line of lines) await this.say(line.text, line.speaker ?? null);
-    this.dialog.hide();
-
     const won = result === 'victory';
-    label(this, 360, 560, won ? 'VICTORY' : 'COOKED', 56, {
-      color: won ? COLORS.textGold : COLORS.textBad,
-      strokeThickness: 10,
-    }).setOrigin(0.5).setDepth(60);
+    const loser = won ? this.enemyChar : this.scottChar;
+    loser.bob.stop();
+    if (won) {
+      Audio.sfx('crit');
+      this.crowdJump();
+      this.tweens.add({ targets: loser.sprite, alpha: 0, y: '+=30', angle: -20, duration: 800 });
+    } else {
+      Audio.sfx('bad');
+      this.tweens.add({ targets: loser.sprite, angle: 90, y: '+=24', alpha: 0.5, duration: 700 });
+    }
+    for (const line of won ? this.def.script.victory : this.def.script.defeat) await this.sayLine(line);
+    this.dialog.hide();
+    this.showEndScreen(won);
+  }
 
+  showEndScreen(won) {
+    this.overlayOpen = true;
+    const screen = this.def.endScreen[won ? 'victory' : 'defeat'];
+    this.add.rectangle(0, 0, GAME_W, GAME_H, 0x07040f, 0.9).setOrigin(0).setDepth(50).setInteractive();
+    label(this, GAME_W / 2, 340, screen.title, 48, {
+      color: won ? '#ffd166' : '#ff5c8a',
+      strokeThickness: 12,
+    }).setOrigin(0.5).setDepth(51);
+    const text = fill(screen.body, { soft: this.enemy.discovered.softSpots.size, softTotal: this.def.softSpots.length });
+    body(this, GAME_W / 2, 444, text, 44, { color: '#f2eaff', align: 'center', wordWrap: { width: 632 } })
+      .setOrigin(0.5, 0)
+      .setDepth(51);
     this.phase = 'over';
-    const pick = await this.menu.choose(
-      [{ id: 'again', text: 'RUN IT BACK' }, { id: 'title', text: 'TITLE', sfx: 'back' }],
-      { prompt: won ? 'PROLOGUE CLEARED' : 'TRY AGAIN?' },
-    );
-    if (pick === 'again') this.scene.restart({ enemy: this.enemyId });
-    else this.scene.start('Title');
+    new Button(this, {
+      x: GAME_W / 2, y: 1000, w: 440, h: 112, text: 'RUN IT BACK', size: 24, accent: GOLD, textColor: '#ffd166', depth: 60,
+      onPress: () => this.scene.restart({ enemy: this.enemyId }),
+    });
+    new Button(this, {
+      x: GAME_W / 2, y: 1140, w: 440, h: 80, text: 'TITLE', size: 18, depth: 60,
+      onPress: () => this.scene.start('Title'),
+    });
   }
 
   /** Read by the debug hook / smoke test. */
@@ -421,6 +500,7 @@ export default class BattleScene extends Phaser.Scene {
       phase: this.phase,
       result: this.result,
       round: this.round,
+      overlay: this.overlayOpen,
       crowd: this.crowd.value,
       scott: { clout: this.scott.clout, flow: this.scott.flow, statuses: this.scott.statuses.list().map((s) => s.id) },
       enemy: { id: this.enemy.id, clout: this.enemy.clout, statuses: this.enemy.statuses.list().map((s) => s.id) },

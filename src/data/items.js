@@ -5,17 +5,23 @@ export const ITEMS = {
   coldBrew: {
     id: 'coldBrew',
     name: 'Cold Brew',
-    short: 'COLD BREW', // HUD label
+    short: 'BREW', // HUD and menu label
+    color: '#4cc9f0',
     perFight: 2,
     restore: { flow: 30 },
-    line: '$cott slams a Cold Brew. Single-origin. Triple-shot. Flow restored.',
+    desc: '+30 Flow. Tastes like ambition.',
+    line: '$cott slams a Cold Brew. Single origin. Ethically sourced. Probably.\n+30 Flow',
+    emptyMsg: 'Out of Cold Brew.',
   },
   voicemail: {
     id: 'voicemail',
     name: 'Hype Man Voicemail',
     short: 'VOICEMAIL',
+    color: '#3ddc84',
     perFight: 1,
     restore: { clout: 35 },
-    line: '"Yo, it\'s your hype man. You\'re literally him. Call me back." Clout restored.',
+    desc: '+35 Clout. "Bro. You\'re HIM."',
+    line: '$cott replays a voicemail from his hype man:\n"Bro. You\'re HIM. You\'re literally HIM."\n+35 Clout',
+    emptyMsg: 'No voicemails left. The hype man is busy.',
   },
 };

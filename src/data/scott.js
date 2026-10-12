@@ -4,7 +4,7 @@
 
 export default {
   id: 'scott',
-  name: '$cott Money',
+  name: '$COTT MONEY',
   short: '$COTT',
   texture: 'scott',
   maxClout: 100,
@@ -14,32 +14,38 @@ export default {
   weak: ['ROAST'], // fragile ego
   resist: ['FLEX'], // you can't out-flex $cott
   softSpots: [
-    { type: 'ROAST', target: 'LOOKS', msg: 'THE HAIRLINE. Nobody talks about the hairline.' }, // crit
-    { type: 'FLEX', target: 'STYLE', msg: 'Not the vest! The vest was a gift from himself.' }, // bypass
+    { type: 'ROAST', target: 'LOOKS', msg: 'Nobody is allowed to talk about the hairline.' }, // crit
+    { type: 'FLEX', target: 'STYLE', msg: 'The vest was supposed to be his whole personality.' }, // bypass
   ],
-  messages: {
-    weak: "$cott's ego is load-bearing. ROASTs hit double.",
-    resisted: '$cott yawns. You cannot out-flex $cott Money.',
-  },
+  resistMsg: { FLEX: "You can't out-flex $cott Money.\nNot very effective." },
 
   // speed: the timing marker sweeps faster for higher numbers.
   moves: [
-    { id: 'lambo', name: 'Lambo Lullaby', type: 'FLEX', cost: 8, power: 20, speed: 1.0 },
-    { id: 'seriesA', name: 'Series A Slaughter', type: 'WORDPLAY', cost: 12, power: 23, speed: 1.25 },
-    { id: 'capTable', name: 'Cap Table Clapback', type: 'ROAST', cost: 10, power: 22, speed: 1.1 },
-    { id: 'mooning', name: 'Mooning', type: 'HYPE', cost: 15, applyStatus: 'mooning' },
-    { id: 'dropMic', name: 'Drop the Mic', type: null, cost: 0, power: 45, speed: 1.4, finisher: true },
+    { id: 'lambo', name: 'LAMBO LULLABY', type: 'FLEX', cost: 8, power: 20, speed: 1.0 },
+    { id: 'seriesA', name: 'SERIES A SLAUGHTER', type: 'WORDPLAY', cost: 12, power: 23, speed: 1.25 },
+    { id: 'capTable', name: 'CAP TABLE CLAPBACK', type: 'ROAST', cost: 10, power: 22, speed: 1.1 },
+    {
+      id: 'mooning',
+      name: 'MOONING',
+      type: 'HYPE',
+      cost: 15,
+      applyStatus: 'mooning',
+      bars: [
+        ['*puts on a second pair of sunglasses*', '"I don\'t need the crowd. The crowd needs a narrative."'],
+        ['*announces a token that does not exist*', '"Number go up. That\'s the whole whitepaper."'],
+      ],
+    },
   ],
+  // The finisher, offered from the main menu once the crowd is full.
+  micDrop: { id: 'mic', name: 'DROP THE MIC', type: null, cost: 0, power: 45, speed: 1.4, finisher: true },
 
   items: ['coldBrew', 'voicemail'],
 
   lines: {
-    mooning: [
-      "Strap in, I'm going parabolic, check the candles on my chest,",
-      "I don't moon — the moon checks in with me before it rests.",
-    ],
-    run: "$cott doesn't run. He pivots.",
+    run: "$cott Money doesn't run. He PIVOTS.\n...There's nowhere to pivot to.",
     stall: '$cott checks his phone. Nobody texted. He regroups.',
-    crowdFull: 'THE CROWD IS ON ITS FEET! DROP THE MIC is ready.',
+    micDropped: "The crowd loses it. $cott drops the mic.\nHe'll expense a new one.",
+    noFlow: 'Not enough Flow. Grab a Cold Brew from the bag.',
+    micNotReady: "The crowd isn't hyped enough yet. Land some clean bars.",
   },
 };
