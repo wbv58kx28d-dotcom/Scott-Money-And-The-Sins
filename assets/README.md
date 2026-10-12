@@ -8,6 +8,7 @@ Finished, game-ready art. Paths are always relative (`assets/...`, never
 | `sprites/crew/` | `scott.png` + the 7 Sin PNGs from `phaser_crew_pack.zip` | Facing left, 3 px outline baked in, drawn at scale 1 |
 | `sprites/enemies/` | Villain sprites, one PNG per villain id (e.g. `derek.png`) | Same rules as crew |
 | `bg/` | Battle backgrounds, 720×1280 WebP (e.g. `bg_tokyo.webp`) | Pre-dimmed, bottom band dark for the menu |
+| `map/` | The overworld map pack: base map, per-region fog/mask/outline layers, `map_regions.json` | See `map/README.md`; loaded by the Overworld scene, not `src/data/assets.js` |
 
 The asset list the game loads lives in `src/data/assets.js`. Every entry is
 optional: if a file is missing, the game draws a procedural placeholder instead,
