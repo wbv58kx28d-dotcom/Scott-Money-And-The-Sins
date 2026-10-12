@@ -27,8 +27,8 @@ the new art and layout. It has debug mode and a Playwright smoke test
      back under 100 before $cott's turn, so the finisher could never fire.
   2. STALL replaces RUN when $cott has no Flow for any diss, no items, and no
      mic. The prototype soft-locked there.
-- **Speech bubbles:** bars play in a bubble over the speaker instead of the
-  bottom panel. Words punch in on a beat, letters jitter individually (tune
+- **Lyric ribbons:** bars play over the speaker instead of the bottom panel,
+  one dark slanted strip per line, the second sliding in after the first. Words punch in on a beat, letters jitter individually (tune
   `JITTER` in `src/ui/speechBubble.js`), and rhymes land bold with a thump.
   Rhyme parsing is in `src/systems/bars.js`; letters are cached glyph images
   (`src/ui/glyphs.js`), rendered once during Preload.

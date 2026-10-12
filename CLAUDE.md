@@ -269,7 +269,7 @@ From the art chat's portrait mockup:
 - **Crew** (`src/data/crew.js`): each Sin's eligible targets, summon effect, cooldown, feature lines by target, minigame id, and per-level modifiers.
 - **Regions** (`src/data/regions.js`): tier, villain, Sin recruit, background, and side quests.
 - **Bars are couplets:** two lines, delivered after the timing minigame. Every bar slot holds a **pool** of couplets, and one is picked at random, so adding variety means adding a couplet to the list.
-- **Bars play as speech bubbles** over whoever is spitting. If a couplet is too tall for its space, the text steps down in size to fit. Words punch in one at a time, and individual **letters** jitter: plain letters only twitch now and then, rhyme letters shake constantly. **Rhyme words** are bolded: by default the last word of each line. To choose them yourself (internal or multi-word rhymes), wrap them in `[brackets]`, as in `"and your portfolio's [peak] was a Tuesday last [week]."`. A line wrapped in `*asterisks*` is a stage direction, shown as an italic action.
+- **Bars play as lyric ribbons** over whoever is spitting: each line on its own dark slanted strip with an accent edge in the speaker's color, and each later line's ribbon slides in once the line before it has landed. If a couplet is too tall for its space, the text steps down in size to fit. Words punch in one at a time, and individual **letters** jitter: plain letters only twitch now and then, rhyme letters shake constantly. **Rhyme words** are bolded: by default the last word of each line. To choose them yourself (internal or multi-word rhymes), wrap them in `[brackets]`, as in `"and your portfolio's [peak] was a Tuesday last [week]."`. A line wrapped in `*asterisks*` is a stage direction, shown as an italic action.
 
 ## 10. Open questions
 
@@ -293,7 +293,7 @@ From the art chat's portrait mockup:
 - Side quests raise Sin levels (1 to 3).
 - The build moved to Claude Code and GitHub. Art and lore stay in claude.ai chats.
 - The repo is **public**, so the game is hosted on **GitHub Pages** from `main`.
-- Bars play in **speech bubbles** over the speaker (rhymes bolded, jittery delivery), not in the bottom text panel. The panel keeps narration and hit messages.
+- Bars play over the speaker, not in the bottom text panel, as **lyric ribbons** (picked over classic, compact, and text-thread bubble mockups): rhymes bolded, jittery delivery, the second line sliding in after the first. The panel keeps narration and hit messages.
 - Two fixes to prototype bugs are in: the **crowd meter locks at 100** until the mic drops (§5.5), and **STALL** replaces RUN when $cott is out of options (§5.8).
 - The **overworld map** is the hub between fights, built from the map pack; region names come from it (§2, §6.5).
 - **$cott is ~30% bigger than the enemies in battle** to sell depth (§8.2). In-engine 1.3× scaling is a stopgap until a ~420 px re-export of his sprite arrives (§8.1).
