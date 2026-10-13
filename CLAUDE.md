@@ -221,7 +221,7 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
 - Walking into an exit, or the MAP button, goes back to the overworld.
 - Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
-- Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott walks, and the ground and props are real. Derek's walker is still a placeholder.
+- Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the ground, and the props.
 
 ## 7. Tech stack
 
@@ -276,7 +276,7 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - A sheet of **96×144 px frames, 5 columns × 3 rows.** Rows face down, up, and left. Columns are idle, then a 4-frame walk (contact, passing, other contact, passing). Right-facing is the left row mirrored in-engine; add a 4th row only if the character is lopsided (a bag on one shoulder, say).
 - The character stands about **120–130 px tall**, feet at the bottom center of each frame, on a transparent background.
 - True pixel grid and a dark outline, like the battle sprites. Density: **2 screen px per art pixel**, so each frame is **48×72 art pixels**, drawn at 2×, and the character is about 62 art pixels tall. At 3 px (32×48 art pixels) every generator drew him chibi, under 3 heads tall; 2 px leaves room for about 4 heads. The outline is 2 px, not 3.
-- **Built: $cott** (`assets/field/field_scott.png`), made in PixelLab from his battle art. The recipe is in `docs/field-art-prompts.md`.
+- **Built: $cott and Derek** (`assets/field/field_scott.png`, `field_derek.png`), made in PixelLab from their battle art. The recipe is in `docs/field-art-prompts.md`; `tools/region-art/walker.py` turns a PixelLab character into a sheet.
 - NPCs who only stand still need just the idle column (the down row, plus left if they turn to face $cott).
 
 **Region maps** (one per region):
