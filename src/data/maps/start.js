@@ -30,6 +30,115 @@ export default {
         { speaker: 'DEREK', text: '"Back for more? I averaged down on my feelings."' },
       ],
     },
+
+    // Swamp locals. Each holds a `challenge`: win it and they spill intel on
+    // Derek, which starts out visible in the fight (systems/intel.js).
+    //   kind: 'beat'  `rounds` taps on the timing bar, each `need` or better
+    //   kind: 'quiz'  every question's FIRST answer is right (shown shuffled)
+    //   reveal        { enemy, weak?, resist?, softSpots?: ['TYPE>TARGET'] }
+    // Placeholder lines until the writing chat sends real ones.
+    {
+      id: 'brad',
+      name: 'BAGHOLDER BRAD',
+      sprite: 'field_brad',
+      x: 660,
+      y: 1560,
+      facing: 'left',
+      talk: [
+        { speaker: 'BRAD', text: '"Been holding these bags since 2021. My arms went numb in 2022."' },
+        { speaker: 'BRAD', text: '"Derek says selling is for paper hands. But you look like you\'ve seen... profit."' },
+      ],
+      talkWon: [{ speaker: 'BRAD', text: '"One bag down. Only eleven to go."' }],
+      challenge: {
+        kind: 'beat',
+        prompt: 'BRAD WANTS TO SEE A REAL FLEX',
+        accept: 'FLEX ON HIM',
+        acceptSub: 'Show him real money.',
+        title: 'FLEX ON BRAD',
+        need: 'FIRE',
+        speed: 1,
+        win: [
+          { speaker: 'BRAD', text: '"Is... is that what profit looks like?"\n*drops a bag*' },
+          { speaker: 'BRAD', text: '"Derek can\'t take a flex either. Show him money he doesn\'t have and he short-circuits."' },
+        ],
+        lose: [{ speaker: 'BRAD', text: '"That\'s it? I\'ve seen bigger gains, and I\'m down 94%."' }],
+        reveal: { enemy: 'derek', weak: ['FLEX'] },
+      },
+    },
+    {
+      id: 'morgan',
+      name: 'MOD MORGAN',
+      sprite: 'field_morgan',
+      x: 340,
+      y: 1250,
+      facing: 'right',
+      talk: [
+        { speaker: 'MORGAN', text: '"Halt. I moderate this swamp."' },
+        { speaker: 'MORGAN', text: '"Nobody gets the inside scoop on Derek without passing the rules quiz."' },
+      ],
+      talkWon: [{ speaker: 'MORGAN', text: '"Stay on topic. I\'m watching you."' }],
+      challenge: {
+        kind: 'quiz',
+        prompt: "MORGAN'S RULES QUIZ",
+        accept: 'TAKE THE QUIZ',
+        acceptSub: 'Three questions. No googling.',
+        questions: [
+          {
+            q: 'Rule 1: the stock just dropped 40%. What do we do?',
+            answers: ['Buy the dip', 'Sell everything', 'Read the earnings report'],
+            right: [{ speaker: 'MORGAN', text: '"Correct. Logic is not welcome here."' }],
+            wrong: [{ speaker: 'MORGAN', text: '"*BONK* Banned. Come back when you\'ve unlearned economics."' }],
+          },
+          {
+            q: 'Rule 2: what counts as due diligence?',
+            answers: ['A rocket emoji and a feeling', 'Researching the company', 'Asking a financial advisor'],
+            right: [{ speaker: 'MORGAN', text: '"Correct. Research is FUD."' }],
+            wrong: [{ speaker: 'MORGAN', text: '"*BONK* We don\'t do homework here. Banned."' }],
+          },
+          {
+            q: 'Rule 3: when do we sell?',
+            answers: ['We do not sell', 'When it hits our target', 'When rent is due'],
+            right: [{ speaker: 'MORGAN', text: '"Correct. We hold until the heat death of the universe."' }],
+            wrong: [{ speaker: 'MORGAN', text: '"*BONK* Paper hands detected. Banned."' }],
+          },
+        ],
+        win: [
+          { speaker: 'MORGAN', text: '"Perfect score. You think like a true ape. Disgusting. Welcome."' },
+          { speaker: 'MORGAN', text: '"Don\'t bother roasting Derek; 40,000 commenters already tried. But question his RESEARCH and he melts."' },
+        ],
+        lose: [{ text: "Morgan's ban hammer is still ringing in your ears." }],
+        reveal: { enemy: 'derek', resist: ['ROAST'], softSpots: ['ROAST>INTELLECT'] },
+      },
+    },
+    {
+      id: 'chad',
+      name: 'CHAD',
+      sprite: 'field_chad',
+      x: 420,
+      y: 560,
+      facing: 'right',
+      talk: [
+        { speaker: 'CHAD', text: '"Sup. I\'m Derek\'s wife\'s boyfriend. I also run his 401(k)."' },
+        { speaker: 'CHAD', text: '"Out-flex me and I\'ll tell you where it really hurts him."' },
+      ],
+      talkWon: [{ speaker: 'CHAD', text: '"Tell Derek I said hi. Actually, don\'t. He\'ll cry."' }],
+      challenge: {
+        kind: 'beat',
+        prompt: 'CHAD THINKS HE HAS MORE DRIP',
+        accept: 'BRING IT',
+        acceptSub: 'Two flexes, both on beat.',
+        title: 'OUT-FLEX CHAD',
+        need: 'FIRE',
+        rounds: 2,
+        speed: 1.2,
+        win: [
+          { speaker: 'CHAD', text: '"Okay, okay. You\'ve got drip, bro."' },
+          { speaker: 'CHAD', text: '"Real talk: Derek\'s broke. I pay his Wi-Fi. And he calls day trading a \'career.\' Hit him there."' },
+        ],
+        lose: [{ speaker: 'CHAD', text: '"Cute. Come back when your vest is paid off, bro."' }],
+        reveal: { enemy: 'derek', softSpots: ['FLEX>WEALTH', 'WORDPLAY>CAREER'] },
+      },
+    },
   ],
 
   // y-sorted scenery. `block` is the footprint (centered on the feet) that $cott can't walk through.

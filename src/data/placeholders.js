@@ -199,4 +199,20 @@ export const FIELD_PALETTES = {
     B: '#8a6046', M: '#6e2626', R: '#2f6f63', r: '#1f4a43', W: '#2f6f63', G: '#f39a2b',
     P: '#55586a', p: '#3c3e4c', F: '#e8e8ee', f: '#a8a8b8',
   },
+  // Swamp locals (src/data/maps/start.js), in case their sheets are missing.
+  field_brad: {
+    H: '#2a2420', h: '#4a3e34', S: '#d8a582', s: '#ad7858', K: '#2a2028', k: '#6a5a6a',
+    B: '#4a3e34', M: '#7a4a3a', R: '#c8c4bc', r: '#9a968e', W: '#e8e4dc', G: '#c8313a',
+    P: '#3e5a86', p: '#2a3e5e', F: '#d8d4cc', f: '#9a968e',
+  },
+  field_morgan: {
+    H: '#3a3a44', h: '#5a5a66', S: '#e2b08c', s: '#b7805e', K: '#202030', k: '#8fc8ff',
+    B: '#5a4030', M: '#7a3a2a', R: '#26242e', r: '#16141c', W: '#3a3846', G: '#8a6a44',
+    P: '#6a6248', p: '#4a4432', F: '#e8e8ee', f: '#a8a8b8',
+  },
+  field_chad: {
+    H: '#e8c060', h: '#b8902e', S: '#d89a6a', s: '#ad6e44', K: '#1a1420', k: '#3a3040',
+    B: '#d89a6a', M: '#9a4a3a', R: '#f2a3c0', r: '#c87894', W: '#f2a3c0', G: '#5a8ad8',
+    P: '#d8c08a', p: '#a8905e', F: '#7a4a2a', f: '#4a2a14',
+  },
 };

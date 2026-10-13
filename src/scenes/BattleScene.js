@@ -21,6 +21,7 @@ import {
   startOfTurnFlow, checkStatusTriggers, scottBarsFor, pickCouplet, softSpotKey,
 } from '../systems/combat.js';
 import { chooseEnemyMove } from '../systems/ai.js';
+import { seedDiscovered, scoutingLine } from '../systems/intel.js';
 import { Crowd } from '../systems/crowd.js';
 import { rng } from '../systems/rng.js';
 import { Audio } from '../systems/audio.js';
@@ -66,6 +67,8 @@ export default class BattleScene extends Phaser.Scene {
     this.def = def;
     this.scott = createBattler(SCOTT);
     this.enemy = createBattler(def);
+    // Intel scouted in the region (systems/intel.js) starts out on the HUD.
+    seedDiscovered(this.enemy, Save.intelFor(def.id));
     this.crowd = new Crowd();
 
     this.add.image(0, 0, regionById(this.regionId)?.background ?? def.background).setOrigin(0);
@@ -202,6 +205,8 @@ export default class BattleScene extends Phaser.Scene {
   async run() {
     await wait(this, LAYOUT.entrance.ms + 100);
     for (const line of this.def.script.intro) await this.sayLine(line);
+    const scouted = scoutingLine(this.enemy);
+    if (scouted) await this.sayLine(scouted);
 
     for (this.round = 1; ; this.round += 1) {
       await this.scottTurn(this.round === 1);
@@ -533,7 +538,12 @@ export default class BattleScene extends Phaser.Scene {
       bubble: this.bubbleSpeaker,
       crowd: this.crowd.value,
       scott: { clout: this.scott.clout, flow: this.scott.flow, statuses: this.scott.statuses.list().map((s) => s.id) },
-      enemy: { id: this.enemy.id, clout: this.enemy.clout, statuses: this.enemy.statuses.list().map((s) => s.id) },
+      enemy: {
+        id: this.enemy.id,
+        clout: this.enemy.clout,
+        statuses: this.enemy.statuses.list().map((s) => s.id),
+        intel: Object.fromEntries(Object.entries(this.enemy.discovered).map(([k, v]) => [k, [...v]])),
+      },
     };
   }
 }

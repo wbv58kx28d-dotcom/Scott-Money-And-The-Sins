@@ -215,13 +215,15 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - Progress saves in `localStorage` (cleared regions, recruited Sins and levels, quests, token position). Clearing a region recruits its Sin at level 1.
 - Not built yet: side-quest stops inside regions.
 
-### 6.6 Walkable regions (built, placeholder art)
+### 6.6 Walkable regions (built)
 - Each region is a map $cott walks around in a **3/4 top-down view, like *Chained Echoes***: one painted map bigger than the screen, with the camera following him. Characters face down, up, left, or right.
 - **Phone controls:** tap anywhere to walk there (he paths around water and props), or hold and drag to steer. Tap an NPC to walk over and talk.
 - The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
 - Walking into an exit, or the MAP button, goes back to the overworld.
 - Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
-- Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the ground, and the props.
+- **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Two kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better) and **quiz** (multiple choice; the first listed answer is right, shown shuffled). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
+- **Subreddit Swamps locals:** **Bagholder Brad** (beat; reveals WEAK FLEX), **Mod Morgan** (rules quiz; reveals RESISTS ROAST and ROAST→INTELLECT), and **Chad**, Derek's wife's boyfriend (two harder beats; reveals FLEX→WEALTH and WORDPLAY→CAREER). Together they reveal all of Derek. Their lines are placeholders for the writing chat.
+- Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the three locals, the ground, and the props.
 
 ## 7. Tech stack
 
@@ -276,7 +278,7 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - A sheet of **96×144 px frames, 5 columns × 3 rows.** Rows face down, up, and left. Columns are idle, then a 4-frame walk (contact, passing, other contact, passing). Right-facing is the left row mirrored in-engine; add a 4th row only if the character is lopsided (a bag on one shoulder, say).
 - The character stands about **120–130 px tall**, feet at the bottom center of each frame, on a transparent background.
 - True pixel grid and a dark outline, like the battle sprites. Density: **2 screen px per art pixel**, so each frame is **48×72 art pixels**, drawn at 2×, and the character is about 62 art pixels tall. At 3 px (32×48 art pixels) every generator drew him chibi, under 3 heads tall; 2 px leaves room for about 4 heads. The outline is 2 px, not 3.
-- **Built: $cott and Derek** (`assets/field/field_scott.png`, `field_derek.png`), made in PixelLab from their battle art. The recipe is in `docs/field-art-prompts.md`; `tools/region-art/walker.py` turns a PixelLab character into a sheet.
+- **Built: $cott and Derek** (`assets/field/field_scott.png`, `field_derek.png`), made in PixelLab from their battle art, plus the swamp locals (`field_brad.png`, `field_morgan.png`, `field_chad.png`), made from text with $cott and Derek as the style reference. The recipe is in `docs/field-art-prompts.md`; `tools/region-art/walker.py` turns a PixelLab character into a sheet.
 - NPCs who only stand still need just the idle column (the down row, plus left if they turn to face $cott).
 
 **Region maps** (one per region):
@@ -329,3 +331,4 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - The **whole UI uses the ribbon style** (picked over classic, drum-pad, and phone mockups): every button, panel, HUD card, stat bar, and the timing bar. Battle menus have left-aligned text, $cott's and the enemy's HUD cards match, and the enemy's intel sits as tags at its feet (§8.2).
 - **Walker sprites use 2 screen px per art pixel** (48×72 art-pixel frames), not 3, so characters can be about 4 heads tall instead of chibi (§8.4). $cott's sheet is the first one, made in PixelLab.
 - **Region ground is built from PixelLab terrain tiles** laid over each map's shapes by a script, not painted as one image, so positions and the walk mask always line up (§8.4). The Subreddit Swamps is the first.
+- **Minor characters can reveal villain intel** through small challenges (beat taps, quizzes). What you win is saved and shows on the villain's HUD from the start of the fight (§6.6).

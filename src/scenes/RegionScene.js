@@ -3,7 +3,9 @@
 //
 // Phone controls: tap anywhere to walk there (he paths around water and
 // props), or hold and drag to steer. Tap an NPC to walk over and talk; the
-// villain's talk ends with FIGHT / NOT YET. Walking into an exit leaves for
+// villain's talk ends with FIGHT / NOT YET. Minor characters can offer a
+// challenge (a beat tap or a quiz); winning it reveals intel on the villain
+// that shows in the fight (systems/intel.js). Walking into an exit leaves for
 // the overworld map.
 //
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
@@ -11,6 +13,7 @@
 // inside ui(), which pins it to the screen.
 
 import { FIELD, LAYOUT } from '../config.js';
+import { TIMING } from '../data/rules.js';
 import { MAPS } from '../data/maps/index.js';
 import { REGION_ART, FIELD_SHEETS, PROP_IMAGES } from '../data/assets.js';
 import { regionById, TIER_NAMES } from '../data/regions.js';
@@ -19,6 +22,8 @@ import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { DEBUG } from '../systems/debug.js';
 import { WalkGrid } from '../systems/walkGrid.js';
+import { revealLines } from '../systems/intel.js';
+import { rng } from '../systems/rng.js';
 import {
   bakeRegionPlaceholder, bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, maskSampler, SHEET_COLS,
 } from '../systems/fieldArt.js';
@@ -26,11 +31,16 @@ import { TapBus } from '../ui/tapBus.js';
 import { DialogBox } from '../ui/dialog.js';
 import { Menu } from '../ui/menu.js';
 import { Button } from '../ui/button.js';
+import { TimingBar } from '../ui/timingBar.js';
 import { drawCard, drawRibbonPanel, RIBBON_GOLD, CARD_INSET } from '../ui/ribbon.js';
-import { label, body, fitWidth } from '../ui/text.js';
+import { label, body, fitWidth, fitWrapped } from '../ui/text.js';
 
 const WORLD_DEPTH = 100000;
 const GOLD = 0xffd166;
+const INTEL = 0x9fdcff; // challenges and the intel they reveal
+const INTEL_CSS = '#9fdcff';
+// The quiz question's card, above the menu's prompt tag.
+const QUESTION_CARD = { x: 16, y: 930, w: 688, h: 116 };
 // An NPC's own footprint, and the tap area around its body.
 const NPC_BLOCK = { w: 70, h: 30 };
 const NPC_HIT = { w: 100, h: 140 };
@@ -129,10 +139,11 @@ export default class RegionScene extends Phaser.Scene {
       const sprite = this.add.sprite(n.x, n.y, n.sprite).setOrigin(0.5, 1).setDepth(worldDepth(n.y));
       this.face(sprite, n.facing);
       this.grid.block(footprint(n.x, n.y, NPC_BLOCK));
-      // A bouncing "!" over a villain you haven't beaten.
+      // A bouncing "!" over a villain you haven't beaten, "?" over a challenge you haven't won.
+      const mark = n.fight && !cleared ? ['!', '#ffd166'] : n.challenge && !Save.hasWon(this.challengeId(n)) ? ['?', INTEL_CSS] : null;
       let alert = null;
-      if (n.fight && !cleared) {
-        alert = label(this, n.x, n.y - FIELD.frame.h - 6, '!', 28, { color: '#ffd166', strokeThickness: 8 })
+      if (mark) {
+        alert = label(this, n.x, n.y - FIELD.frame.h - 6, mark[0], 28, { color: mark[1], strokeThickness: 8 })
           .setOrigin(0.5, 1)
           .setDepth(-1);
         this.tweens.add({ targets: alert, y: alert.y - 10, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -189,6 +200,7 @@ export default class RegionScene extends Phaser.Scene {
       this.bus = new TapBus(this);
       this.dialog = new DialogBox(this, this.bus, { instant: DEBUG.fast });
       this.menu = new Menu(this);
+      this.timing = new TimingBar(this, this.bus);
     });
   }
 
@@ -312,8 +324,10 @@ export default class RegionScene extends Phaser.Scene {
 
     this.panel.setVisible(true);
     const cleared = Save.cleared.has(this.region.id);
-    for (const line of (cleared && npc.talkCleared) || npc.talk) await this.dialog.say(line.text, line.speaker ?? null);
+    const won = npc.challenge && Save.hasWon(this.challengeId(npc));
+    await this.sayAll((won && npc.talkWon) || (cleared && npc.talkCleared) || npc.talk);
     this.dialog.hide();
+    if (npc.challenge && !won) await this.offerChallenge(npc);
 
     if (npc.fight) {
       const enemy = ENEMIES[npc.fight];
@@ -326,6 +340,87 @@ export default class RegionScene extends Phaser.Scene {
     this.panel.setVisible(false);
     this.face(npc.sprite, npc.facing);
     this.mode = 'explore';
+  }
+
+  sayAll(lines = []) {
+    return lines.reduce((p, line) => p.then(() => this.dialog.say(line.text, line.speaker ?? null)), Promise.resolve());
+  }
+
+  challengeId(npc) {
+    return `${this.region.id}:${npc.id}`;
+  }
+
+  // ---- Challenges ------------------------------------------------------------------
+
+  /** Offer an NPC's challenge; a win saves its intel and says what it revealed. */
+  async offerChallenge(npc) {
+    const c = npc.challenge;
+    const choice = await this.ui(() => this.menu.choose([
+      { id: 'go', text: c.accept ?? "YOU'RE ON", sub: c.acceptSub ?? 'Win and they talk.', accent: INTEL, textColor: INTEL_CSS },
+      { id: 'leave', text: 'NOT NOW', sub: 'Come back later.' },
+    ], { prompt: c.prompt, columns: 2 }));
+    if (choice !== 'go') return;
+
+    const won = c.kind === 'quiz' ? await this.runQuiz(c) : await this.runBeat(c);
+    if (!won) {
+      Audio.sfx('bad');
+      await this.sayAll(c.lose);
+      return this.dialog.hide();
+    }
+    Audio.sfx('good');
+    await this.sayAll(c.win);
+    Save.winChallenge(this.challengeId(npc), c.reveal);
+    npc.alert?.destroy();
+    npc.alert = null;
+    for (const line of revealLines(ENEMIES[c.reveal.enemy], c.reveal)) await this.dialog.say(line.text, null, { color: INTEL_CSS });
+    this.dialog.hide();
+  }
+
+  /** Beat challenge: `rounds` taps on the timing bar, each at `need` or better. */
+  async runBeat(c) {
+    const need = TIMING.ratings.findIndex((r) => r.id === (c.need ?? 'FIRE'));
+    const rounds = c.rounds ?? 1;
+    for (let i = 0; i < rounds; i++) {
+      const count = rounds > 1 ? ` ${i + 1}/${rounds}` : '';
+      const rating = await this.ui(() => this.timing.play({
+        speed: c.speed ?? 1, title: `${c.title}${count} · ${TIMING.ratings[need].id}+`, perfect: DEBUG.perfect,
+      }));
+      if (TIMING.ratings.indexOf(rating) > need) return false;
+    }
+    return true;
+  }
+
+  /** Quiz challenge: each question's first answer is the right one (they're shuffled on screen). */
+  async runQuiz(c) {
+    for (const q of c.questions) {
+      const answers = q.answers.map((text, i) => ({ text, right: i === 0 }));
+      for (let i = answers.length - 1; i > 0; i--) {
+        const j = rng.int(0, i);
+        [answers[i], answers[j]] = [answers[j], answers[i]];
+      }
+      this.quizAnswer = q.answers[0];
+      const card = this.ui(() => this.questionCard(q.q));
+      const pick = await this.ui(() => this.menu.choose(
+        answers.map((a, i) => ({ id: String(i), text: a.text, accent: INTEL })),
+        { prompt: c.prompt, columns: 1 },
+      ));
+      card.forEach((o) => o.destroy());
+      this.quizAnswer = null;
+      if (!answers[Number(pick)].right) {
+        await this.sayAll(q.wrong);
+        return false;
+      }
+      await this.sayAll(q.right);
+    }
+    return true;
+  }
+
+  questionCard(question) {
+    const r = QUESTION_CARD;
+    const g = drawCard(this.add.graphics(), r, INTEL).setDepth(20);
+    const text = body(this, r.x + CARD_INSET, r.y + 10, '', 34).setDepth(20);
+    text.setText(fitWrapped(text, question, { maxWidth: r.w - CARD_INSET - 24, maxHeight: r.h - 20, maxSize: 34, minSize: 22 }));
+    return [g, text];
   }
 
   fight(npc) {
@@ -354,7 +449,10 @@ export default class RegionScene extends Phaser.Scene {
       mode: this.mode,
       walking: this.path.length > 0,
       player: { x: Math.round(this.player.x), y: Math.round(this.player.y), facing: this.facing },
-      npcs: this.npcs.map((n) => ({ id: n.id, tap: screen(n.x, n.y - 60) })),
+      npcs: this.npcs.map((n) => ({
+        id: n.id, tap: screen(n.x, n.y - 60), challenge: !!n.challenge, won: !!n.challenge && Save.hasWon(this.challengeId(n)),
+      })),
+      quizAnswer: this.quizAnswer ?? null,
     };
   }
 }
