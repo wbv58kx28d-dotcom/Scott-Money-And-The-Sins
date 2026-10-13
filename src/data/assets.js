@@ -29,7 +29,7 @@ export const REGION_ART = {
 
 // Walker sprite sheets: FIELD.frame-sized frames; rows down, up, left; columns idle, walk 1–4.
 export const FIELD_SHEETS = [
-  { key: 'field_scott', path: null },
+  { key: 'field_scott', path: 'assets/field/field_scott.png' },
   { key: 'field_derek', path: null },
 ];
 

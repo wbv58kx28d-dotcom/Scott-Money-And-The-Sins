@@ -33,8 +33,20 @@ PixelLab and Retro Diffusion are paid, with free trials or credits. Check their 
 1. **Nail the look first.** Run prompt 0 until a mock screenshot looks right. Then attach that mock as the style reference to every other prompt, so everything matches it.
 2. **Ground and props** in ChatGPT (prompts 3 and 4).
 3. **Characters:** a turnaround in ChatGPT (prompts 1 and 2), then the walk cycle in PixelLab from that turnaround. Prompt 1b tries the walk cycle in ChatGPT if you want to see how close it gets first.
-4. **Cleanup in the art chat:** remove the magenta, snap to a 3 px pixel grid, quantize to the shared palette, add the outline, and lay the walker frames into `field-sheet-template.png` (feet on the red line).
+4. **Cleanup in the art chat:** remove the magenta, snap to the pixel grid (2 px for walkers, 3 px for ground and props), quantize to the shared palette, add the outline, and lay the walker frames into `field-sheet-template.png` (feet on the red line).
 5. **Hand off to Claude Code** with the file names below.
+
+## PixelLab recipe (how $cott's sheet was made)
+
+Claude Code can run PixelLab directly through its MCP server (`.mcp.json`). $cott's walker took about 60 generations, most of them spent finding the proportions. Doing the same for another character:
+
+1. **Front-facing sprite, from the battle art.** `create_image_pro` at **48×72**, with the battle PNG as a labelled reference (`"usage": "character identity and body proportions"`) and the description asking for grown-up proportions, about 5.5–6 heads tall, standing idle and facing the viewer, in a 3/4 top-down RPG view. One call returns 16 candidates in one style, usually including back and side views. At 32×48 the results always come out chibi, so stay at 48×72.
+2. **Pick the straight-on front view.** It becomes "south", and every other direction is rotated from it, so a 3/4 pose skews the whole set.
+3. **Rotate it.** `create_character(mode="v3", n_directions=4, reference_image_url=<front>, direction_images={"north": <back view from the same batch>})`. PixelLab fills in east and west.
+4. **Walk.** `animate_character(template_animation_id="walking-4-frames", directions=["south","north","west"])`.
+5. **Assemble.** Download the character zip, scale each 48×72 frame 2× with nearest-neighbor, lay the frames out down/up/left × idle + walk 1–4 (rotation, then frames 0–3), and shift the whole sheet down by one amount so the lowest foot sits on y 141 of the frame (the template's red line).
+
+$cott's PixelLab character is `9a98e7a2-fda8-4b7b-a119-66ec4547c71a` ("$cott Money (field)"), for adding animations later (a talk pose, say).
 
 ## Prompts
 
@@ -143,4 +155,4 @@ Finished files go here, under the names the game already uses. Each one replaces
 | Walk mask | `assets/regions/start/walk.png` | White is walkable; any size at the ground's aspect ratio |
 | Props | `assets/props/prop_cypress.png`, `prop_snag.png`, `prop_sign.png`, `prop_setup.png`, `prop_tent.png` | One prop per file, trimmed, with feet at the bottom center. Extra variants (a second cypress, reeds) are welcome; they get new names. |
 
-All of these use the same cleanup as the battle sprites: a true pixel grid at 3 screen px per art pixel, the shared palette, and a dark outline (3 px, which is 1 art pixel) on characters and props.
+All of these use the same cleanup as the battle sprites: a true pixel grid, the shared palette, and a dark outline of 1 art pixel on characters and props. Ground and props use 3 screen px per art pixel. Walker sheets use 2 (48×72 art pixels per frame), so characters aren't chibi; see `CLAUDE.md` §8.4.

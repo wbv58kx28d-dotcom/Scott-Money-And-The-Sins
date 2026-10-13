@@ -2,7 +2,7 @@
 
 Shared context for every chat and for Claude Code. In the repo this file is `CLAUDE.md`. In claude.ai, keep it in Project knowledge.
 
-_Last updated: Oct 12, 2026. Replaces `SCOTT_MONEY_RPG.md`._
+_Last updated: Oct 13, 2026. Replaces `SCOTT_MONEY_RPG.md`._
 
 **Who does what**
 - **claude.ai chats** handle art, lore, writing, and design decisions.
@@ -275,7 +275,8 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - 3/4 top-down view, like *Chained Echoes*: the front when walking down, the back when walking up.
 - A sheet of **96×144 px frames, 5 columns × 3 rows.** Rows face down, up, and left. Columns are idle, then a 4-frame walk (contact, passing, other contact, passing). Right-facing is the left row mirrored in-engine; add a 4th row only if the character is lopsided (a bag on one shoulder, say).
 - The character stands about **120–130 px tall**, feet at the bottom center of each frame, on a transparent background.
-- Same cleanup as battle sprites: true pixel grid, shared 128-color palette, dark outline. Suggested density: **3 screen px per art pixel** (about 32×42 art pixels per character), so the outline is 3 px like the battle sprites.
+- True pixel grid and a dark outline, like the battle sprites. Density: **2 screen px per art pixel**, so each frame is **48×72 art pixels**, drawn at 2×, and the character is about 62 art pixels tall. At 3 px (32×48 art pixels) every generator drew him chibi, under 3 heads tall; 2 px leaves room for about 4 heads. The outline is 2 px, not 3.
+- **Built: $cott** (`assets/field/field_scott.png`), made in PixelLab from his battle art. The recipe is in `docs/field-art-prompts.md`.
 - NPCs who only stand still need just the idle column (the down row, plus left if they turn to face $cott).
 
 **Region maps** (one per region):
@@ -325,3 +326,4 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **$cott is ~30% bigger than the enemies in battle** to sell depth (§8.2). In-engine 1.3× scaling is a stopgap until a ~420 px re-export of his sprite arrives (§8.1).
 - **Regions are walkable**, in a *Chained Echoes*-style 3/4 top-down view with tap-to-move. $cott finds and challenges each villain in their region (§6.6). Field art is a separate set of smaller walking sprites and painted maps (§8.4).
 - The **whole UI uses the ribbon style** (picked over classic, drum-pad, and phone mockups): every button, panel, HUD card, stat bar, and the timing bar. Battle menus have left-aligned text, $cott's and the enemy's HUD cards match, and the enemy's intel sits as tags at its feet (§8.2).
+- **Walker sprites use 2 screen px per art pixel** (48×72 art-pixel frames), not 3, so characters can be about 4 heads tall instead of chibi (§8.4). $cott's sheet is the first one, made in PixelLab.
