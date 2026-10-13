@@ -44,9 +44,9 @@ Claude Code can run PixelLab directly through its MCP server (`.mcp.json`). $cot
 2. **Pick the straight-on front view.** It becomes "south", and every other direction is rotated from it, so a 3/4 pose skews the whole set.
 3. **Rotate it.** `create_character(mode="v3", n_directions=4, reference_image_url=<front>, direction_images={"north": <back view from the same batch>})`. PixelLab fills in east and west.
 4. **Walk.** `animate_character(template_animation_id="walking-4-frames", directions=["south","north","west"])`.
-5. **Assemble.** Download the character zip, scale each 48×72 frame 2× with nearest-neighbor, lay the frames out down/up/left × idle + walk 1–4 (rotation, then frames 0–3), and shift the whole sheet down by one amount so the lowest foot sits on y 141 of the frame (the template's red line).
+5. **Assemble.** `python3 tools/region-art/walker.py <character id> <texture key>` downloads the character, scales each 48×72 frame 2× with nearest-neighbor, lays the frames out down/up/left × idle + walk 1–4, and shifts the whole sheet so the lowest foot sits on y 141 (the template's red line). Name the animation `walk`. Without one, the idle fills every column, which is enough for an NPC who stands still.
 
-$cott's PixelLab character is `9a98e7a2-fda8-4b7b-a119-66ec4547c71a` ("$cott Money (field)"), for adding animations later (a talk pose, say).
+PixelLab characters, for adding animations later (a talk pose, say): $cott is `9a98e7a2-fda8-4b7b-a119-66ec4547c71a` ("$cott Money (field)"), Derek is `8dced960-d408-466f-9ce3-0ff8a4674c48` ("Diamond Hands Derek (field)").
 
 ### Ground and props (how the Subreddit Swamps was made)
 
