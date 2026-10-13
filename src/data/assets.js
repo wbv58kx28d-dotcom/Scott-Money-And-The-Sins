@@ -24,7 +24,7 @@ export const IMAGES = [
 
 // Painted region maps: `base` is the ground, `walk` the walk mask (white = walkable).
 export const REGION_ART = {
-  start: { base: null, walk: null },
+  start: { base: 'assets/regions/start/base.webp', walk: 'assets/regions/start/walk.png' },
 };
 
 // Walker sprite sheets: FIELD.frame-sized frames; rows down, up, left; columns idle, walk 1–4.
@@ -35,9 +35,11 @@ export const FIELD_SHEETS = [
 
 // Scenery props, drawn with their feet (bottom center) on the ground.
 export const PROP_IMAGES = [
-  { key: 'prop_cypress', path: null },
-  { key: 'prop_snag', path: null },
-  { key: 'prop_sign', path: null },
-  { key: 'prop_setup', path: null },
-  { key: 'prop_tent', path: null },
+  { key: 'prop_cypress', path: 'assets/props/prop_cypress.png' },
+  { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png' },
+  { key: 'prop_snag', path: 'assets/props/prop_snag.png' },
+  { key: 'prop_snag_b', path: 'assets/props/prop_snag_b.png' },
+  { key: 'prop_sign', path: 'assets/props/prop_sign.png' },
+  { key: 'prop_setup', path: 'assets/props/prop_setup.png' },
+  { key: 'prop_tent', path: 'assets/props/prop_tent.png' },
 ];

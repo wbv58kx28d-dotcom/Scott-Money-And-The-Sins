@@ -221,7 +221,7 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
 - Walking into an exit, or the MAP button, goes back to the overworld.
 - Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
-- Built for the Subreddit Swamps with procedural placeholder art, until the field art in §8.4 arrives.
+- Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott walks, and the ground and props are real. Derek's walker is still a placeholder.
 
 ## 7. Tech stack
 
@@ -280,7 +280,8 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - NPCs who only stand still need just the idle column (the down row, plus left if they turn to face $cott).
 
 **Region maps** (one per region):
-- **Base:** the ground, painted 3/4 top-down, portrait, ideally around **1080×1920** (1.5× the screen each way). Any portrait size works, including ChatGPT's 1024×1536; the map data is fit to the art. WebP, same 3 px pixel density. No characters, and nothing tall that $cott should walk behind.
+- **Base:** the ground, 3/4 top-down, portrait, at the map's size (**1080×1920**, 1.5× the screen each way). WebP, at the walkers' 2 px density. No characters, and nothing tall that $cott should walk behind.
+- **Built: the Subreddit Swamps.** Its ground isn't painted: `tools/region-art/compose.py` lays PixelLab terrain tiles (water, grass, dirt, reeds) over the map's own shapes, scatters small details, and writes the base and the walk mask. Re-run it after changing the tiles or the shapes. Props come from `tools/region-art/props.py`.
 - **Props:** anything tall (trees, signs, tents, buildings) as separate transparent PNGs, placed by their bottom center. They sort by depth with the characters, so $cott walks behind a canopy and in front of a trunk.
 - **Walk mask:** a PNG at the base's aspect ratio (a quarter size is fine): white where $cott can walk, black where he can't. If a painted map follows the placeholder's layout guide, the placeholder's mask still fits.
 - **Points:** spawn, exits, NPC spots, and each prop's position and footprint, as a list (like the map pack's JSON). They go in `src/data/maps/<region>.js`.
@@ -327,3 +328,4 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **Regions are walkable**, in a *Chained Echoes*-style 3/4 top-down view with tap-to-move. $cott finds and challenges each villain in their region (§6.6). Field art is a separate set of smaller walking sprites and painted maps (§8.4).
 - The **whole UI uses the ribbon style** (picked over classic, drum-pad, and phone mockups): every button, panel, HUD card, stat bar, and the timing bar. Battle menus have left-aligned text, $cott's and the enemy's HUD cards match, and the enemy's intel sits as tags at its feet (§8.2).
 - **Walker sprites use 2 screen px per art pixel** (48×72 art-pixel frames), not 3, so characters can be about 4 heads tall instead of chibi (§8.4). $cott's sheet is the first one, made in PixelLab.
+- **Region ground is built from PixelLab terrain tiles** laid over each map's shapes by a script, not painted as one image, so positions and the walk mask always line up (§8.4). The Subreddit Swamps is the first.

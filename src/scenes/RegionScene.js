@@ -116,11 +116,11 @@ export default class RegionScene extends Phaser.Scene {
       const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
       if (p.block) this.grid.block(footprint(p.x, p.y, p.block));
       if (p.label) {
-        // Written on the sign's board (its top ~40%).
-        const t = label(this, p.x, Math.round(p.y - img.height * 0.74), p.label, 10, { color: '#2a1a10', strokeThickness: 0 })
+        // Written on the sign's board, centered ~59% up from the feet.
+        const t = label(this, p.x, Math.round(p.y - img.height * 0.59), p.label, 10, { color: '#2a1a10', strokeThickness: 0 })
           .setOrigin(0.5)
           .setDepth(worldDepth(p.y) + 0.5);
-        fitWidth(t, img.width - 30, 6);
+        fitWidth(t, img.width - 22, 6);
       }
     }
 

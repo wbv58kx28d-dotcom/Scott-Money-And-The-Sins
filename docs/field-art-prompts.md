@@ -48,6 +48,11 @@ Claude Code can run PixelLab directly through its MCP server (`.mcp.json`). $cot
 
 $cott's PixelLab character is `9a98e7a2-fda8-4b7b-a119-66ec4547c71a` ("$cott Money (field)"), for adding animations later (a talk pose, say).
 
+### Ground and props (how the Subreddit Swamps was made)
+
+- **Ground:** three standard (not pro) PixelLab top-down tilesets at 16 px, chained through the grass base tile so the grass matches: water↔grass, dirt↔grass, grass↔reeds. The pro tilesets came out flat and striped. `tools/region-art/compose.py <region>` places them by the map's `placeholder` shapes (pools, path, clearing, border), tones them down to sit under the props (`art.json`), scatters 16 px decals from one `create_image_pro` call (64 candidates), lays the boardwalk, and writes `base.webp` and `walk.png`. Sources live in `tools/region-art/<region>/`.
+- **Props:** `create_image_pro` with $cott's idle frame as the style image (outline, detail, shading), at the art size you want (a cypress is 96×128). Put the picks in `tools/region-art/props/<texture key>.png` and run `tools/region-art/props.py`. Sign boards need to be wide (72×48) or the in-game label shrinks to nothing.
+
 ## Prompts
 
 Attach these to each prompt:
