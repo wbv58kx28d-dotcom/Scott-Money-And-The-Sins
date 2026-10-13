@@ -36,16 +36,16 @@ export default {
   props: [
     { texture: 'prop_setup', x: 690, y: 400, block: { w: 170, h: 50 } },
     { texture: 'prop_tent', x: 360, y: 400, block: { w: 160, h: 60 } },
-    { texture: 'prop_sign', x: 650, y: 1700, block: { w: 30, h: 16 }, label: 'r/APES' },
-    { texture: 'prop_sign', x: 300, y: 880, block: { w: 30, h: 16 }, label: 'HODL ZONE' },
-    { texture: 'prop_sign', x: 610, y: 610, block: { w: 30, h: 16 }, label: 'NO SELLING' },
+    { texture: 'prop_sign', x: 650, y: 1700, block: { w: 90, h: 16 }, label: 'r/APES' },
+    { texture: 'prop_sign', x: 370, y: 760, block: { w: 90, h: 16 }, label: 'HODL ZONE' },
+    { texture: 'prop_sign', x: 610, y: 610, block: { w: 90, h: 16 }, label: 'NO SELLING' },
     // Cypress trees and dead snags around the edges and between the pools.
     ...[
       [110, 260], [960, 250], [150, 700], [920, 980], [90, 1210], [990, 1560],
       [130, 1700], [870, 1820], [700, 1240], [330, 640], [820, 560], [250, 1350],
-    ].map(([x, y]) => ({ texture: 'prop_cypress', x, y, block: { w: 44, h: 22 } })),
-    ...[[420, 1600], [760, 1450], [190, 1020], [880, 360], [600, 760], [330, 1880]].map(([x, y]) => ({
-      texture: 'prop_snag', x, y, block: { w: 30, h: 16 },
+    ].map(([x, y], i) => ({ texture: i % 2 ? 'prop_cypress_b' : 'prop_cypress', x, y, block: { w: 64, h: 24 } })),
+    ...[[420, 1600], [760, 1450], [190, 1020], [880, 360], [740, 690], [330, 1880]].map(([x, y], i) => ({
+      texture: i % 2 ? 'prop_snag_b' : 'prop_snag', x, y, block: { w: 40, h: 18 },
     })),
   ],
 

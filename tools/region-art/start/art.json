@@ -1,0 +1,87 @@
+{
+  "grade": {
+    "saturation": 0.6,
+    "brightness": 0.74
+  },
+  "scatter": [
+    {
+      "on": "grass",
+      "files": [
+        "tuft_01.png",
+        "tuft_02.png",
+        "tuft_03.png",
+        "tuft_04.png",
+        "tuft_05.png",
+        "tuft_06.png",
+        "tuft_07.png",
+        "tuft_08.png",
+        "tuft_09.png",
+        "tuft_10.png",
+        "tuft_11.png",
+        "tuft_12.png",
+        "tuft_13.png",
+        "tuft_14.png",
+        "tuft_15.png"
+      ],
+      "density": 0.35
+    },
+    {
+      "on": "grass",
+      "files": [
+        "flower_17.png",
+        "flower_18.png",
+        "flower_19.png",
+        "flower_20.png",
+        "flower_21.png",
+        "flower_22.png",
+        "flower_26.png",
+        "flower_27.png",
+        "mushroom_24.png",
+        "mushroom_25.png",
+        "mushroom_27.png"
+      ],
+      "density": 0.05
+    },
+    {
+      "on": "grass",
+      "files": [
+        "pebble_33.png",
+        "pebble_34.png",
+        "pebble_35.png",
+        "pebble_37.png",
+        "twig_48.png",
+        "twig_49.png",
+        "twig_50.png",
+        "twig_51.png"
+      ],
+      "density": 0.04
+    },
+    {
+      "on": "dirt",
+      "files": [
+        "pebble_33.png",
+        "pebble_34.png",
+        "pebble_35.png",
+        "pebble_37.png",
+        "puddle_40.png",
+        "puddle_41.png",
+        "puddle_44.png",
+        "puddle_46.png"
+      ],
+      "density": 0.08
+    },
+    {
+      "on": "water",
+      "files": [
+        "lily_56.png",
+        "lily_57.png",
+        "lily_58.png",
+        "lily_59.png",
+        "lily_60.png",
+        "lily_61.png",
+        "lily_62.png"
+      ],
+      "density": 0.18
+    }
+  ]
+}
