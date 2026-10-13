@@ -269,7 +269,7 @@ From the art chat's portrait mockup:
   - Keep the bottom 15% dark and simple.
 
 ### 8.4 Field art: walking sprites and region maps (art request)
-For the walkable regions (§6.6). Placeholders are in the game now; finished files drop in under the same names.
+For the walkable regions (§6.6). Placeholders are in the game now; finished files drop in under the same names. **Prompts, tools, layout guides, and file names: `docs/field-art-prompts.md`** (guide images in `docs/art/`). In short: ChatGPT for the style target, ground, props, and character turnarounds; a pixel-art tool like PixelLab for walk cycles, which ChatGPT can't keep consistent.
 
 **Walker sprite sheets** (one per character who appears in a region: $cott first, then each villain, later the Sins):
 - 3/4 top-down view, like *Chained Echoes*: the front when walking down, the back when walking up.
@@ -279,9 +279,9 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - NPCs who only stand still need just the idle column (the down row, plus left if they turn to face $cott).
 
 **Region maps** (one per region):
-- **Base:** the ground, painted 3/4 top-down at **1080×1920** (1.5× the screen each way; bigger is fine), WebP, same 3 px pixel density. No characters, and nothing tall that $cott should walk behind.
+- **Base:** the ground, painted 3/4 top-down, portrait, ideally around **1080×1920** (1.5× the screen each way). Any portrait size works, including ChatGPT's 1024×1536; the map data is fit to the art. WebP, same 3 px pixel density. No characters, and nothing tall that $cott should walk behind.
 - **Props:** anything tall (trees, signs, tents, buildings) as separate transparent PNGs, placed by their bottom center. They sort by depth with the characters, so $cott walks behind a canopy and in front of a trunk.
-- **Walk mask:** a PNG at the base's aspect ratio (a quarter size is fine): white where $cott can walk, black where he can't.
+- **Walk mask:** a PNG at the base's aspect ratio (a quarter size is fine): white where $cott can walk, black where he can't. If a painted map follows the placeholder's layout guide, the placeholder's mask still fits.
 - **Points:** spawn, exits, NPC spots, and each prop's position and footprint, as a list (like the map pack's JSON). They go in `src/data/maps/<region>.js`.
 
 ## 9. Content and data conventions
