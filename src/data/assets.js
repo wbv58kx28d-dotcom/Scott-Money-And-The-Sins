@@ -31,6 +31,9 @@ export const REGION_ART = {
 export const FIELD_SHEETS = [
   { key: 'field_scott', path: 'assets/field/field_scott.png' },
   { key: 'field_derek', path: 'assets/field/field_derek.png' },
+  { key: 'field_brad', path: 'assets/field/field_brad.png' },
+  { key: 'field_morgan', path: 'assets/field/field_morgan.png' },
+  { key: 'field_chad', path: 'assets/field/field_chad.png' },
 ];
 
 // Scenery props, drawn with their feet (bottom center) on the ground.

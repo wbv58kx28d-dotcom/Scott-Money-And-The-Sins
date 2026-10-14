@@ -1,5 +1,6 @@
 // Saved progress in localStorage (CLAUDE.md §6.5): cleared regions, recruited
-// Sins and their levels, cleared side quests, and where $cott stands on the map.
+// Sins and their levels, cleared side quests, where $cott stands on the map,
+// won region challenges, and the villain intel they revealed (systems/intel.js).
 //
 // localStorage can be missing or throw (private browsing, blocked storage), so
 // every access is guarded and the game falls back to an in-memory save.
@@ -8,11 +9,13 @@
 
 import { REGIONS } from '../data/regions.js';
 import { DEBUG } from './debug.js';
+import { emptyIntel, mergeIntel } from './intel.js';
 
 const KEY = 'scottmoney.save';
 const VERSION = 1;
 
-const fresh = () => ({ v: VERSION, cleared: [], sins: {}, quests: [], at: 'start' });
+// `won` holds challenge ids (`<region>:<npc>`); `intel` is { [enemy id]: { weak, resist, softSpots } }.
+const fresh = () => ({ v: VERSION, cleared: [], sins: {}, quests: [], at: 'start', won: [], intel: {} });
 
 function read() {
   try {
@@ -66,6 +69,23 @@ class SaveGame {
     if (!this.data.cleared.includes(regionId)) this.data.cleared.push(regionId);
     if (region.recruit && !this.data.sins[region.recruit]) this.data.sins[region.recruit] = 1;
     this.data.at = regionId;
+    this.flush();
+  }
+
+  /** Has $cott already won this region challenge (`<region>:<npc>`)? */
+  hasWon(id) {
+    return this.data.won.includes(id);
+  }
+
+  /** What $cott has scouted about a villain. */
+  intelFor(enemyId) {
+    return this.data.intel[enemyId] ?? emptyIntel();
+  }
+
+  /** Win a challenge and keep what it revealed. */
+  winChallenge(id, reveal) {
+    if (!this.data.won.includes(id)) this.data.won.push(id);
+    if (reveal?.enemy) this.data.intel[reveal.enemy] = mergeIntel(this.data.intel[reveal.enemy], reveal);
     this.flush();
   }
 

@@ -46,7 +46,7 @@ Claude Code can run PixelLab directly through its MCP server (`.mcp.json`). $cot
 4. **Walk.** `animate_character(template_animation_id="walking-4-frames", directions=["south","north","west"])`.
 5. **Assemble.** `python3 tools/region-art/walker.py <character id> <texture key>` downloads the character, scales each 48×72 frame 2× with nearest-neighbor, lays the frames out down/up/left × idle + walk 1–4, and shifts the whole sheet so the lowest foot sits on y 141 (the template's red line). Name the animation `walk`. Without one, the idle fills every column, which is enough for an NPC who stands still.
 
-PixelLab characters, for adding animations later (a talk pose, say): $cott is `9a98e7a2-fda8-4b7b-a119-66ec4547c71a` ("$cott Money (field)"), Derek is `8dced960-d408-466f-9ce3-0ff8a4674c48` ("Diamond Hands Derek (field)").
+PixelLab characters, for adding animations later (a talk pose, say): $cott is `9a98e7a2-fda8-4b7b-a119-66ec4547c71a` ("$cott Money (field)"), Derek is `8dced960-d408-466f-9ce3-0ff8a4674c48` ("Diamond Hands Derek (field)"); the swamp locals are Brad `dcf60765-250c-4726-812c-e2c68a066b1c`, Morgan `f1dc4015-b73e-458d-a16b-31ca31267f26`, and Chad `bb256da2-c9bc-4c82-99c9-b91d52d3580d`. NPCs without their own battle art start from a text description in step 1, with $cott and Derek attached as style references.
 
 ### Ground and props (how the Subreddit Swamps was made)
 

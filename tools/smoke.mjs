@@ -92,10 +92,10 @@ const state = (page) => page.evaluate(() => window.__smm?.state() ?? null);
  * In a walkable region: screenshot it, tap the villain until $cott has walked
  * over and started talking, tap through the talk, then press FIGHT.
  */
-async function walkToVillain(page, failures) {
+async function walkToVillain(page, failures, { shots = true } = {}) {
   await page.waitForFunction(() => window.__smm.state().scene === 'Region', null, { timeout: 15_000 });
   await sleep(700);
-  await page.screenshot({ path: path.join(SHOTS, '11b-region.png') });
+  if (shots) await page.screenshot({ path: path.join(SHOTS, '11b-region.png') });
   const started = Date.now();
   let s = await state(page);
   const start = s.player;
@@ -108,8 +108,8 @@ async function walkToVillain(page, failures) {
     await sleep(250);
     s = await state(page);
   }
-  if (Math.hypot(s.player.x - start.x, s.player.y - start.y) < 500) failures.push('region: $cott should have walked up the path to Derek');
-  await page.screenshot({ path: path.join(SHOTS, '11c-region-talk.png') });
+  if (shots && Math.hypot(s.player.x - start.x, s.player.y - start.y) < 500) failures.push('region: $cott should have walked up the path to Derek');
+  if (shots) await page.screenshot({ path: path.join(SHOTS, '11c-region-talk.png') });
   for (let i = 0; i < 20; i++) {
     const fight = (await state(page)).buttons.find((b) => b.text === 'FIGHT');
     if (fight) return tapGame(page, fight.x, fight.y);
@@ -117,6 +117,49 @@ async function walkToVillain(page, failures) {
     await sleep(250);
   }
   throw new Error('region: no FIGHT button after talking to Derek');
+}
+
+/** Hold a touch at game point `from`, slide it to `to`, keep it there `holdMs`, then lift. */
+async function touchDrag(page, from, to, holdMs) {
+  const box = await (await page.$('canvas')).boundingBox();
+  const s = box.width / GAME_W;
+  const pt = ({ x, y }) => [{ x: box.x + x * s, y: box.y + y * s, id: 1 }];
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(from) });
+  for (let i = 1; i <= 5; i++) {
+    const t = i / 5;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }) });
+    await sleep(30);
+  }
+  const midway = await state(page);
+  await sleep(holdMs);
+  const held = await state(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(150);
+  return { midway, held, after: await state(page) };
+}
+
+/**
+ * In a walkable region: walk to a local, take their challenge, and win it.
+ * Beat challenges rely on &perfect=1; quiz answers come from the debug state.
+ */
+async function winChallenge(page, id, accept) {
+  const started = Date.now();
+  for (;;) {
+    if (Date.now() - started > 30_000) throw new Error(`region: never won ${id}'s challenge`);
+    const s = await state(page);
+    const npc = s.npcs.find((n) => n.id === id);
+    if (s.mode === 'explore' && npc.won) return;
+    if (s.mode === 'explore') {
+      if (!s.walking) await tapGame(page, Math.min(Math.max(npc.tap.x, 10), GAME_W - 10), Math.min(Math.max(npc.tap.y, 140), 1270));
+    } else {
+      const buttons = s.buttons.filter((b) => !b.system);
+      const pick = buttons.find((b) => b.text === accept) ?? (s.quizAnswer && buttons.find((b) => b.text === s.quizAnswer));
+      if (pick) await tapGame(page, pick.x, pick.y);
+      else if (!buttons.length) await tapGame(page, GAME_W / 2, 1170);
+    }
+    await sleep(200);
+  }
 }
 
 /**
@@ -283,7 +326,45 @@ async function main() {
       failures.push(...errors.map((e) => `timed run: ${e}`));
       await page.context().close();
     }
-    // 4. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
+    // 4. Swamp locals: win Brad's beat and Morgan's quiz, then Derek's fight starts with that intel showing.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&region=start&perfect=1&seed=9&fast=1`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
+      await sleep(600);
+      const before = await state(page);
+      // The joystick: push it up for a second and $cott should walk up the path, then stop on release.
+      const { stick } = before;
+      const push = await touchDrag(page, stick, { x: stick.x, y: stick.y - stick.radius }, 1000);
+      const climbed = before.player.y - push.held.player.y;
+      if (!push.midway.stick.active) failures.push('joystick: a touch on it should grab it');
+      // Headless Chromium runs slow frames, so this only checks he clearly moved (on a phone it's ~320 px/s).
+      if (climbed < 60) failures.push(`joystick: pushing up should walk $cott up (moved ${climbed}px)`);
+      if (push.held.player.facing !== 'up') failures.push(`joystick: $cott should face up, faced ${push.held.player.facing}`);
+      await sleep(300);
+      const settled = await state(page);
+      if (push.after.stick.active || settled.player.y !== push.after.player.y) failures.push('joystick: letting go should stop him');
+      console.log(`joystick: walked ${climbed}px up in 1 s, stopped on release`);
+      const locals = before.npcs.filter((n) => n.challenge).map((n) => n.id);
+      if (locals.length < 3) failures.push(`locals: expected 3 challenge NPCs, got ${locals.join(',')}`);
+      await winChallenge(page, 'brad', 'FLEX ON HIM');
+      await page.screenshot({ path: path.join(SHOTS, '14-local-brad.png') });
+      await winChallenge(page, 'morgan', 'TAKE THE QUIZ');
+      await walkToVillain(page, failures, { shots: false });
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Battle', null, { timeout: 10_000 });
+      await page.waitForFunction(() => window.__smm.state().phase !== 'intro', null, { timeout: 20_000 }).catch(() => {});
+      const intel = (await state(page)).enemy.intel;
+      await page.screenshot({ path: path.join(SHOTS, '15-scouted-battle.png') });
+      if (!intel.weak.includes('FLEX')) failures.push(`locals: Brad's FLEX intel missing in battle (${JSON.stringify(intel)})`);
+      if (!intel.resist.includes('ROAST') || !intel.softSpots.includes('ROAST>INTELLECT')) failures.push(`locals: Morgan's intel missing in battle (${JSON.stringify(intel)})`);
+      if (intel.softSpots.includes('FLEX>WEALTH')) failures.push("locals: Chad's intel showed up without winning his challenge");
+      console.log(`locals: won ${locals.filter((id) => id !== 'chad').join(' + ')}, battle intel ${JSON.stringify(intel)}`);
+      failures.push(...errors.map((e) => `locals: ${e}`));
+      await page.context().close();
+    }
+
+    // 5. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
     {
       const errors = [];
       const page = await newPage(browser, errors);
