@@ -141,12 +141,16 @@ async function touchDrag(page, from, to, holdMs) {
 
 /**
  * In a walkable region: walk to a local, take their challenge, and win it.
- * Beat challenges rely on &perfect=1; quiz answers come from the debug state.
+ * Beat challenges rely on &perfect=1; quiz answers and trades (the button a
+ * sharp trader would press now) come from the debug state. A lost challenge
+ * is simply taken again. `onTrade` gets a look at the trade minigame while its
+ * market is open.
  */
-async function winChallenge(page, id, accept) {
+async function winChallenge(page, id, accept, { onTrade } = {}) {
   const started = Date.now();
+  let looked = false;
   for (;;) {
-    if (Date.now() - started > 30_000) throw new Error(`region: never won ${id}'s challenge`);
+    if (Date.now() - started > 120_000) throw new Error(`region: never won ${id}'s challenge`);
     const s = await state(page);
     const npc = s.npcs.find((n) => n.id === id);
     if (s.mode === 'explore' && npc.won) return;
@@ -154,9 +158,14 @@ async function winChallenge(page, id, accept) {
       if (!s.walking) await tapGame(page, Math.min(Math.max(npc.tap.x, 10), GAME_W - 10), Math.min(Math.max(npc.tap.y, 140), 1270));
     } else {
       const buttons = s.buttons.filter((b) => !b.system);
-      const pick = buttons.find((b) => b.text === accept) ?? (s.quizAnswer && buttons.find((b) => b.text === s.quizAnswer));
+      const answer = s.quizAnswer ?? s.tradeAnswer;
+      const pick = buttons.find((b) => b.text === accept) ?? (answer && buttons.find((b) => b.text === answer));
+      if (onTrade && !looked && s.trade?.phase === 'open' && s.trade.tick > 120) {
+        looked = true;
+        await onTrade(s);
+      }
       if (pick) await tapGame(page, pick.x, pick.y);
-      else if (!buttons.length) await tapGame(page, GAME_W / 2, 1170);
+      else if (!buttons.length && !s.trade) await tapGame(page, GAME_W / 2, 1170);
     }
     await sleep(200);
   }
@@ -326,7 +335,7 @@ async function main() {
       failures.push(...errors.map((e) => `timed run: ${e}`));
       await page.context().close();
     }
-    // 4. Swamp locals: win Brad's beat and Morgan's quiz, then Derek's fight starts with that intel showing.
+    // 4. Swamp locals: win Brad's day trade and Morgan's quiz, then Derek's fight starts with that intel showing.
     {
       const errors = [];
       const page = await newPage(browser, errors);
@@ -361,7 +370,14 @@ async function main() {
         else console.log('talk button: lit up beside Brad and started the conversation');
       }
       if (locals.length < 3) failures.push(`locals: expected 3 challenge NPCs, got ${locals.join(',')}`);
-      await winChallenge(page, 'brad', 'FLEX ON HIM');
+      let traded = null;
+      await winChallenge(page, 'brad', 'SHOW HIM', {
+        onTrade: async (s) => {
+          traded = s.trade;
+          await page.screenshot({ path: path.join(SHOTS, '14-trade.png') });
+        },
+      });
+      if (!traded) failures.push("trade: never saw Brad's market open");
       await page.screenshot({ path: path.join(SHOTS, '14-local-brad.png') });
       await winChallenge(page, 'morgan', 'TAKE THE QUIZ');
       await walkToVillain(page, failures, { shots: false });

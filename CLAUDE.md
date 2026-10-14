@@ -222,9 +222,17 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
 - Walking into an exit, or the MAP button, goes back to the overworld.
 - Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
-- **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Two kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better) and **quiz** (multiple choice; the first listed answer is right, shown shuffled). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
-- **Subreddit Swamps locals:** **Bagholder Brad** (beat; reveals WEAK FLEX), **Mod Morgan** (rules quiz; reveals RESISTS ROAST and ROAST→INTELLECT), and **Chad**, Derek's wife's boyfriend (two harder beats; reveals FLEX→WEALTH and WORDPLAY→CAREER). Together they reveal all of Derek. Their lines are placeholders for the writing chat.
+- **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Three kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better), **quiz** (multiple choice; the first listed answer is right, shown shuffled), and **trade** ($cott's day trade, §6.7). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
+- **Subreddit Swamps locals:** **Bagholder Brad** (day trade, "teach Brad to sell"; reveals WEAK FLEX), **Mod Morgan** (rules quiz; reveals RESISTS ROAST and ROAST→INTELLECT), and **Chad**, Derek's wife's boyfriend (two harder beats; reveals FLEX→WEALTH and WORDPLAY→CAREER). Together they reveal all of Derek. Their lines are placeholders for the writing chat.
 - Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the three locals, the ground, and the props.
+
+### 6.7 $cott's day trade (built)
+$cott's own minigame, not a Sin's. It follows the §6.3 contract (`src/minigames/trade.js`, an overlay scene), so the parley and side quests can use it too.
+- A live price chart draws across the screen for **24 seconds**. One big button flips between **BUY** (all in at the current price) and **SELL** (cash out). Whatever's still held at the **closing bell** is sold.
+- **Goal:** finish up **25%** or better. Grades: under the goal is *fail* ("PAPER LOSSES"), the goal is *pass*, 2× the goal is *great* ("TENDIES!"), 4× is *legendary* ("TO THE MOON!").
+- The price swings in legs that alternate up and down. Some legs are **news**: a BREAKING headline (parody only) shows about 0.6 s before a sharp move, so reading the news pays.
+- Every market is checked before it's played: holding from open to close never reaches the goal (diamond hands don't pay), and trading the swings clears it with room to spare. By simulation, reacting 0.7 s late to every turn always passes, and 1 s late passes about 90% of the time.
+- Tuning and headlines: `src/data/trade.js`. A challenge can override the ticker, length, stake, goal, and headlines. Price paths and account math: `src/systems/market.js` (pure, unit-tested). A natural base for Keezus's crypto bet (§6.3), which adds shorting and leverage.
 
 ## 7. Tech stack
 
@@ -336,3 +344,4 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **Minor characters can reveal villain intel** through small challenges (beat taps, quizzes). What you win is saved and shows on the villain's HUD from the start of the fight (§6.6).
 - **Regions have a minimal joystick** (bottom-right) and a **TALK button** beside it, alongside tap-to-walk, since far taps are hard to reach one-handed in portrait. Sign lettering is pixel-font art on the 2 px grid, so it doesn't shimmer while the camera moves (§6.6).
 - **The title screen shows the version** (`src/version.js`), bumped with every change to `main`, so players can tell whether they're on the latest build or a cached copy (§7). v0.5.0 is the first.
+- **$cott has his own day-trading minigame** (§6.7): buy and sell as a live stock chart swings, finish up 25% by the closing bell. Bagholder Brad's challenge became this trade ("teach Brad to sell") instead of a beat tap; Chad keeps the beat challenge.

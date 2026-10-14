@@ -5,8 +5,8 @@
 // props), hold and drag to steer, or use the joystick in the bottom-right
 // corner. Tap an NPC to walk over and talk, or press the TALK button beside
 // the joystick when someone's close (it lights up). The villain's talk ends
-// with FIGHT / NOT YET. Minor characters can offer a challenge (a beat tap or
-// a quiz); winning it reveals intel on the villain that shows in the fight
+// with FIGHT / NOT YET. Minor characters can offer a challenge (a beat tap, a
+// quiz, or a day trade); winning it reveals intel on the villain that shows in the fight
 // (systems/intel.js). Walking into an exit leaves for the overworld map.
 //
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
@@ -25,6 +25,7 @@ import { DEBUG } from '../systems/debug.js';
 import { WalkGrid } from '../systems/walkGrid.js';
 import { revealLines } from '../systems/intel.js';
 import { rng } from '../systems/rng.js';
+import trade from '../minigames/trade.js';
 import {
   bakeRegionPlaceholder, bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, maskSampler, SHEET_COLS,
 } from '../systems/fieldArt.js';
@@ -443,7 +444,8 @@ export default class RegionScene extends Phaser.Scene {
     ], { prompt: c.prompt, columns: 2 }));
     if (choice !== 'go') return;
 
-    const won = c.kind === 'quiz' ? await this.runQuiz(c) : await this.runBeat(c);
+    const run = { quiz: () => this.runQuiz(c), trade: () => this.runTrade(c) }[c.kind] ?? (() => this.runBeat(c));
+    const won = await run();
     if (!won) {
       Audio.sfx('bad');
       await this.sayAll(c.lose);
@@ -495,6 +497,12 @@ export default class RegionScene extends Phaser.Scene {
       await this.sayAll(q.right);
     }
     return true;
+  }
+
+  /** Trade challenge: $cott's day-trading minigame (minigames/trade.js); any passing grade wins. */
+  async runTrade(c) {
+    const { grade } = await trade.run(this, { difficulty: c.difficulty ?? 1, context: c });
+    return grade !== 'fail';
   }
 
   questionCard(question) {

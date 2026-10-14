@@ -9,6 +9,7 @@ import TitleScene from './scenes/TitleScene.js';
 import BattleScene from './scenes/BattleScene.js';
 import OverworldScene from './scenes/OverworldScene.js';
 import RegionScene from './scenes/RegionScene.js';
+import { TradeScene } from './minigames/trade.js';
 
 const FONT_TIMEOUT_MS = 2500;
 
@@ -36,6 +37,7 @@ waitForFonts().then(() => {
     audio: { noAudio: true }, // the beat is WebAudio (systems/audio.js)
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { activePointers: 2 }, // a thumb on the region joystick plus a press on the TALK button
-    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene],
+    // Minigames are overlay scenes, listed last so they draw on top.
+    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene, TradeScene],
   });
 });
