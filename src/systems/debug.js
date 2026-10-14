@@ -11,6 +11,8 @@
 //                        preset recruited Sins, with optional levels (in memory only)
 //   &reset=1             wipe the saved progress
 //   &region=start        walk around that region
+//   &cash=5000           preset $cott's cash (in memory only)
+//   &phone=smart         preset the phone model: flip or smart (in memory only)
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
 
@@ -40,4 +42,6 @@ export const DEBUG = Object.freeze({
   sins,
   reset: flag('reset'),
   region: enabled ? params.get('region') : null,
+  cash: enabled && /^\d+$/.test(params.get('cash') ?? '') ? Number(params.get('cash')) : null,
+  phone: enabled ? params.get('phone') : null,
 });
