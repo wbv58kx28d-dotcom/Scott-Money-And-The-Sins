@@ -13,6 +13,7 @@
 //   &region=start        walk around that region
 //   &cash=5000           preset $cott's cash (in memory only)
 //   &phone=smart         preset the phone model: flip or smart (in memory only)
+//   &title=1             show the title screen anyway (to test CONTINUE / START FRESH)
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
 
@@ -44,4 +45,5 @@ export const DEBUG = Object.freeze({
   region: enabled ? params.get('region') : null,
   cash: enabled && /^\d+$/.test(params.get('cash') ?? '') ? Number(params.get('cash')) : null,
   phone: enabled ? params.get('phone') : null,
+  title: flag('title'),
 });

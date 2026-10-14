@@ -5,7 +5,8 @@
 //
 // Follows the minigame contract (CLAUDE.md §6.3): run() launches an overlay
 // scene over the caller and resolves with { grade, score } when it's done.
-// `score` is the final gain in percent. $cott has no Sin level, so `level` is
+// `score` is the final gain in percent, and `value` what the account ended up
+// worth (the phone's Stonks app pays that out). $cott has no Sin level, so `level` is
 // unused; `difficulty` speeds the market up. `context` is the challenge's data:
 // it can set `title` and override TRADE's ticker, seconds, cash, target, and
 // headlines (src/data/trade.js). Price paths and the account math are pure
@@ -263,7 +264,7 @@ export class TradeScene extends Phaser.Scene {
     }
     const gain = gainOf(acct, this.price);
     const grade = gradeFor(gain, this.cfg.target, this.cfg.grades);
-    this.result = { grade: grade.id, score: Math.round(gain * 1000) / 10 };
+    this.result = { grade: grade.id, score: Math.round(gain * 1000) / 10, value: Math.round(accountValue(acct, this.price)) };
 
     this.newsTag.setBackgroundColor('#8a80a8').setText('CLOSED');
     this.newsText.setAlpha(1).setText('*DING DING DING*').setColor(COLORS.textDim);

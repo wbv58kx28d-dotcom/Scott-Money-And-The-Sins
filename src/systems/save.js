@@ -127,7 +127,16 @@ class SaveGame {
     this.flush();
   }
 
-  /** Start over (Settings → RESET). Debug presets stay in memory as before. */
+  /** Is there anything worth continuing? (The title screen offers CONTINUE / START FRESH.) */
+  get hasProgress() {
+    const d = this.data;
+    const blank = fresh();
+    return d.cleared.length > 0 || d.won.length > 0 || d.quests.length > 0 || Object.keys(d.sins).length > 0
+      || Object.values(d.stash).some((n) => n > 0) || d.at !== blank.at || d.cash !== blank.cash
+      || d.phone !== blank.phone || d.trades !== blank.trades;
+  }
+
+  /** Start over (Settings → RESET, or START FRESH on the title). Debug presets stay in memory as before. */
   reset() {
     this.data = fresh();
     this.flush();

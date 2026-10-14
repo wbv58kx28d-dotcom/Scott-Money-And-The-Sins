@@ -268,6 +268,48 @@ async function main() {
       await page.context().close();
     }
 
+    // 1b. With a save in progress, the title asks: CONTINUE, or START FRESH (two taps).
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      const url = `${base}?debug=1&title=1`;
+      const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('scottmoney.save') ?? 'null'));
+      const onTitle = async () => {
+        await page.waitForFunction(() => window.__smm?.state().scene === 'Title', null, { timeout: 15_000 });
+        await sleep(300);
+        return (await state(page)).buttons.map((b) => b.text);
+      };
+      const press = async (text) => {
+        const b = (await state(page)).buttons.find((x) => x.text === text);
+        if (!b) throw new Error(`title: no ${text} button`);
+        await tapGame(page, b.x, b.y);
+        await sleep(300);
+      };
+      await page.goto(url);
+      await page.evaluate(() => localStorage.removeItem('scottmoney.save'));
+      await page.reload();
+      if ((await onTitle()).length) failures.push('title: a fresh game should just say TAP TO START');
+      await page.evaluate(() => localStorage.setItem('scottmoney.save', JSON.stringify({ v: 1, cash: 1234, won: ['start:brad'] })));
+      await page.reload();
+      const offered = await onTitle();
+      if (!offered.includes('CONTINUE') || !offered.includes('START FRESH')) failures.push(`title: with a save, expected CONTINUE and START FRESH (got ${offered})`);
+      await page.screenshot({ path: path.join(SHOTS, '01b-title-continue.png') });
+      await press('CONTINUE');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 10_000 }).catch(() => failures.push('title: CONTINUE should go to the map'));
+      if ((await saved())?.cash !== 1234) failures.push('title: CONTINUE should keep the save');
+      await page.reload();
+      await onTitle();
+      await press('START FRESH');
+      if ((await state(page)).scene !== 'Title' || (await saved())?.cash !== 1234) failures.push('title: one tap on START FRESH should only ask to confirm');
+      await press('TAP AGAIN TO WIPE');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 10_000 }).catch(() => failures.push('title: START FRESH should go to the map'));
+      const wiped = await saved();
+      if (wiped?.cash !== 500 || wiped?.won?.length) failures.push(`title: START FRESH should wipe the save (${JSON.stringify(wiped)})`);
+      console.log('title: CONTINUE kept the save; START FRESH wiped it after a confirm');
+      failures.push(...errors.map((e) => `title: ${e}`));
+      await page.context().close();
+    }
+
     // 2. Seeded battle with PERFECT taps and a scripted opening.
     {
       const errors = [];
@@ -412,15 +454,33 @@ async function main() {
       let s = await state(page);
       if (s.phone !== 'flip') failures.push(`phone: should start as a flip phone, got ${s.phone}`);
       await page.screenshot({ path: path.join(SHOTS, '16-phone-flip.png') });
+      // Stonks stakes cash on the day trade; trade it the way a sharp trader would.
       await press('STONKS');
-      await press('$HODL');
       await press('$100');
-      await sleep(800);
-      await press('SELL');
-      s = await state(page);
-      if (s.page !== 'stonks-result' || s.trades !== 2 || s.cash === 2900) failures.push(`phone: a trade should spend one of 3 trades and settle (${JSON.stringify({ page: s.page, trades: s.trades, cash: s.cash })})`);
+      const tradeStarted = Date.now();
+      let tradeShot = false;
+      for (s = await state(page); s.page !== 'stonks-result'; s = await state(page)) {
+        if (Date.now() - tradeStarted > 60_000) throw new Error(`phone: the Stonks trade never settled (${JSON.stringify({ page: s.page, trade: s.trade })})`);
+        if (!tradeShot && s.trade?.phase === 'open' && s.trade.tick > 120) {
+          tradeShot = true;
+          await page.screenshot({ path: path.join(SHOTS, '16b-phone-stonks.png') });
+        }
+        const pick = s.tradeAnswer && s.buttons.find((b) => b.text === s.tradeAnswer);
+        if (pick) await tapGame(page, pick.x, pick.y);
+        await sleep(200);
+      }
+      if (s.trades !== 2 || s.cash === 2900) failures.push(`phone: a trade should spend one of 3 trades and settle (${JSON.stringify({ page: s.page, trades: s.trades, cash: s.cash })})`);
       const afterTrade = s.cash;
       await press('DONE');
+      // The work-in-progress toggle in SETTINGS swaps models both ways.
+      await press('SETTINGS');
+      await press('TRY SMARTPHONE');
+      await page.waitForFunction(() => window.__smm.state().phone === 'smart', null, { timeout: 5000 }).catch(() => failures.push('phone: the SETTINGS toggle should swap to the smartphone'));
+      await sleep(500);
+      await press('TRY FLIP PHONE');
+      await page.waitForFunction(() => window.__smm.state().phone === 'flip', null, { timeout: 5000 }).catch(() => failures.push('phone: the SETTINGS toggle should swap back to the flip phone'));
+      await sleep(500);
+      await press('BACK');
       await press('SHOP');
       await press('BREW $150');
       s = await state(page);
@@ -436,7 +496,7 @@ async function main() {
       await page.waitForFunction(() => window.__smm.state().scene === 'Phone', null, { timeout: 5000 });
       await press('HOME');
       await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 5000 }).catch(() => failures.push('phone: HOME on the home screen should put the phone away'));
-      console.log(`phone: traded $100 -> $${afterTrade - 2900}, bought a Cold Brew and the smartphone, MAP app reached the overworld`);
+      console.log(`phone: traded $100 -> $${afterTrade - 2900}, toggled models, bought a Cold Brew and the smartphone, MAP app reached the overworld`);
       failures.push(...errors.map((e) => `phone: ${e}`));
       await page.context().close();
     }

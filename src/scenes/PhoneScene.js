@@ -1,24 +1,28 @@
 // $cott's phone: the in-game menu (CLAUDE.md §6.7). It opens over a region or
 // the overworld map, which pause underneath, and holds the apps in
-// data/phone.js: MAP, STONKS (trade for cash), SHOP (spend it), SETTINGS.
+// data/phone.js: MAP, STONKS (stake cash on $cott's day trade,
+// minigames/trade.js), SHOP (spend it), SETTINGS.
 //
 // $cott starts on a flip phone: a green LCD with chunky pixel lettering
 // (ui/pixelFont.js), a 2×2 icon grid, and a keypad whose right soft key goes
 // back and whose red key hangs up. The SHOP sells the smartphone upgrade:
 // wallpaper, a status bar, a cash widget, and a 4-column grid of app tiles.
 // Each model draws its own body and widgets; the apps are written once against
-// small helpers (text, button) that draw in the current model's style.
+// small helpers (text, button) that draw in the current model's style. While
+// the phone is a work in progress, SETTINGS can swap models for testing.
 
 import { GAME_W, GAME_H } from '../config.js';
-import { PHONES, APPS, SHOP, STOCKS, ECONOMY } from '../data/phone.js';
+import { PHONES, APPS, SHOP, ECONOMY } from '../data/phone.js';
+import { TRADE } from '../data/trade.js';
 import { ITEMS } from '../data/items.js';
 import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { rng } from '../systems/rng.js';
-import { createMarket, payout, changeLabel, money } from '../systems/stonks.js';
+import { money, pct } from '../systems/market.js';
+import trade from '../minigames/trade.js';
 import { VERSION } from '../version.js';
 import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
-import { pixelIcon, ICON_SIZE } from '../ui/phoneIcons.js';
+import { pixelIcon } from '../ui/phoneIcons.js';
 import { label, body, fitWidth } from '../ui/text.js';
 import { PHONE_ART } from '../data/assets.js';
 
@@ -46,7 +50,6 @@ const SMART = {
 const FLIP_PX = { s: 2, m: 3, l: 4, xl: 5 };
 const SMART_LABEL = { s: 12, m: 16, l: 22, xl: 34 };
 const SMART_BODY = { s: 24, m: 30, l: 36, xl: 48 };
-const STOCK_MOOD = { HODL: 'SAFE', APE: 'SPICY', MOON: 'DEGEN' };
 
 export default class PhoneScene extends Phaser.Scene {
   constructor() {
@@ -62,8 +65,7 @@ export default class PhoneScene extends Phaser.Scene {
     this.targets = [];
     this.chrome = [];
     this.page = 'home';
-    this.market = null;
-    this.marketTimer = null;
+    this.trading = false;
     this.root = null;
     this.closing = false;
     this.resetArmed = false;
@@ -112,7 +114,6 @@ export default class PhoneScene extends Phaser.Scene {
   close() {
     if (this.closing) return;
     this.closing = true;
-    this.stopMarket();
     this.tweens.add({
       targets: this.root, y: GAME_H, duration: 200, ease: 'Quad.easeIn',
       onComplete: () => {
@@ -249,7 +250,6 @@ export default class PhoneScene extends Phaser.Scene {
   // ---- Page helpers ------------------------------------------------------------------
 
   clearPage(page) {
-    this.stopMarket();
     if (page !== 'settings') this.resetArmed = false;
     this.page = page;
     this.pageLayer.removeAll(true);
@@ -325,8 +325,7 @@ export default class PhoneScene extends Phaser.Scene {
 
   back() {
     if (this.page === 'home') return this.close();
-    if (this.page === 'stonks-live') return this.sell('SOLD');
-    if (this.page === 'stonks-stake' || this.page === 'stonks-result') return this.stonks();
+    if (this.page === 'stonks-result') return this.stonks();
     this.home();
   }
 
@@ -403,12 +402,13 @@ export default class PhoneScene extends Phaser.Scene {
   /** From a region, head out to the overworld map; on the map already, just put the phone away. */
   openMap() {
     if (this.from !== 'Region') return this.close();
-    this.stopMarket();
     this.scene.stop('Region');
     this.scene.start('Overworld');
   }
 
   // ---- STONKS ---------------------------------------------------------------------------
+  // Stake some cash on $cott's day trade (minigames/trade.js). The phone steps
+  // aside while it plays, then shows what came back.
 
   stonks() {
     this.clearPage('stonks');
@@ -426,126 +426,63 @@ export default class PhoneScene extends Phaser.Scene {
       this.text(c.x + c.w / 2, top + 50, 'TOO BROKE TO TRADE', { size: 'm', align: 'center', maxW: c.w });
       return;
     }
-    this.text(c.x + c.w / 2, top + (this.flip ? 16 : 50), 'PICK A TICKER', { size: 'm', align: 'center' });
-    const rowH = this.flip ? 60 : 120;
-    STOCKS.forEach((stock, i) => {
-      const y = top + (this.flip ? 38 : 100) + i * (rowH + (this.flip ? 5 : 16));
-      this.button(c.x, y, c.w, rowH, `$${stock.id}`, () => this.pickStake(stock), { accent, sub: `${stock.name} - ${STOCK_MOOD[stock.id] ?? ''}` });
-    });
-  }
-
-  pickStake(stock) {
-    this.clearPage('stonks-stake');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'stonks').color;
-    this.header(`$${stock.id}`, accent);
-    const top = c.y + (this.flip ? 30 : 100);
-    this.text(c.x + c.w / 2, top, 'HOW MUCH?', { size: 'm', align: 'center' });
+    this.text(c.x + c.w / 2, top + (this.flip ? 16 : 50), this.flip ? 'STAKE?' : 'HOW MUCH GOES IN?', { size: 'm', align: 'center' });
     const rowH = this.flip ? 58 : 110;
+    const first = top + (this.flip ? 38 : 100);
     ECONOMY.stakes.forEach((stake, i) => {
-      const y = top + (this.flip ? 24 : 60) + i * (rowH + (this.flip ? 6 : 16));
-      this.button(c.x, y, c.w, rowH, money(stake), () => this.trade(stock, stake), { enabled: Save.cash >= stake, accent });
+      const y = first + i * (rowH + (this.flip ? 6 : 16));
+      this.button(c.x, y, c.w, rowH, money(stake), () => this.trade(stake), { enabled: Save.cash >= stake, accent });
     });
+    if (!this.flip) {
+      const y = first + ECONOMY.stakes.length * (rowH + 16) + 20;
+      ['BUY goes all in. SELL cashes out.', `${TRADE.seconds} seconds to the closing bell.`, 'Whatever the trade is worth then is yours.'].forEach((line, i) => {
+        this.text(c.x + c.w / 2, y + i * 34, line, { size: 's', align: 'center', font: 'body', color: '#e2d9ff', maxW: c.w });
+      });
+    }
   }
 
-  trade(stock, stake) {
-    if (Save.trades <= 0 || Save.cash < stake) return this.stonks();
+  async trade(stake) {
+    if (this.trading || Save.trades <= 0 || Save.cash < stake) return;
     Save.useTrade();
     Save.spend(stake);
-    this.clearPage('stonks-live');
-    this.market = createMarket(stock, rng);
-    this.stake = stake;
-    this.ticks = 0;
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'stonks').color;
-    this.header(`$${stock.id}`, accent);
-    this.liveTop = c.y + (this.flip ? 28 : 100);
-    this.liveLayer = this.add.container(0, 0);
-    this.pageLayer.add(this.liveLayer);
-    const btnH = this.flip ? 58 : 120;
-    this.button(c.x, c.y + c.h - btnH - (this.flip ? 0 : 60), c.w, btnH, 'SELL', () => this.sell('SOLD'), { accent: 0x2ea043 });
-    this.drawLive();
-    this.marketTimer = this.time.addEvent({
-      delay: ECONOMY.tickMs,
-      loop: true,
-      callback: () => {
-        this.market.tick();
-        this.ticks += 1;
-        if (this.market.rugged) return this.sell('RUGGED!');
-        if (this.ticks >= ECONOMY.maxTicks) return this.sell('MARKET CLOSED');
-        this.drawLive();
-      },
-    });
-  }
-
-  /** The live ticker: the flip phone shows numbers and an arrow; the smartphone adds a chart. */
-  drawLive() {
-    const { market, stake } = this;
-    const c = this.flip ? FLIP.content : SMART.content;
-    const up = market.price >= 1;
-    this.liveLayer.removeAll(true);
-    const add = (o) => {
-      this.pageLayer.remove(o);
-      this.liveLayer.add(o);
-      return o;
-    };
-    const good = this.flip ? FLIP.colors.ink : '#3ddc84';
-    const bad = this.flip ? FLIP.colors.ink : '#ff5c8a';
-    const left = Math.max(0, Math.ceil(((ECONOMY.maxTicks - this.ticks) * ECONOMY.tickMs) / 1000));
-    add(this.text(c.x + c.w / 2, this.liveTop, `CLOSES IN ${left}S`, { size: 's', align: 'center', font: 'body' }));
-    add(this.text(c.x + c.w / 2, this.liveTop + (this.flip ? 18 : 50), money(payout(stake, market.price)), { size: 'xl', align: 'center', color: up ? good : bad }));
-    add(this.text(c.x + c.w / 2, this.liveTop + (this.flip ? 50 : 110), changeLabel(market.price), { size: 'm', align: 'center', color: up ? good : bad }));
-    if (this.flip) {
-      const px = 4;
-      add(pixelIcon(this, Math.round(c.x + c.w / 2 - (ICON_SIZE * px) / 2), this.liveTop + 74, up ? 'up' : 'down', { px, color: FLIP.colors.ink }));
-      return;
-    }
-    // The chart: the whole run so far, scaled to fit, with the buy-in as a dashed line.
-    const box = { x: c.x, y: this.liveTop + 160, w: c.w, h: 420 };
-    const g = add(this.add.graphics());
-    g.fillStyle(0x000000, 0.35).fillRoundedRect(box.x, box.y, box.w, box.h, 18);
-    const h = market.history;
-    const lo = Math.min(0.8, ...h);
-    const hi = Math.max(1.2, ...h);
-    const px = (i) => box.x + 14 + (i / Math.max(ECONOMY.maxTicks, h.length - 1)) * (box.w - 28);
-    const py = (v) => box.y + box.h - 14 - ((v - lo) / (hi - lo)) * (box.h - 28);
-    g.lineStyle(2, 0xffffff, 0.3);
-    for (let x = box.x + 14; x < box.x + box.w - 14; x += 18) g.lineBetween(x, py(1), x + 9, py(1));
-    g.lineStyle(4, up ? 0x3ddc84 : 0xff5c8a, 1).beginPath();
-    h.forEach((v, i) => (i ? g.lineTo(px(i), py(v)) : g.moveTo(px(i), py(v))));
-    g.strokePath();
-  }
-
-  sell(reason) {
-    if (!this.market) return;
-    const value = payout(this.stake, this.market.price);
-    const profit = value - this.stake;
-    this.stopMarket();
+    this.trading = true;
+    this.page = 'stonks-trade';
+    // The day trade takes the whole screen; the phone comes back for the result.
+    this.root.setVisible(false);
+    const ticker = rng.pick(ECONOMY.tickers);
+    const { grade, value } = await trade.run(this, { context: { title: 'STONKS', ticker, cash: stake } });
     Save.earn(value);
-    Audio.sfx(profit >= 0 ? 'good' : 'bad');
+    this.trading = false;
+    this.root.setVisible(true);
+    this.result(stake, value, grade);
+  }
+
+  result(stake, value, gradeId) {
+    const profit = value - stake;
     this.clearPage('stonks-result');
     const c = this.flip ? FLIP.content : SMART.content;
     const accent = APPS.find((a) => a.id === 'stonks').color;
-    this.header(reason, accent);
+    // The trade's grades are measured against Brad's 25% goal; here any profit is a win.
+    const grade = TRADE.grades.find((g) => g.id === gradeId);
+    const quips = this.flip
+      ? ['PROFIT HANDS.', 'BROKE EVEN.', 'NOT ADVICE.']
+      : ['Diamond hands? Paper hands. PROFIT hands.', 'Broke even. Peak efficiency.', 'Not financial advice. Clearly.'];
+    const quip = gradeId !== 'fail' && grade ? grade.label : quips[profit > 0 ? 0 : profit === 0 ? 1 : 2];
+    this.header(profit >= 0 ? 'PROFIT' : 'LOSS', accent);
     const top = c.y + (this.flip ? 34 : 120);
     const good = this.flip ? FLIP.colors.ink : '#3ddc84';
     const bad = this.flip ? FLIP.colors.ink : '#ff5c8a';
     this.text(c.x + c.w / 2, top, `${profit >= 0 ? '+' : '-'}${money(Math.abs(profit))}`, { size: 'xl', align: 'center', color: profit >= 0 ? good : bad });
-    const quips = this.flip
-      ? ['PROFIT HANDS.', 'BROKE EVEN.', 'NOT ADVICE.']
-      : ['Diamond hands? Paper hands. PROFIT hands.', 'Broke even. Peak efficiency.', 'Not financial advice. Clearly.'];
-    const quip = quips[profit > 0 ? 0 : profit === 0 ? 1 : 2];
-    this.text(c.x + c.w / 2, top + (this.flip ? 34 : 80), quip, { size: 's', align: 'center', font: 'body', maxW: c.w });
+    if (this.flip) {
+      this.text(c.x + c.w / 2, top + 34, `${pct(value / stake - 1)}  ${quip}`, { size: 's', align: 'center', font: 'body', maxW: c.w });
+    } else {
+      this.text(c.x + c.w / 2, top + 80, pct(value / stake - 1), { size: 'm', align: 'center', color: profit >= 0 ? good : bad });
+      this.text(c.x + c.w / 2, top + 130, quip, { size: 's', align: 'center', font: 'body', color: '#e2d9ff', maxW: c.w });
+    }
     const btnH = this.flip ? 56 : 110;
     const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
     this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.stonks(), { enabled: Save.trades > 0 && Save.cash >= ECONOMY.stakes[0], accent });
     this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
-  }
-
-  stopMarket() {
-    this.marketTimer?.remove();
-    this.marketTimer = null;
-    this.market = null;
   }
 
   // ---- SHOP -----------------------------------------------------------------------------
@@ -611,13 +548,29 @@ export default class PhoneScene extends Phaser.Scene {
         return this.settings();
       }
       Save.reset();
-      this.stopMarket();
       if (this.from) this.scene.stop(this.from);
       this.scene.start('Title');
     }, { accent: 0xb3261e });
-    const info = top + (rowH + gap) * 2 + (this.flip ? 6 : 20);
+    // Work in progress: swap between the two phones without buying the upgrade.
+    const other = this.flip ? 'smart' : 'flip';
+    this.button(c.x, top + (rowH + gap) * 2, c.w, rowH, this.flip ? 'TRY SMARTPHONE' : 'TRY FLIP PHONE', () => this.swapPhone(other), {
+      accent: 0x3a3550, sub: this.flip ? 'TEST TOGGLE' : 'Test toggle while the phone is in progress.',
+    });
+    const info = top + (rowH + gap) * 3 + (this.flip ? 6 : 20);
     this.text(c.x + c.w / 2, info, PHONES[this.model].name, { size: 's', align: 'center', font: 'body' });
     this.text(c.x + c.w / 2, info + (this.flip ? 16 : 36), `V${VERSION}`, { size: 's', align: 'center', font: 'body' });
+  }
+
+  /** Switch models and reopen on SETTINGS (the toggle lives there). */
+  swapPhone(id) {
+    Save.setPhone(id);
+    this.tweens.add({
+      targets: this.root, y: GAME_H, duration: 200, ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.build(true);
+        this.settings();
+      },
+    });
   }
 
   /** Read by the debug hook / smoke test. Points are canvas coordinates. */
@@ -627,8 +580,8 @@ export default class PhoneScene extends Phaser.Scene {
       page: this.page,
       cash: Save.cash,
       trades: Save.trades,
-      market: this.market ? { price: this.market.price, ticks: this.ticks } : null,
-      targets: [...this.chrome, ...this.targets].map(({ text, x, y, enabled }) => ({ text, x, y, enabled })),
+      // While the day trade is up, its own buttons are the ones to press.
+      targets: this.trading ? undefined : [...this.chrome, ...this.targets].map(({ text, x, y, enabled }) => ({ text, x, y, enabled })),
     };
   }
 }

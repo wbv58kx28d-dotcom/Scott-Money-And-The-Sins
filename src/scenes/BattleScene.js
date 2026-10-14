@@ -22,7 +22,7 @@ import {
 } from '../systems/combat.js';
 import { chooseEnemyMove } from '../systems/ai.js';
 import { seedDiscovered, scoutingLine } from '../systems/intel.js';
-import { money } from '../systems/stonks.js';
+import { money } from '../systems/market.js';
 import { Crowd } from '../systems/crowd.js';
 import { rng } from '../systems/rng.js';
 import { Audio } from '../systems/audio.js';
