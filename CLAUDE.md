@@ -271,6 +271,7 @@ From the art chat's portrait mockup:
 - Sin cut-ins slide in from the right edge.
 - HUD, in the lyric ribbons' style (dark slanted strips, accent edge in the owner's color): the enemy's card is top-left and $cott's is lower-left, matching row for row (name, type or status row, Clout; $cott adds Flow and items). The crowd meter is top-right under the ? and SND buttons. The enemy's WEAK / RESISTS / SOFT SPOTS intel sits as small tags under its feet, not in its card.
 - The menu panel and buttons use the same ribbon style, with text left-aligned.
+- The lean only suits short strips: any card, panel, or button taller than 140 px (`TALL` in `src/ui/ribbon.js`) stands upright, with a vertical accent edge.
 
 ### 8.3 Backgrounds
 - Size: 720×1280 WebP, pre-dimmed, with the bottom band darkened for the menu.
@@ -345,3 +346,4 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **Regions have a minimal joystick** (bottom-right) and a **TALK button** beside it, alongside tap-to-walk, since far taps are hard to reach one-handed in portrait. Sign lettering is pixel-font art on the 2 px grid, so it doesn't shimmer while the camera moves (§6.6).
 - **The title screen shows the version** (`src/version.js`), bumped with every change to `main`, so players can tell whether they're on the latest build or a cached copy (§7). v0.5.0 is the first.
 - **$cott has his own day-trading minigame** (§6.7): buy and sell as a live stock chart swings, finish up 25% by the closing bell. Bagholder Brad's challenge became this trade ("teach Brad to sell") instead of a beat tap; Chad keeps the beat challenge.
+- **Tall ribbon shapes stand upright.** Slanted edges looked odd on tall cards (the trade chart, the battle HUD cards), so anything over 140 px tall drops the lean (§8.2).
