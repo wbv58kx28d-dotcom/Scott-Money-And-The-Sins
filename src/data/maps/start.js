@@ -35,6 +35,8 @@ export default {
     // Derek, which starts out visible in the fight (systems/intel.js).
     //   kind: 'beat'  `rounds` taps on the timing bar, each `need` or better
     //   kind: 'quiz'  every question's FIRST answer is right (shown shuffled)
+    //   kind: 'trade' $cott's day-trading minigame (minigames/trade.js); finish up
+    //                 `target` or better. Can override src/data/trade.js values.
     //   reveal        { enemy, weak?, resist?, softSpots?: ['TYPE>TARGET'] }
     // Placeholder lines until the writing chat sends real ones.
     {
@@ -50,13 +52,13 @@ export default {
       ],
       talkWon: [{ speaker: 'BRAD', text: '"One bag down. Only eleven to go."' }],
       challenge: {
-        kind: 'beat',
-        prompt: 'BRAD WANTS TO SEE A REAL FLEX',
-        accept: 'FLEX ON HIM',
-        acceptSub: 'Show him real money.',
-        title: 'FLEX ON BRAD',
-        need: 'FIRE',
-        speed: 1,
+        kind: 'trade',
+        prompt: 'BRAD HAS NEVER SOLD A SHARE',
+        accept: 'SHOW HIM',
+        acceptSub: 'Buy low. Sell high. Allegedly.',
+        title: 'TEACH BRAD TO SELL',
+        ticker: '$BAGS',
+        target: 0.25,
         win: [
           { speaker: 'BRAD', text: '"Is... is that what profit looks like?"\n*drops a bag*' },
           { speaker: 'BRAD', text: '"Derek can\'t take a flex either. Show him money he doesn\'t have and he short-circuits."' },

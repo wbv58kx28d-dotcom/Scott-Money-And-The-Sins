@@ -108,6 +108,19 @@ export class Button {
     return this;
   }
 
+  /** Change the sub-line (only on a button made with one). */
+  setSub(text) {
+    this.sub?.setText(text);
+    return this;
+  }
+
+  setAccent(accent, textColor = null) {
+    this.accent = accent;
+    if (textColor) this.label.setColor(textColor);
+    this.refresh();
+    return this;
+  }
+
   refresh() {
     this.g.clear();
     RIBBON_BUTTON.button(this.g, {

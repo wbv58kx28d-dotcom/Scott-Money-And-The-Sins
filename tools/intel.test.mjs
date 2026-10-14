@@ -39,7 +39,7 @@ test('every region challenge is well formed and reveals real intel', () => {
     for (const npc of map.npcs.filter((n) => n.challenge)) {
       const c = npc.challenge;
       const where = `${map.id}:${npc.id}`;
-      assert.ok(['beat', 'quiz'].includes(c.kind), `${where} kind`);
+      assert.ok(['beat', 'quiz', 'trade'].includes(c.kind), `${where} kind`);
       if (c.kind === 'beat') assert.ok(ratings.includes(c.need ?? 'FIRE'), `${where} need`);
       if (c.kind === 'quiz') {
         assert.ok(c.questions.length > 0, `${where} has questions`);

@@ -9,6 +9,10 @@ const DISABLED_EDGE = 0x4a3a7a;
 const CARD_SKEW = 12;
 const BUTTON_SKEW = 10;
 export const EDGE_W = 7;
+// A lean only reads as a ribbon on short strips; on anything taller than this,
+// the slanted edges look odd, so tall cards, panels, and buttons stand upright.
+export const TALL = 140;
+const leanFor = (h, skew) => (h > TALL ? 0 : skew);
 
 /** A parallelogram whose top edge leans `skew` px right of its bottom edge. */
 export function quad(x, y, w, h, skew) {
@@ -22,9 +26,11 @@ export function quad(x, y, w, h, skew) {
 
 /**
  * A HUD card: shadow, dark slanted body, accent edge on the left. The top
- * edge leans right, so content should start `CARD_INSET` px in.
+ * edge leans right, so content should start `CARD_INSET` px in. Tall cards
+ * stand upright (TALL).
  */
-export function drawCard(g, { x, y, w, h }, accent, { skew = CARD_SKEW, alpha = 0.92 } = {}) {
+export function drawCard(g, { x, y, w, h }, accent, { skew: lean = CARD_SKEW, alpha = 0.92 } = {}) {
+  const skew = leanFor(h, lean);
   g.fillStyle(0x000000, 0.45).fillPoints(quad(x + 6, y + 6, w, h, skew), true);
   g.fillStyle(RIBBON_FILL, alpha).fillPoints(quad(x, y, w, h, skew), true);
   g.fillStyle(accent, 1).fillPoints(quad(x, y, EDGE_W, h, skew), true);
@@ -35,10 +41,11 @@ export const CARD_INSET = CARD_SKEW + EDGE_W + 10;
 /** A wide panel (the battle menu, the map's info panel) with a gold top edge. */
 export function drawRibbonPanel(scene, { x, y, w, h }) {
   const g = scene.add.graphics();
-  g.fillStyle(0x000000, 0.45).fillPoints(quad(x + 6, y + 6, w - CARD_SKEW, h, CARD_SKEW), true);
-  g.fillStyle(RIBBON_FILL, 0.94).fillPoints(quad(x, y, w - CARD_SKEW, h, CARD_SKEW), true);
+  const skew = leanFor(h, CARD_SKEW);
+  g.fillStyle(0x000000, 0.45).fillPoints(quad(x + 6, y + 6, w - skew, h, skew), true);
+  g.fillStyle(RIBBON_FILL, 0.94).fillPoints(quad(x, y, w - skew, h, skew), true);
   // Gold accent along the top edge (a left edge would collide with dialog text).
-  g.fillStyle(RIBBON_GOLD, 1).fillRect(x + CARD_SKEW, y, w - CARD_SKEW, 4);
+  g.fillStyle(RIBBON_GOLD, 1).fillRect(x + skew, y, w - skew, 4);
   return g;
 }
 
@@ -52,9 +59,10 @@ export const RIBBON_BUTTON = {
     const x = -w / 2;
     const y = -h / 2;
     const edge = enabled ? accent ?? NEUTRAL : DISABLED_EDGE;
-    g.fillStyle(0x000000, 0.4).fillPoints(quad(x + 4, y + 4, w, h, BUTTON_SKEW), true);
-    g.fillStyle(fill ?? (pressed || hover ? 0x2a1a48 : 0x1a1030), enabled ? 1 : 0.6).fillPoints(quad(x, y, w, h, BUTTON_SKEW), true);
-    g.fillStyle(edge, 1).fillPoints(quad(x, y, EDGE_W, h, BUTTON_SKEW), true);
+    const skew = leanFor(h, BUTTON_SKEW);
+    g.fillStyle(0x000000, 0.4).fillPoints(quad(x + 4, y + 4, w, h, skew), true);
+    g.fillStyle(fill ?? (pressed || hover ? 0x2a1a48 : 0x1a1030), enabled ? 1 : 0.6).fillPoints(quad(x, y, w, h, skew), true);
+    g.fillStyle(edge, 1).fillPoints(quad(x, y, EDGE_W, h, skew), true);
   },
 };
 
