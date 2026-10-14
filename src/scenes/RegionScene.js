@@ -189,16 +189,12 @@ export default class RegionScene extends Phaser.Scene {
       const sub = villain ? `${TIER_NAMES[this.region.tier]} · find ${ENEMIES[villain.fight].name}` : TIER_NAMES[this.region.tier];
       fitWidth(body(this, c.x + CARD_INSET, c.y + 44, sub, 28, { color: '#e2d9ff' }), c.w - CARD_INSET - 12, 16);
 
+      // The phone holds the map, settings (sound), stonks and the shop (scenes/PhoneScene.js).
       const b = FIELD.buttons;
-      const sndW = 72;
-      const mapW = 96;
-      const snd = new Button(this, {
-        x: b.right - sndW / 2, y: b.y, w: sndW, h: b.h, text: Audio.muted ? 'OFF' : 'SND', size: 14, system: true, depth: 30,
-        onPress: () => snd.setText(Audio.toggleMute() ? 'OFF' : 'SND'),
-      });
+      const phoneW = 124;
       new Button(this, {
-        x: b.right - sndW - b.gap - mapW / 2, y: b.y, w: mapW, h: b.h, text: 'MAP', size: 16, accent: GOLD, system: true, depth: 30,
-        onPress: () => this.leave(),
+        x: b.right - phoneW / 2, y: b.y, w: phoneW, h: b.h, text: 'PHONE', size: 16, accent: GOLD, system: true, depth: 30,
+        onPress: () => this.openPhone(),
       });
 
       // The bottom panel only shows while someone's talking.
@@ -503,6 +499,15 @@ export default class RegionScene extends Phaser.Scene {
     const text = body(this, r.x + CARD_INSET, r.y + 10, '', 34).setDepth(20);
     text.setText(fitWrapped(text, question, { maxWidth: r.w - CARD_INSET - 24, maxHeight: r.h - 20, maxSize: 34, minSize: 22 }));
     return [g, text];
+  }
+
+  /** Pause the region under $cott's phone; the phone resumes it when put away. */
+  openPhone() {
+    if (this.mode !== 'explore') return;
+    this.stop();
+    this.stick.release();
+    this.scene.launch('Phone', { from: this.scene.key });
+    this.scene.pause();
   }
 
   fight(npc) {

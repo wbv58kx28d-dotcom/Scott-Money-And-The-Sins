@@ -87,9 +87,14 @@ export default class OverworldScene extends Phaser.Scene {
     this.token = this.makeToken(this.geo[at].node);
 
     this.makePanel();
-    const snd = new Button(this, {
-      ...MAP.sndButton, text: Audio.muted ? 'OFF' : 'SND', size: 14, system: true, depth: 30,
-      onPress: () => snd.setText(Audio.toggleMute() ? 'OFF' : 'SND'),
+    // $cott's phone (scenes/PhoneScene.js): stonks, the shop, and settings (sound lives there now).
+    new Button(this, {
+      ...MAP.phoneButton, text: 'PHONE', size: 14, accent: 0xffd166, system: true, depth: 30,
+      onPress: () => {
+        if (this.revealing || this.travelling) return;
+        this.scene.launch('Phone', { from: this.scene.key });
+        this.scene.pause();
+      },
     });
 
     this.input.on('pointerup', (pointer, over) => this.onTap(pointer, over));

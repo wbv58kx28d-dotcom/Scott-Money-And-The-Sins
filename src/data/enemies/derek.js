@@ -125,11 +125,15 @@ export default {
     defeat: [{ text: "$COTT MONEY got RATIO'D.\nHis Clout is now worth less than a meme coin." }],
   },
 
-  // End-of-fight screen. {soft} = soft spots found, {softTotal} = how many exist.
+  // Cash for a win (data/phone.js economy): the first clear pays `cash`, rematches `rematch`.
+  reward: { cash: 1000, rematch: 150 },
+
+  // End-of-fight screen. {soft} = soft spots found, {softTotal} = how many
+  // exist, {cash} = what the win paid.
   endScreen: {
     victory: {
       title: 'DELISTED!',
-      body: "+250 Clout\n+1 Derek's gaming chair (useless)\nSoft spots found: {soft}/{softTotal}\n\n$cott's first step back to the top.\nNext stop: the overworld map.",
+      body: "+250 Clout\n+{cash} cash\n+1 Derek's gaming chair (useless)\nSoft spots found: {soft}/{softTotal}\n\n$cott's first step back to the top.\nNext stop: the overworld map.",
     },
     defeat: {
       title: "RATIO'D",
