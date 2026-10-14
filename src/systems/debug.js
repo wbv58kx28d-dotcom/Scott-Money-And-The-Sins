@@ -14,6 +14,8 @@
 //   &cash=5000           preset $cott's cash (in memory only)
 //   &phone=smart         preset the phone model: flip or smart (in memory only)
 //   &title=1             show the title screen anyway (to test CONTINUE / START FRESH)
+//   &speed=4             run minigame clocks (day trade, property ladder) 4× faster
+//   &canvas=1            use the Canvas renderer instead of WebGL (fast without a GPU)
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
 
@@ -46,4 +48,6 @@ export const DEBUG = Object.freeze({
   cash: enabled && /^\d+$/.test(params.get('cash') ?? '') ? Number(params.get('cash')) : null,
   phone: enabled ? params.get('phone') : null,
   title: flag('title'),
+  canvas: flag('canvas'),
+  speed: enabled && /^\d+(\.\d+)?$/.test(params.get('speed') ?? '') ? Math.max(0.1, Number(params.get('speed'))) : 1,
 });

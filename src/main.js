@@ -11,6 +11,8 @@ import PhoneScene from './scenes/PhoneScene.js';
 import OverworldScene from './scenes/OverworldScene.js';
 import RegionScene from './scenes/RegionScene.js';
 import { TradeScene } from './minigames/trade.js';
+import { RealtyScene } from './minigames/realty.js';
+import { DEBUG } from './systems/debug.js';
 
 const FONT_TIMEOUT_MS = 2500;
 
@@ -28,7 +30,9 @@ function waitForFonts() {
 
 waitForFonts().then(() => {
   new Phaser.Game({
-    type: Phaser.AUTO,
+    // &canvas=1 forces the Canvas renderer: headless Chromium has no GPU, and its
+    // software WebGL runs at a few frames a second (tools/smoke.mjs uses it).
+    type: DEBUG.canvas ? Phaser.CANVAS : Phaser.AUTO,
     parent: 'game',
     width: GAME_W,
     height: GAME_H,
@@ -39,6 +43,6 @@ waitForFonts().then(() => {
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { activePointers: 2 }, // a thumb on the region joystick plus a press on the TALK button
     // Overlays (the phone, minigames) are listed last so they draw on top.
-    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene, PhoneScene, TradeScene],
+    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene, PhoneScene, TradeScene, RealtyScene],
   });
 });

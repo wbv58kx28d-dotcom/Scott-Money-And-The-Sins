@@ -14,6 +14,7 @@ export const PHONES = {
 export const APPS = [
   { id: 'map', name: 'MAP', icon: 'map', color: 0x3a9d5d },
   { id: 'stonks', name: 'STONKS', icon: 'chart', color: 0x1f6feb },
+  { id: 'realty', name: 'REALTY', icon: 'house', color: 0xd94f70 },
   { id: 'shop', name: 'SHOP', icon: 'bag', color: 0xff8c42 },
   { id: 'settings', name: 'SETTINGS', icon: 'gear', color: 0x6f6888 },
 ];
