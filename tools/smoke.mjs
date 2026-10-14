@@ -491,17 +491,20 @@ async function main() {
       await until(() => window.__smm.state().realty?.phase === 'ready');
       await page.screenshot({ path: path.join(SHOTS, '16c-realty-ready.png') });
       await pressButton(['OPEN HOUSE']);
-      await until(() => window.__smm.state().realtyUnits?.some((u) => u.buyable && u.onScreen));
-      const home = (await state(page)).realtyUnits.find((u) => u.buyable && u.onScreen);
-      if (!home) failures.push('phone: the property ladder opened with nothing $cott could buy');
+      // Tap a green (affordable) price tag to buy; tap it again to sell.
+      await until(() => window.__smm.state().realtyUnits?.some((u) => u.buyable && u.tagX !== null));
+      const home = (await state(page)).realtyUnits.find((u) => u.buyable && u.tagX !== null);
+      if (!home) failures.push('phone: the property ladder opened with no affordable price tag to tap');
       else {
-        await tapGame(page, home.x, home.y);
-        await until((id) => window.__smm.state().realty?.selectedUnit === id, home.id);
-        await pressButton(['BUY']);
-        if (!(await until((id) => window.__smm.state().realty?.owned.includes(id), home.id))) failures.push('phone: BUY on a listed home should buy it');
+        await tapGame(page, home.tagX, home.tagY);
+        if (!(await until((id) => window.__smm.state().realty?.owned.includes(id), home.id))) failures.push('phone: tapping an affordable price tag should buy it');
         await page.screenshot({ path: path.join(SHOTS, '16d-realty-owned.png') });
-        await pressButton(['SELL']);
-        if (!(await until(() => window.__smm.state().realty?.history.some((h) => h.type === 'sell')))) failures.push('phone: SELL should sell the home');
+        const again = (await state(page)).realtyUnits.find((u) => u.id === home.id);
+        if (again?.tagX === null || again?.tagX === undefined) failures.push("phone: $cott's tag should still show after buying");
+        else {
+          await tapGame(page, again.tagX, again.tagY);
+          if (!(await until(() => window.__smm.state().realty?.history.some((h) => h.type === 'sell')))) failures.push('phone: tapping his own price tag should sell it');
+        }
       }
       const realtyStarted = Date.now();
       let history = [];
