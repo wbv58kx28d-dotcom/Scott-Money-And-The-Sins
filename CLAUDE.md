@@ -223,8 +223,8 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
 - Walking into an exit, or the phone's MAP app (§6.7), goes back to the overworld.
 - Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
-- **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Two kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better) and **quiz** (multiple choice; the first listed answer is right, shown shuffled). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
-- **Subreddit Swamps locals:** **Bagholder Brad** (beat; reveals WEAK FLEX), **Mod Morgan** (rules quiz; reveals RESISTS ROAST and ROAST→INTELLECT), and **Chad**, Derek's wife's boyfriend (two harder beats; reveals FLEX→WEALTH and WORDPLAY→CAREER). Together they reveal all of Derek. Their lines are placeholders for the writing chat.
+- **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Three kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better), **quiz** (multiple choice; the first listed answer is right, shown shuffled), and **trade** ($cott's day trade, §6.8). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
+- **Subreddit Swamps locals:** **Bagholder Brad** (day trade, "teach Brad to sell"; reveals WEAK FLEX), **Mod Morgan** (rules quiz; reveals RESISTS ROAST and ROAST→INTELLECT), and **Chad**, Derek's wife's boyfriend (two harder beats; reveals FLEX→WEALTH and WORDPLAY→CAREER). Together they reveal all of Derek. Their lines are placeholders for the writing chat.
 - Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the three locals, the ground, and the props.
 
 ### 6.7 $cott's phone (built)
@@ -236,6 +236,14 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - Saved with the rest of the progress: cash, phone model, stash, trades left. Debug flags: `&cash=5000`, `&phone=smart`.
 - **Art (PixelLab):** both phone bodies come from `create_ui_asset` with a layout template of the screen and keys, so the art lands where the code expects it. Also from PixelLab: the flip phone's 2-tone LCD icons (palette-locked to the LCD), the smartphone's app tiles, and its synthwave wallpaper. Sources live in `tools/phone-art/src/`; `tools/phone-art/build.py` crops and scales them into `assets/phone/` (bodies at 2×, LCD icons at 3×, tiles at 2×), lifts the flip phone's glass glare into an overlay drawn over the LCD, and lays the wallpaper into the smartphone's glass (a gold-framed slab). The screen and key rects in `PhoneScene.js` were measured from the art; if art is missing, a drawn stand-in uses the same rects.
 - Code: `scenes/PhoneScene.js` (both bodies, the home screens, the apps), `systems/stonks.js` (market math), `ui/phoneIcons.js` (fallback pixel icons).
+
+### 6.8 $cott's day trade (built)
+$cott's own minigame, not a Sin's, and separate from the phone's Stonks app (§6.7): Stonks is a quick bet for cash, this is a skill game played for a challenge. It follows the §6.3 contract (`src/minigames/trade.js`, an overlay scene), so the parley and side quests can use it too.
+- A live price chart draws across the screen for **24 seconds**. One big button flips between **BUY** (all in at the current price) and **SELL** (cash out). Whatever's still held at the **closing bell** is sold.
+- **Goal:** finish up **25%** or better. Grades: under the goal is *fail* ("PAPER LOSSES"), the goal is *pass*, 2× the goal is *great* ("TENDIES!"), 4× is *legendary* ("TO THE MOON!").
+- The price swings in legs that alternate up and down. Some legs are **news**: a BREAKING headline (parody only) shows about 0.6 s before a sharp move, so reading the news pays.
+- Every market is checked before it's played: holding from open to close never reaches the goal (diamond hands don't pay), and trading the swings clears it with room to spare. By simulation, reacting 0.7 s late to every turn always passes, and 1 s late passes about 90% of the time.
+- Tuning and headlines: `src/data/trade.js`. A challenge can override the ticker, length, stake, goal, and headlines. Price paths and account math: `src/systems/market.js` (pure, unit-tested). A natural base for Keezus's crypto bet (§6.3), which adds shorting and leverage.
 
 ## 7. Tech stack
 
@@ -274,6 +282,7 @@ From the art chat's portrait mockup:
 - Sin cut-ins slide in from the right edge.
 - HUD, in the lyric ribbons' style (dark slanted strips, accent edge in the owner's color): the enemy's card is top-left and $cott's is lower-left, matching row for row (name, type or status row, Clout; $cott adds Flow and items). The crowd meter is top-right under the ? and SND buttons. The enemy's WEAK / RESISTS / SOFT SPOTS intel sits as small tags under its feet, not in its card.
 - The menu panel and buttons use the same ribbon style, with text left-aligned.
+- The lean only suits short strips: any card, panel, or button taller than 140 px (`TALL` in `src/ui/ribbon.js`) stands upright, with a vertical accent edge.
 
 ### 8.3 Backgrounds
 - Size: 720×1280 WebP, pre-dimmed, with the bottom band darkened for the menu.
@@ -348,3 +357,5 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **Regions have a minimal joystick** (bottom-right) and a **TALK button** beside it, alongside tap-to-walk, since far taps are hard to reach one-handed in portrait. Sign lettering is pixel-font art on the 2 px grid, so it doesn't shimmer while the camera moves (§6.6).
 - **The title screen shows the version** (`src/version.js`), bumped with every change to `main`, so players can tell whether they're on the latest build or a cached copy (§7). v0.5.0 is the first.
 - **$cott's phone is the in-game menu** (§6.7): MAP, STONKS, SHOP, and SETTINGS apps. He starts on a flip phone and buys the smartphone upgrade in the shop. Cash comes from fight rewards and Stonks trades (3 per fight) and buys battle items.
+- **$cott has his own day-trading minigame** (§6.8): buy and sell as a live stock chart swings, finish up 25% by the closing bell. Bagholder Brad's challenge became this trade ("teach Brad to sell") instead of a beat tap; Chad keeps the beat challenge.
+- **Tall ribbon shapes stand upright.** Slanted edges looked odd on tall cards (the trade chart, the battle HUD cards), so anything over 140 px tall drops the lean (§8.2).

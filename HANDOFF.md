@@ -67,6 +67,11 @@ every push to `https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/`
   props, and walking sprites are procedural placeholders
   (`src/systems/fieldArt.js`) until the field art in `CLAUDE.md` §8.4 arrives.
   `&region=start` jumps straight in.
+- **$cott's day trade** (`CLAUDE.md` §6.8): done (`src/minigames/trade.js`, the
+  first minigame on the §6.3 contract, launched as an overlay scene; markets
+  in `src/systems/market.js`, tuning in `src/data/trade.js`). Bagholder Brad's
+  challenge uses it. In debug mode the state's `tradeAnswer` names the button
+  a sharp trader would press, and the smoke test trades by it.
 - Next: step 2, **Sin summons** (Lil' Turnt first). Its effect, cooldown, and
   feature lines still need to come from the art/writing chat.
 

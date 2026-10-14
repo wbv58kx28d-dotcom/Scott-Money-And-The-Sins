@@ -19,19 +19,21 @@ export default class BootScene extends Phaser.Scene {
 }
 
 // window.__smm lets the smoke test (tools/smoke.mjs) read game state and find
-// buttons. Only exists in debug mode.
+// buttons. Only exists in debug mode. `scene` is the bottom running scene;
+// an overlay on top of it (a minigame) adds its buttons and state.
 function installDebugHook(game) {
   window.__smm = {
     game,
     debug: DEBUG,
     state() {
-      const scene = game.scene.getScenes(true)[0];
-      if (!scene) return { scene: null };
-      const base = {
-        scene: scene.scene.key,
-        buttons: [...(scene.buttons ?? [])].map((b) => b.describe()),
-      };
-      return scene.debugState ? { ...base, ...scene.debugState() } : base;
+      const scenes = game.scene.getScenes(true);
+      if (!scenes.length) return { scene: null };
+      let out = { scene: scenes[0].scene.key, buttons: [] };
+      for (const scene of scenes) {
+        const buttons = [...(scene.buttons ?? [])].map((b) => b.describe());
+        out = { ...out, ...scene.debugState?.(), buttons: [...out.buttons, ...buttons] };
+      }
+      return out;
     },
   };
   console.info('[$cott] debug mode', DEBUG);
