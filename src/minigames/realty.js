@@ -1,9 +1,11 @@
 // $cott's property ladder: an isometric city neighborhood of homes,
 // apartments, and towers, some listed for sale. He starts with enough for a
 // starter home, the bank lends half of anything but the trophy, and the clock
-// runs a month every couple of seconds. Headlines crawl across the news ticker
-// a few months before they move prices, and each one hits the low, middle,
-// and high end of the market differently. Meanwhile the city keeps changing:
+// runs a month every few seconds. Each kind of property (the village, midtown,
+// the skyline) moves in trends a few months long; a chip per kind shows where
+// it's heading a month before each trend starts, and headlines on the ticker
+// are flavor that match the big ones. Lots update one at a time, each on its
+// own day of the month, so changes ripple across the map. Meanwhile the city keeps changing:
 // cranes go up on empty lots and open as new listings, the wrecking ball takes
 // old units down (the developer buys $cott out of his), and renovations make
 // units worth more. Buy the trophy property (cash only) to win.
@@ -23,8 +25,8 @@
 import { GAME_W, GAME_H, COLORS, LAYOUT } from '../config.js';
 import { REALTY, CITIES, TIERS } from '../data/realty.js';
 import {
-  generateSession, createAccount, canBuy, buyUnit, sellUnit, saleProceeds, downPayment, netWorth, gradeFor, readerMoves,
-  price, lotState, variantAt, settle,
+  generateSession, createAccount, canBuy, buyUnit, sellUnit, saleProceeds, downPayment, gradeFor, readerMoves,
+  price, lotState, variantAt, settle, trendAt, standingAt,
 } from '../systems/realty.js';
 import { rng } from '../systems/rng.js';
 import { DEBUG } from '../systems/debug.js';
@@ -52,7 +54,8 @@ const TAGS = {
 // Cards, top to bottom. The map's camera fills MAP; the main button sits in the usual bottom panel.
 const HEADER = { x: 16, y: 40, w: 688, h: 132 };
 const TICKER = { x: 16, y: 184, w: 688, h: 52 };
-const MAP = { x: 0, y: 244, w: 720, h: 704 };
+const CHIPS = { x: 16, y: 244, w: 688, h: 50 };
+const MAP = { x: 0, y: 302, w: 720, h: 646 };
 const INFO = { x: 16, y: 956, w: 688, h: 126 };
 // Isometric lots: 64×32 art px diamonds, drawn at 2×. Tile (i, j) has its top
 // corner at (ORIGIN.x + (i - j) * 64 + 64, ORIGIN.y + (i + j) * 32).
@@ -63,6 +66,7 @@ const DRAG_PX = 12; // a press that moves further than this pans instead of tapp
 const TICKER_SPEED = 260; // px per second
 const HOLD_MS = 1200; // breaking and local news sit still this long before they crawl
 const CONTINUE_DELAY_MS = 700;
+const ARROW_MS = 1600; // a tag's up/down arrow shows this long after its price changes
 
 export default {
   id: 'realty',
@@ -104,13 +108,26 @@ export class RealtyScene extends Phaser.Scene {
     this.session = generateSession(rng, city, cfg);
     this.acct = createAccount(this.session.startCash);
     this.phase = 'ready'; // ready | open | closed
-    this.month = 0;
+    this.month = 0; // the calendar month: the clock, rounded down
+    this.t = 0; // the clock, in months
     this.selected = null; // a lot index
     this.result = null;
     this.crawl = null;
     this.queue = []; // ticker items waiting: { text, kind }
     this.seenNews = [];
     this.fillerIndex = 0;
+    // Each lot updates on its own day of the month (a cosmetic shuffle), so
+    // changes ripple across the map one building at a time.
+    const order = this.session.lots.map((_, k) => k);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = rng.fx.int(0, i);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    this.lotOffset = [];
+    order.forEach((k, n) => {
+      this.lotOffset[k] = ((n + 0.5) / order.length) * 0.92;
+    });
+    this.shown = this.session.lots.map(() => 0); // the month each lot last drew
 
     // Everything on the main camera lives in uiLayer; the map's camera shows mapLayer.
     this.uiLayer = this.add.layer();
@@ -118,6 +135,7 @@ export class RealtyScene extends Phaser.Scene {
     this.ui(this.add.rectangle(0, 0, GAME_W, GAME_H, 0x0b0a12, 0.92).setOrigin(0).setInteractive());
     this.buildHeader();
     this.buildTicker();
+    this.buildChips();
     this.buildInfo();
     this.ui(drawRibbonPanel(this, LAYOUT.panel));
     const p = LAYOUT.panel;
@@ -179,6 +197,30 @@ export class RealtyScene extends Phaser.Scene {
     // a geometry mask costs a lot more on software-rendered WebGL).
     this.crawlLeft = t.x + 150;
     this.crawlRight = t.x + t.w - 4;
+  }
+
+  /** One chip per kind of property: where it's heading. */
+  buildChips() {
+    const c = CHIPS;
+    const w = Math.floor((c.w - 16) / 3);
+    this.chips = TIERS.map((tier, ti) => {
+      const x = c.x + ti * (w + 8);
+      const g = this.ui(this.add.graphics());
+      g.fillStyle(0x000000, 0.55).fillRect(x, c.y, w, c.h);
+      const name = this.ui(label(this, x + 10, c.y + 8, this.cfg.zones[tier].replace('THE ', ''), 11, { color: COLORS.textDim, strokeThickness: 0 }));
+      const text = this.ui(body(this, x + 10, c.y + 20, '', 28));
+      return { x, w, g, name, text, icons: [], last: null };
+    });
+  }
+
+  /** The month a lot is showing: the clock, less the lot's day of the month. */
+  lotMonth(k) {
+    return Math.max(0, Math.min(this.session.months, Math.floor(this.t - this.lotOffset[k])));
+  }
+
+  /** The month a unit's price and listing are at (its lot's). */
+  unitMonth(u) {
+    return this.lotMonth(this.session.units[u].lot);
   }
 
   buildInfo() {
@@ -337,7 +379,7 @@ export class RealtyScene extends Phaser.Scene {
   /** The unit on the selected lot, if one stands there now. */
   selectedUnit() {
     if (this.selected === null) return null;
-    return lotState(this.session, this.selected, this.month).unit ?? null;
+    return lotState(this.session, this.selected, this.lotMonth(this.selected)).unit ?? null;
   }
 
   press() {
@@ -352,37 +394,56 @@ export class RealtyScene extends Phaser.Scene {
   openMarket() {
     this.phase = 'open';
     Audio.sfx('buff');
-    this.monthTimer = this.time.addEvent({ delay: this.monthMs, loop: true, callback: () => this.nextMonth() });
     this.nextCrawl();
     this.refresh();
   }
 
-  nextMonth() {
-    if (this.phase !== 'open') return;
-    this.month += 1;
-    const m = this.month;
+  /** The calendar turns: chips, flavor headlines, and development bookings. */
+  monthTick(m) {
     const { session, cfg } = this;
-    for (const e of session.events) if (e.announce === m) this.news(e.headline, 'breaking');
-    // Development news: bookings when they're made, results when they happen.
-    const say = (tpl, u, zone) => tpl.replace('{name}', u ? session.units[u].name : '').replace('{zone}', zone ?? '');
+    this.month = m;
+    // Headlines only for the big trends, as flavor.
+    for (const e of session.events) {
+      if (e.announce === m && e.headline && Math.abs(e.fx[e.tier]) >= cfg.trend.strong) this.news(e.headline, 'breaking');
+    }
+    // Development: bookings when they're made (what's built shows on the map).
     for (const e of session.dev) {
-      const zone = cfg.zones[session.lots[e.lot].zone];
-      if (e.announce === m) this.news(say(cfg.devNews[e.type], e.unit, zone), 'local');
-      if (e.at === m) this.news(say(cfg.devNews[{ build: 'open', demolish: 'gone', renovate: 'renovated' }[e.type]], e.unit, zone), 'local');
+      if (e.announce === m && e.type !== 'build') this.news(this.devLine(e.type, e), 'local');
     }
-    for (const out of settle(this.acct, session, m)) {
-      const v = this.lotViews[session.units[out.unit].lot];
-      this.flash(v, `BOUGHT OUT +${price(Math.max(0, out.proceeds))}`, '#ffd166');
-      this.news(`DEVELOPER BUYS OUT $COTT MONEY. "PLEASURE DOING BUSINESS."`, 'local');
-      Audio.sfx('good');
+    this.drawChips(true);
+    this.refreshHeader();
+  }
+
+  devLine(type, e) {
+    const { session, cfg } = this;
+    return cfg.devNews[type].replace('{name}', session.units[e.unit].name).replace('{zone}', cfg.zones[session.lots[e.lot].zone]);
+  }
+
+  /** A lot reaches month mk: draw what's there now, and settle any buyout. */
+  revealLot(k, mk) {
+    const { session } = this;
+    this.shown[k] = mk;
+    const opened = session.dev.find((e) => e.type === 'build' && e.lot === k && e.at === mk);
+    if (opened) this.news(this.devLine('open', opened), 'local');
+    const gone = session.units.find((u) => u.lot === k && u.gone === mk);
+    if (gone) {
+      for (const out of settle(this.acct, session, mk, gone.id)) {
+        this.flash(this.lotViews[k], `BOUGHT OUT +${price(Math.max(0, out.proceeds))}`, '#ffd166');
+        this.news('DEVELOPER BUYS OUT $COTT MONEY. "PLEASURE DOING BUSINESS."', 'local');
+        Audio.sfx('good');
+      }
     }
-    if (m >= session.months) return this.closeMarket();
-    this.refresh(true);
+    this.drawLot(this.lotViews[k], true);
+    this.refreshHeader();
+    if (this.selected === k) {
+      this.drawInfo();
+      this.drawButton();
+    }
   }
 
   buy(u) {
-    const { acct, session, month } = this;
-    if (!buyUnit(acct, session, u, month)) return;
+    const { acct, session } = this;
+    if (!buyUnit(acct, session, u, this.unitMonth(u))) return;
     const unit = session.units[u];
     if (unit.trophy) {
       Audio.sfx('crit');
@@ -394,7 +455,7 @@ export class RealtyScene extends Phaser.Scene {
   }
 
   sell(u) {
-    const proceeds = sellUnit(this.acct, this.session, u, this.month);
+    const proceeds = sellUnit(this.acct, this.session, u, this.unitMonth(u));
     const last = this.acct.history[this.acct.history.length - 1];
     const profit = proceeds - (last.paid - last.loan);
     Audio.sfx(profit >= 0 ? 'good' : 'bad');
@@ -418,11 +479,9 @@ export class RealtyScene extends Phaser.Scene {
 
   closeMarket() {
     this.phase = 'closed';
-    this.monthTimer?.remove();
     const { acct, session, cfg } = this;
-    const m = Math.min(this.month, session.months);
     const grade = gradeFor(acct, session.months, cfg.grades);
-    const worth = netWorth(acct, session, m);
+    const worth = this.worth();
     this.result = {
       grade: grade.id, score: Math.round((worth / acct.start) * 100) / 100, value: worth, won: acct.won, city: this.city.id,
     };
@@ -496,8 +555,18 @@ export class RealtyScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (this.phase !== 'open' || !this.crawl) return;
-    if (time < this.crawl.holdUntil) return;
+    if (this.phase !== 'open') return;
+    // The clock: the calendar turns at whole months; each lot follows on its own day.
+    this.t += delta / this.monthMs;
+    const months = this.session.months;
+    const m = Math.min(months, Math.floor(this.t));
+    if (m !== this.month) this.monthTick(m);
+    for (let k = 0; k < this.lotViews.length; k++) {
+      const mk = this.lotMonth(k);
+      if (mk !== this.shown[k]) this.revealLot(k, mk);
+    }
+    if (this.t >= months + 1) return this.closeMarket();
+    if (!this.crawl || time < this.crawl.holdUntil) return;
     const t = this.crawl.text;
     t.x = Math.round(t.x - (TICKER_SPEED * delta) / 1000);
     if (t.x + t.width < this.crawlLeft) this.nextCrawl();
@@ -512,87 +581,133 @@ export class RealtyScene extends Phaser.Scene {
 
   // ---- Drawing ---------------------------------------------------------------------
 
-  refresh(newMonth = false) {
-    const { acct, session } = this;
-    const m = this.month;
-    const trophyPrice = session.prices[session.trophy][m];
-    this.monthText.setText(`MONTH ${m}/${session.months}`);
-    this.cashText.setText(`CASH ${price(acct.cash)}`);
-    this.worthText.setText(`NET WORTH ${price(netWorth(acct, session, m))}`);
-    this.goal.set(Math.max(0, Math.min(100, Math.round((this.liquid() / trophyPrice) * 100))), 100, false);
-    this.goalText.setText(`TROPHY ${price(trophyPrice)}`);
-    this.drawLots(newMonth);
+  refresh() {
+    this.refreshHeader();
+    this.drawChips(false);
+    for (const v of this.lotViews) this.drawLot(v, false);
+    this.drawRing();
     this.drawInfo();
     this.drawButton();
   }
 
-  drawLots(newMonth) {
+  refreshHeader() {
+    const { acct, session } = this;
+    const trophyPrice = session.prices[session.trophy][this.unitMonth(session.trophy)];
+    this.monthText.setText(`MONTH ${this.month}/${session.months}`);
+    this.cashText.setText(`CASH ${price(acct.cash)}`);
+    this.worthText.setText(`NET WORTH ${price(this.worth())}`);
+    this.goal.set(Math.max(0, Math.min(100, Math.round((this.liquid() / trophyPrice) * 100))), 100, false);
+    this.goalText.setText(`TROPHY ${price(trophyPrice)}`);
+  }
+
+  /** The trend chips: where each kind of property is heading this month. */
+  drawChips(animate) {
+    const out = this.cfg.outlook;
+    this.chips.forEach((c, ti) => {
+      const { dir, strong } = trendAt(this.session, ti, this.month, this.cfg);
+      const key = dir > 0 ? (strong ? 'up2' : 'up') : dir < 0 ? (strong ? 'down2' : 'down') : 'flat';
+      if (key === c.last) return;
+      c.last = key;
+      const look = out[key];
+      c.text.setText(look.label).setColor(look.color);
+      for (const i of c.icons) i.destroy();
+      c.icons = [];
+      const n = strong ? 2 : dir ? 1 : 0;
+      for (let a = 0; a < n; a++) {
+        c.icons.push(this.ui(pixelIcon(this, c.x + c.w - 28 - a * 22, CHIPS.y + 16, dir > 0 ? 'up' : 'down', { px: 2, color: look.color })));
+      }
+      if (!n) c.icons.push(this.ui(this.add.rectangle(c.x + c.w - 36, CHIPS.y + 25, 20, 4, 0xc8c2d8).setOrigin(0, 0.5)));
+      c.g.clear().fillStyle(0x000000, 0.55).fillRect(c.x, CHIPS.y, c.w, CHIPS.h)
+        .fillStyle(Phaser.Display.Color.HexStringToColor(look.color).color, 1).fillRect(c.x, CHIPS.y, 4, CHIPS.h);
+      if (animate) {
+        c.text.setScale(1.2);
+        this.tweens.add({ targets: c.text, scale: 1, duration: 300, ease: 'Back.easeOut' });
+        Audio.sfx('blip');
+      }
+    });
+  }
+
+  /** Draw one lot as of its own month. `animate`: it just changed, so show it changing. */
+  drawLot(v, animate) {
     const { session, acct } = this;
-    const m = this.month;
-    for (const v of this.lotViews) {
-      const st = lotState(session, v.k, m);
-      const key = this.lotTexture(st, m);
-      v.rubble.setVisible(!!st.rubble);
-      if (key !== v.key) {
-        const was = v.key;
-        v.key = key;
-        v.sprite.setVisible(!!key);
-        if (key) v.sprite.setTexture(key);
-        // Something new on the lot: drop it in (or flash a glow-up).
-        if (key && newMonth) {
-          v.sprite.setY(v.ay - (was ? 0 : 24)).setAlpha(was ? 0.3 : 0);
-          this.tweens.add({ targets: v.sprite, y: v.ay, alpha: 1, duration: 320, ease: 'Back.easeOut' });
-        }
-      }
-      v.arrow?.destroy();
-      v.arrow = null;
-      const u = st.unit;
-      if (u === undefined) {
-        v.tag.setVisible(false);
-        v.flag.setVisible(false);
-        continue;
-      }
-      const unit = session.units[u];
-      const owned = acct.owned.has(u);
-      const listed = session.listed[u][m];
-      // Dim what isn't for sale: a grey tint on WebGL, see-through on Canvas (no tints there).
-      if (this.renderer.type === Phaser.WEBGL) {
-        if (owned || listed) v.sprite.clearTint();
-        else v.sprite.setTint(0x8c8ca0);
-      } else v.sprite.setAlpha(owned || listed ? 1 : 0.72);
-      // Tags float over the roof; the trophy's sits down on its tower so it stays in view.
-      const top = v.ay - v.sprite.height - 2 + (unit.trophy ? Math.round(v.sprite.height * 0.35) : 0);
-      const show = owned || listed || unit.trophy;
-      v.tag.setVisible(show).setY(top);
-      v.flag.setVisible(owned).setPosition(v.ax - v.tag.width / 2 - 2, top);
-      if (!show) continue;
-      const p = session.prices[u][m];
-      v.tag.setText(unit.trophy ? `TROPHY ${price(p)}` : price(p)).setColor(owned || unit.trophy ? '#ffd166' : COLORS.text);
-      const prev = m > 0 ? session.prices[u][m - 1] : null;
-      if (prev !== null && prev !== undefined && p !== prev) {
-        const upMove = p > prev;
-        v.arrow = this.world(pixelIcon(this, Math.round(v.ax + v.tag.width / 2 + 2), top - 22, upMove ? 'up' : 'down', {
-          px: 2, color: upMove ? UP_CSS : DOWN_CSS,
-        }).setDepth(v.tag.depth + 1));
-      }
-      if (newMonth && owned) {
-        v.tag.setScale(1.15);
-        this.tweens.add({ targets: v.tag, scale: 1, duration: 260 });
+    const m = this.lotMonth(v.k);
+    const st = lotState(session, v.k, m);
+    const key = this.lotTexture(st, m);
+    v.rubble.setVisible(!!st.rubble);
+    if (key !== v.key) {
+      const was = v.key;
+      v.key = key;
+      v.sprite.setVisible(!!key);
+      if (key) v.sprite.setTexture(key);
+      // Something new on the lot: drop it in (or flash a glow-up).
+      if (key && animate) {
+        v.sprite.setY(v.ay - (was ? 0 : 24)).setAlpha(was ? 0.3 : 0);
+        this.tweens.add({ targets: v.sprite, y: v.ay, alpha: 1, duration: 320, ease: 'Back.easeOut' });
       }
     }
-    // A gold ring around the selected lot.
+    const u = st.unit;
+    if (u === undefined) {
+      v.tag.setVisible(false);
+      v.flag.setVisible(false);
+      this.clearArrow(v);
+      return;
+    }
+    const unit = session.units[u];
+    const owned = acct.owned.has(u);
+    const listed = session.listed[u][m];
+    // Dim what isn't for sale: a grey tint on WebGL, see-through on Canvas (no tints there).
+    if (this.renderer.type === Phaser.WEBGL) {
+      if (owned || listed) v.sprite.clearTint();
+      else v.sprite.setTint(0x8c8ca0);
+    } else if (!this.tweens.isTweening(v.sprite)) v.sprite.setAlpha(owned || listed ? 1 : 0.72);
+    // Tags float over the roof; the trophy's sits down on its tower so it stays in view.
+    const top = v.ay - v.sprite.height - 2 + (unit.trophy ? Math.round(v.sprite.height * 0.35) : 0);
+    const show = owned || listed || unit.trophy;
+    v.tag.setVisible(show).setY(top);
+    if (!show) {
+      v.flag.setVisible(false);
+      this.clearArrow(v);
+      return;
+    }
+    const p = session.prices[u][m];
+    v.tag.setText(unit.trophy ? `TROPHY ${price(p)}` : price(p)).setColor(owned || unit.trophy ? '#ffd166' : COLORS.text);
+    v.flag.setVisible(owned).setPosition(v.ax - v.tag.width / 2 - 2, top);
+    if (!animate) return;
+    // Its price just moved: a brief arrow beside the tag, then it fades.
+    const prev = m > 0 ? session.prices[u][m - 1] : null;
+    if (prev === null || prev === undefined || p === prev) return;
+    const upMove = p > prev;
+    this.clearArrow(v);
+    v.arrow = this.world(pixelIcon(this, Math.round(v.ax + v.tag.width / 2 + 2), top - 22, upMove ? 'up' : 'down', {
+      px: 2, color: upMove ? UP_CSS : DOWN_CSS,
+    }).setDepth(v.tag.depth + 1));
+    this.tweens.add({ targets: v.arrow, alpha: 0, delay: ARROW_MS * 0.6, duration: ARROW_MS * 0.4, onComplete: () => this.clearArrow(v) });
+    if (owned) {
+      v.tag.setScale(1.15);
+      this.tweens.add({ targets: v.tag, scale: 1, duration: 260 });
+    }
+  }
+
+  clearArrow(v) {
+    if (!v.arrow) return;
+    this.tweens.killTweensOf(v.arrow);
+    v.arrow.destroy();
+    v.arrow = null;
+  }
+
+  /** A gold ring around the selected lot. */
+  drawRing() {
     const g = this.selectRing.clear();
-    if (this.selected !== null) {
-      const { lot } = this.lotViews[this.selected];
-      const { x, y } = this.tileXY(lot.i, lot.j);
-      const pts = [{ x: x + 64, y: y + 2 }, { x: x + 126, y: y + 32 }, { x: x + 64, y: y + 62 }, { x: x + 2, y: y + 32 }];
-      g.lineStyle(4, RIBBON_GOLD, 1).strokePoints(pts, true);
-    }
+    if (this.selected === null) return;
+    const { lot } = this.lotViews[this.selected];
+    const { x, y } = this.tileXY(lot.i, lot.j);
+    const pts = [{ x: x + 64, y: y + 2 }, { x: x + 126, y: y + 32 }, { x: x + 64, y: y + 62 }, { x: x + 2, y: y + 32 }];
+    g.lineStyle(4, RIBBON_GOLD, 1).strokePoints(pts, true);
   }
 
   drawInfo() {
     const { session, acct, cfg } = this;
-    const m = this.month;
+    const m = this.selected === null ? this.month : this.lotMonth(this.selected);
     const g = this.spark.clear();
     const width = INFO.w - CARD_INSET - 24;
     const set = (title, sub, lines, subColor = COLORS.textDim) => {
@@ -604,9 +719,9 @@ export class RealtyScene extends Phaser.Scene {
       fitWidth(this.infoLines, width);
     };
     if (this.selected === null) {
-      set(this.phase === 'ready' ? 'HOW IT WORKS' : 'TAP A BUILDING', `Start with ${price(session.startCash)}. Bank lends half. ${Math.round(cfg.fee * 100)}% fee per sale.`, [
-        'News moves prices a few months after it breaks.',
-        'Buy the trophy (cash only) to win. Drag to look around.',
+      set(this.phase === 'ready' ? 'HOW IT WORKS' : 'TAP A BUILDING', `Start with ${price(session.startCash)}. Bank lends ${Math.round((1 - cfg.down) * 100)}%. ${Math.round(cfg.fee * 100)}% fee per sale.`, [
+        'The chips show where each kind is heading next month.',
+        'Buy rising, sell before it cools. Trophy is cash only.',
       ]);
       return;
     }
@@ -627,7 +742,8 @@ export class RealtyScene extends Phaser.Scene {
     const own = acct.owned.get(u);
     const prev = m > 0 ? session.prices[u][m - 1] : null;
     const change = prev ? p / prev - 1 : 0;
-    const sub = `${unit.trophy ? 'THE TROPHY' : unit.label}  ${price(p)}  ${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}% this month`;
+    const look = this.chips[TIERS.indexOf(unit.tier)].last;
+    const sub = `${unit.trophy ? 'THE TROPHY' : unit.label}  ${price(p)}  ${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}%  ${cfg.outlook[look]?.label ?? ''}`;
     const booking = session.dev.find((e) => e.unit === u && e.type !== 'build' && m >= e.announce && m < e.at);
     const note = booking
       ? booking.type === 'demolish'
@@ -665,17 +781,28 @@ export class RealtyScene extends Phaser.Scene {
     }
   }
 
-  /** Cash plus what selling everything would bring in. */
+  /** Cash plus what selling everything would bring in (each at its lot's month). */
   liquid() {
     const { acct, session, cfg } = this;
-    return acct.cash + [...acct.owned.keys()].reduce((s, u) => s + saleProceeds(acct, session, u, this.month, cfg), 0);
+    return acct.cash + [...acct.owned.keys()].reduce((s, u) => s + saleProceeds(acct, session, u, this.unitMonth(u), cfg), 0);
+  }
+
+  /** Cash plus the equity in everything owned (each at its lot's month, before fees). */
+  worth() {
+    const { acct, session } = this;
+    let total = acct.cash;
+    for (const [u, { loan }] of acct.owned) {
+      const m = this.unitMonth(u);
+      if (standingAt(session, u, m)) total += session.prices[u][m] - loan;
+    }
+    return total;
   }
 
   drawButton() {
     if (this.phase !== 'open') return;
     const { acct, session, cfg } = this;
-    const m = this.month;
     const u = this.selectedUnit();
+    const m = this.selected === null ? this.month : this.lotMonth(this.selected);
     const off = (text, sub) => this.main.setText(text).setSub(sub).setAccent(0x3a3550, COLORS.textDim).setEnabled(false);
     if (this.selected === null) return off('PICK A PROPERTY', 'Tap a building on the map.');
     if (u === null) return off('NOTHING TO BUY', 'Pick a building.');
@@ -718,16 +845,18 @@ export class RealtyScene extends Phaser.Scene {
     const move = this.phase === 'open' ? readerMoves(this.session, this.acct, this.month)[0] ?? null : null;
     const units = [];
     for (const v of this.lotViews) {
-      const u = lotState(this.session, v.k, this.month).unit;
+      const mk = this.lotMonth(v.k);
+      const u = lotState(this.session, v.k, mk).unit;
       if (u === undefined) continue;
       const at = this.tapPoint(v);
-      units.push({ id: u, lot: v.k, x: at?.x ?? null, y: at?.y ?? null, onScreen: !!at, buyable: this.phase === 'open' && canBuy(this.acct, this.session, u, this.month) });
+      units.push({ id: u, lot: v.k, x: at?.x ?? null, y: at?.y ?? null, onScreen: !!at, buyable: this.phase === 'open' && canBuy(this.acct, this.session, u, mk) });
     }
     return {
       realty: {
-        phase: this.phase, month: this.month, cash: this.acct.cash, owned: [...this.acct.owned.keys()], won: this.acct.won,
+        phase: this.phase, month: this.month, clock: this.t, cash: this.acct.cash, owned: [...this.acct.owned.keys()], won: this.acct.won,
         selected: this.selected, selectedUnit: this.selectedUnit(), result: this.result, history: this.acct.history,
         scroll: { x: this.mapCam.scrollX, y: this.mapCam.scrollY },
+        chips: this.chips.map((c) => c.last),
       },
       realtyMove: move,
       realtyUnits: units,

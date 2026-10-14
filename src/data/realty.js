@@ -1,35 +1,45 @@
 // $cott's property ladder (src/minigames/realty.js): a neighborhood of homes,
 // apartments, and towers, some listed for sale. $cott starts with enough for
 // one of the cheapest homes and has to flip his way up to the trophy property
-// before the clock runs out. Headlines crawl across a news ticker a couple of
-// months before they move prices, and each one hits the low, middle, and high
-// end of the market differently. Price paths come from systems/realty.js.
+// before the clock runs out. Each tier (the village, midtown, the skyline)
+// moves in trends that last a few months; a trend chip per tier shows where
+// it's heading a month before each trend starts. Headlines on the ticker are
+// flavor that matches the trends. Price paths come from systems/realty.js.
 //
-// Prices are in dollars. `fx` is what a headline does to each tier's prices,
-// as [low, mid, high] fractions (0.3 = up 30%). Parody only: never real people
-// or real companies.
+// Prices are in dollars. A headline's `fx` says which way it points each tier,
+// as [low, mid, high] (positive = up, negative = down, 0 = no effect); it's
+// shown when a trend starts in a tier it points the same way. Parody only:
+// never real people or real companies.
 
 export const TIERS = ['low', 'mid', 'high'];
 
 export const REALTY = {
-  months: 48, // one session
-  monthMs: 2000, // ~96 s
+  months: 36, // one session
+  monthMs: 3500, // ~2 minutes
   fee: 0.06, // the realtor's cut of every sale
-  down: 0.5, // the bank lends the rest of any price but the trophy's (cash only)
+  down: 0.4, // the bank lends the rest (60%) of any price but the trophy's (cash only)
   startCash: 1.1, // × the cheapest home's price
-  trophy: 1.2, // the trophy is priced this × the top of the high tier
+  trophy: 1.05, // the trophy is priced this × the top of the high tier
 
   // Every unit wobbles a little each month around a slow drift.
   drift: 0.004,
   noise: 0.02, // per unit
   tierNoise: 0.012, // shared by a tier
 
-  // A headline breaks every `every` months, then prices start moving `lead`
-  // months later and take `spread` months to get there. Every headline's fx
-  // is multiplied by `scale` (tuning knob for how big the swings are).
-  // Of the headlines that keep every tier closest to flat, one of the best
-  // `pickFrom` is chosen at random (systems/realty.js).
-  news: { every: [2, 4], lead: [2, 3], spread: [1, 2], first: [1, 2], pickFrom: 3, scale: 1.25 },
+  // Trends: each tier's prices move in legs `legs` months long, up (by a
+  // fraction in `up`) or down (`down`), or now and then flat (`flat` chance).
+  // Legs alternate, and lean back toward where the tier started, so holding
+  // pays nothing. The tier's chip flips `lead` months before a leg starts; a
+  // leg of `strong` or more shows double arrows.
+  trend: { legs: [4, 6], up: [0.25, 0.5], down: [0.18, 0.36], flat: 0.1, lead: 1, strong: 0.33, drift: 0.2 },
+  // What the chips say, by direction and strength.
+  outlook: {
+    up2: { label: 'HOT', color: '#7cf29c' },
+    up: { label: 'RISING', color: '#7cf29c' },
+    flat: { label: 'STEADY', color: '#c8c2d8' },
+    down: { label: 'COOLING', color: '#ff9a7a' },
+    down2: { label: 'CRASHING', color: '#ff6b6b' },
+  },
 
   // The neighborhood: a size × size grid of lots seen in isometric, with a road
   // along row and column `road`. That splits it into four blocks: the back
@@ -45,7 +55,7 @@ export const REALTY = {
   // `notice` months later, and if it's $cott's the developer buys him out at
   // market price, no fee); or a unit is booked for a renovation (worth
   // `reno` × as much from `notice` months later). Bookings show on the ticker.
-  dev: { every: [2, 3], first: [2, 4], build: [3, 5], notice: 2, reno: 1.25, weights: { build: 0.45, demolish: 0.2, renovate: 0.35 }, minAge: 8 },
+  dev: { every: [3, 4], first: [2, 4], build: [3, 5], notice: 2, reno: 1.25, weights: { build: 0.45, demolish: 0.2, renovate: 0.35 }, minAge: 8 },
   zones: { low: 'THE VILLAGE', mid: 'MIDTOWN', high: 'THE SKYLINE' },
   // Ticker lines for development ({name}, {zone}). They don't move tier prices.
   devNews: {
@@ -57,6 +67,8 @@ export const REALTY = {
     renovated: '{name} UNVEILS ITS GLOW-UP',
   },
 
+  // Within a month, lots update one at a time (each on its own day of the
+  // month), so changes ripple across the map instead of landing all at once.
   // Units that aren't $cott's are on and off the market. Each month a listing
   // can come down or go up; every tier always has at least one listed. The
   // trophy is always listed: the goal is the price, not the wait. A new
@@ -65,10 +77,11 @@ export const REALTY = {
   listings: { start: 0.6, flip: 0.25, fresh: 3 },
 
   // Every session is checked before it's played (tools/realty.test.mjs): a
-  // player who reads the news can reach the trophy with time to spare, while
-  // one who buys a starter home and holds it never can. By simulation, a
-  // reader reacting a month after each headline wins around month 27 of 48
-  // (13 at best). One reacting `lateDelay` months late must still win.
+  // player who follows the trend chips can reach the trophy with time to
+  // spare, while one who buys a starter home and holds it never can. By
+  // simulation, a reader acting a month after each chip flips wins around
+  // month 20 of 36 (12 at best); one acting `lateDelay` months late must still
+  // win (around month 25).
   fair: { readerBy: 0.8, lateDelay: 2, floor: 0.45, tries: 300 },
 
   // Grades follow the minigame contract (CLAUDE.md §6.3), by how early the
