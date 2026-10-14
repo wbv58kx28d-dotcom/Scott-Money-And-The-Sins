@@ -46,3 +46,14 @@ export const PROP_IMAGES = [
   { key: 'prop_setup', path: 'assets/props/prop_setup.png' },
   { key: 'prop_tent', path: 'assets/props/prop_tent.png' },
 ];
+
+// $cott's phone (scenes/PhoneScene.js): PixelLab art built by tools/phone-art/build.py.
+// Anything missing is drawn instead. Icons are keyed phone_icon_<model>_<app id>.
+export const PHONE_ART = [
+  { key: 'phone_flip', path: 'assets/phone/flip_body.png' },
+  { key: 'phone_flip_glare', path: 'assets/phone/flip_glare.png' },
+  { key: 'phone_smart', path: 'assets/phone/smart_body.png' }, // wallpaper included
+  ...['flip', 'smart'].flatMap((model) => ['map', 'stonks', 'shop', 'settings'].map((app) => ({
+    key: `phone_icon_${model}_${app}`, path: `assets/phone/icon_${model}_${app}.png`,
+  }))),
+];

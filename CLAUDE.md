@@ -234,7 +234,8 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - **Money:** $cott starts with $500. Winning a fight pays the villain's `reward` (Derek: $1,000 on the first clear, $150 for a rematch). **Stonks:** pick a ticker (HODL is safe, APE spicy, MOON degenerate), stake $100/$250/$500, and SELL before the market closes (about 12 s) or the ticker gets rugged. Prices drift slightly upward on average. Each fight refills **3 trades**, so the market can't be farmed forever.
 - **Shop:** Cold Brew $150, Hype Man Voicemail $300 (they stack in the stash, §5.8), and the smartphone.
 - Saved with the rest of the progress: cash, phone model, stash, trades left. Debug flags: `&cash=5000`, `&phone=smart`.
-- Code: `scenes/PhoneScene.js` (both bodies, the home screens, the apps), `systems/stonks.js` (market math), `ui/phoneIcons.js` (pixel app icons).
+- **Art (PixelLab):** both phone bodies come from `create_ui_asset` with a layout template of the screen and keys, so the art lands where the code expects it. Also from PixelLab: the flip phone's 2-tone LCD icons (palette-locked to the LCD), the smartphone's app tiles, and its synthwave wallpaper. Sources live in `tools/phone-art/src/`; `tools/phone-art/build.py` crops and scales them into `assets/phone/` (bodies at 2×, LCD icons at 3×, tiles at 2×), lifts the flip phone's glass glare into an overlay drawn over the LCD, and lays the wallpaper into the smartphone's glass (a gold-framed slab). The screen and key rects in `PhoneScene.js` were measured from the art; if art is missing, a drawn stand-in uses the same rects.
+- Code: `scenes/PhoneScene.js` (both bodies, the home screens, the apps), `systems/stonks.js` (market math), `ui/phoneIcons.js` (fallback pixel icons).
 
 ## 7. Tech stack
 
