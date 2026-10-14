@@ -9,7 +9,7 @@ import { REALTY, CITIES, TIERS } from '../src/data/realty.js';
 import { createRng } from '../src/systems/rng.js';
 import {
   generateSession, isFair, holderWins, playReader, createAccount, canBuy, buyUnit, sellUnit, saleProceeds,
-  downPayment, netWorth, gradeFor, readerMoves, price, mapLots, lotState, settle, standingAt, variantAt,
+  downPayment, netWorth, gradeFor, readerMoves, price, mapLots, lotState, settle, standingAt, variantAt, trendAt,
 } from '../src/systems/realty.js';
 
 test('every city deals fair sessions: the news reader wins, buy-and-hold never does', () => {
@@ -176,4 +176,30 @@ test("a wrecking ball on $cott's unit buys him out at last month's price, no fee
   assert.equal(out.length, 1);
   assert.equal(acct.cash, before + Math.round(s.prices[e.unit][e.at - 1] - loan));
   assert.equal(acct.owned.size, 0);
+});
+
+test('trends: each leg moves its tier the way its chip says, the chip flips a month early, headlines match', () => {
+  for (const city of CITIES) {
+    const pool = new Map([...city.headlines, ...REALTY.headlines].map((h) => [h.text, h.fx]));
+    const rng = createRng(15);
+    for (let n = 0; n < 15; n++) {
+      const s = generateSession(rng, city);
+      for (const e of s.events) {
+        const ti = e.tier;
+        const move = Math.log(1 + e.fx[ti]);
+        // The chip shows this leg from `lead` months before it starts.
+        if (e.start >= REALTY.trend.lead) assert.equal(trendAt(s, ti, e.start - REALTY.trend.lead).leg, e, `${city.id}: chip flips early`);
+        if (e.headline) assert.equal(Math.sign(pool.get(e.headline)[ti]), Math.sign(move), `${e.headline} points the leg's way`);
+        if (Math.abs(move) < 0.15 || e.end - e.start < 2) continue;
+        // Prices of the tier's units (standing through it, no glow-ups) move the leg's way.
+        const ids = s.units.filter((u) => TIERS.indexOf(u.tier) === ti && standingAt(s, u.id, e.start) && standingAt(s, u.id, e.end)
+          && !u.renos.some((r) => r.month > e.start && r.month <= e.end)).map((u) => u.id);
+        if (!ids.length) continue;
+        const avg = ids.reduce((sum, u) => sum + Math.log(s.prices[u][e.end] / s.prices[u][e.start]), 0) / ids.length;
+        assert.equal(Math.sign(avg), Math.sign(move), `${city.id} tier ${ti} leg ${e.start}-${e.end}: moved ${avg.toFixed(2)}, chip said ${move.toFixed(2)}`);
+      }
+      // Every tier has a chip reading every month.
+      for (let m = 0; m < s.months; m++) TIERS.forEach((_, ti) => assert.ok(trendAt(s, ti, m).leg, `tier ${ti} month ${m}`));
+    }
+  }
 });

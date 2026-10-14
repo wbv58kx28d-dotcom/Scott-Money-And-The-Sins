@@ -20,7 +20,8 @@ import { REALTY, TIERS } from '../data/realty.js';
  *           renos [{ month, factor }]; variants [{ from, index }] (its look over time)
  *   prices  prices[unit][month], null while it isn't standing
  *   listed  listed[unit][month] (for units $cott doesn't own)
- *   events  headlines: [{ headline, fx, announce, start, end }], prices move over months start+1..end
+ *   events  trend legs: [{ tier, fx, announce, start, end, headline }]: prices move over months
+ *           start+1..end; the tier's chip shows it from `announce`; `headline` is flavor (or null)
  *   dev     development: [{ type: 'build' | 'demolish' | 'renovate', announce, at, unit?, lot }]
  *           build: crane up at `announce`, unit opens at `at`; demolish and
  *           renovate: booked at `announce`, happen at `at`
@@ -100,27 +101,44 @@ function buildSession(rng, city, cfg) {
   }
   const trophy = 0; // the first unit made
 
-  // The news: a headline every few months, each moving prices a bit later.
-  // Headlines are picked so every tier swings both ways and ends up near where
-  // it started, like the day trade's legs: holding pays nothing, reading the
-  // news and trading the swings does.
-  const scaled = (h) => ({ text: h.text, fx: h.fx.map((f) => f * cfg.news.scale) });
-  const pool = shuffled([...city.headlines, ...cfg.headlines].map(scaled));
+  // Trends: each tier moves in legs a few months long, alternating up and
+  // down (now and then flat), leaning back toward where it started so holding
+  // pays nothing. Each leg is an event whose chip flips `lead` months before
+  // it starts; up and down legs bring a matching headline to the ticker (flavor).
+  const { trend } = cfg;
+  const pool = shuffled([...city.headlines, ...cfg.headlines]);
+  const used = new Set();
+  const headlineFor = (ti, dir) => {
+    const fits = pool.filter((h) => Math.sign(h.fx[ti]) === dir && Math.abs(h.fx[ti]) >= 0.1);
+    const fresh = fits.filter((h) => !used.has(h.text));
+    const h = fresh.length ? rng.pick(fresh) : fits.length ? rng.pick(fits) : null;
+    if (h) used.add(h.text);
+    return h?.text ?? null;
+  };
   const events = [];
-  const net = TIERS.map(() => 0);
-  const after = (h) => h.fx.reduce((s, f, ti) => s + Math.abs(net[ti] + Math.log(1 + f)), 0);
-  for (let m = rng.int(...cfg.news.first); m < months - 2 && pool.length; m += rng.int(...cfg.news.every)) {
-    const start = m + rng.int(...cfg.news.lead);
-    if (start >= months) break;
-    const end = Math.min(months, start + rng.int(...cfg.news.spread));
-    const best = [...pool].sort((a, b) => after(a) - after(b)).slice(0, cfg.news.pickFrom);
-    const h = rng.pick(best);
-    pool.splice(pool.indexOf(h), 1);
-    h.fx.forEach((f, ti) => {
-      net[ti] += Math.log(1 + f);
-    });
-    events.push({ headline: h.text, fx: h.fx, announce: m, start, end });
-  }
+  TIERS.forEach((_, ti) => {
+    let dir = rng.chance(0.5) ? 1 : -1;
+    let net = 0;
+    for (let m = 0; m < months;) {
+      const end = Math.min(months, m + rng.int(...trend.legs));
+      let move = 0;
+      if (m === 0 || !rng.chance(trend.flat)) {
+        if (net > trend.drift) dir = -1;
+        else if (net < -trend.drift) dir = 1;
+        const size = rng.range(...(dir > 0 ? trend.up : trend.down));
+        move = Math.log(dir > 0 ? 1 + size : 1 - size);
+      }
+      const fx = TIERS.map((__, k) => (k === ti ? Math.exp(move) - 1 : 0));
+      events.push({
+        tier: ti, fx, start: m, end, announce: Math.max(0, m - trend.lead),
+        headline: move ? headlineFor(ti, Math.sign(move)) : null,
+      });
+      net += move;
+      if (move) dir = -Math.sign(move);
+      m = end;
+    }
+  });
+  events.sort((a, b) => a.announce - b.announce || a.tier - b.tier);
 
   // Development: cranes, wrecking balls, and renovations, one every few months.
   // `busy` tracks each lot's state month by month as it's planned.
@@ -224,6 +242,19 @@ const roundPrice = (v) => Math.round(v / 1000) * 1000;
 /** Is this unit standing this month? */
 export const standingAt = (session, u, m) => session.prices[u][m] !== null && session.prices[u][m] !== undefined;
 
+/**
+ * Where a tier is heading at month m, as its chip shows it: the newest leg
+ * announced by then that hasn't finished. { dir: 1 | 0 | -1, strong, leg }.
+ */
+export function trendAt(session, ti, m, cfg = REALTY) {
+  let leg = null;
+  for (const e of session.events) if (e.tier === ti && e.announce <= m && m < e.end) leg = e;
+  if (!leg) return { dir: 0, strong: false, leg: null };
+  const f = leg.fx[ti];
+  const dir = f > 0.001 ? 1 : f < -0.001 ? -1 : 0;
+  return { dir, strong: Math.abs(f) >= cfg.trend.strong, leg };
+}
+
 /** Which unit (if any) stands on a lot this month, and whether there's a crane on it. */
 export function lotState(session, lot, m) {
   const unit = session.units.find((u) => u.lot === lot && standingAt(session, u.id, m));
@@ -299,7 +330,7 @@ export function playReader(session, cfg = REALTY, { delay = 1 } = {}) {
 
 /**
  * What each tier stands to gain by holding from month m and selling at the
- * best moment, as known `delay` months after each headline broke: the peak of
+ * best moment, as known `delay` months after each trend's chip flipped: the peak of
  * the announced moves still to come, in log price (0 if it only goes down).
  * [low, mid, high].
  */
@@ -315,7 +346,7 @@ export function outlook(session, m, delay = 0) {
   });
 }
 
-/** The move in tier ti's prices into month k, counting only headlines out by month `seen`. */
+/** The move in tier ti's prices into month k, counting only legs announced by month `seen`. */
 function knownStep(session, ti, k, seen) {
   let step = 0;
   for (const e of session.events) {
@@ -326,7 +357,7 @@ function knownStep(session, ti, k, seen) {
 }
 
 /**
- * The news reader's moves this month, in order: sell what has nothing good
+ * The trend reader's moves this month, in order: sell what has nothing good
  * coming, buy the trophy if it's affordable, else buy the priciest listed unit
  * in whichever tier has the best news ahead. Also the debug hint (the smoke
  * test plays by it). It ignores renovations and new builds; a human can do better.
@@ -422,12 +453,13 @@ export function sellUnit(acct, session, u, m, cfg = REALTY) {
 
 /**
  * Start-of-month housekeeping: anything of $cott's torn down this month is
- * bought out by the developer at last month's price, no fee. Returns the buyouts.
+ * bought out by the developer at last month's price, no fee. `only` limits it
+ * to one unit (the scene updates lots one at a time). Returns the buyouts.
  */
-export function settle(acct, session, m) {
+export function settle(acct, session, m, only = null) {
   const out = [];
   for (const [u, { paid, loan }] of acct.owned) {
-    if (session.units[u].gone !== m) continue;
+    if (session.units[u].gone !== m || (only !== null && u !== only)) continue;
     const price = session.prices[u][m - 1];
     const proceeds = Math.round(price - loan);
     acct.cash += proceeds;
