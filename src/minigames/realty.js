@@ -66,6 +66,9 @@ const DRAG_PX = 12; // a press that moves further than this pans instead of tapp
 const TICKER_SPEED = 260; // px per second
 const HOLD_MS = 1200; // breaking and local news sit still this long before they crawl
 const CONTINUE_DELAY_MS = 700;
+const TAG_BG = '#0d0820';
+const TAG_AFFORD = '#1d6b3c'; // a listed unit $cott can afford right now
+const TAG_SLOP = 10; // taps this close to a tag still count as on it
 const ARROW_MS = 1600; // a tag's up/down arrow shows this long after its price changes
 
 export default {
@@ -285,8 +288,8 @@ export class RealtyScene extends Phaser.Scene {
       const v = { lot, k, ax, ay, depth, key: null };
       v.rubble = this.world(this.add.image(x, y, 'realty_ground_rubble').setOrigin(0).setDepth(-5e4 + lot.i + lot.j).setVisible(false));
       v.sprite = this.world(this.add.image(ax, ay, '__DEFAULT').setOrigin(0.5, 1).setDepth(depth).setVisible(false));
-      v.tag = this.world(body(this, ax, 0, '', 24, {
-        backgroundColor: '#0d0820', padding: { x: 6, y: 1 }, color: COLORS.text,
+      v.tag = this.world(body(this, ax, 0, '', 26, {
+        backgroundColor: TAG_BG, padding: { x: 8, y: 3 }, color: COLORS.text,
       }).setOrigin(0.5, 1).setDepth(1e5 + depth).setVisible(false));
       v.arrow = null;
       v.flag = this.world(this.add.image(ax, 0, 'realty_flag').setOrigin(1, 1).setDepth(1e5 + depth + 1).setVisible(false));
@@ -315,6 +318,9 @@ export class RealtyScene extends Phaser.Scene {
       this.drag = null;
       if (!d || d.moved || p.id !== d.id || !inMap(p)) return;
       const w = this.mapCam.getWorldPoint(p.x, p.y);
+      // A price tag is a buy/sell button; anywhere else just selects.
+      const tagged = this.pickTag(w.x, w.y);
+      if (tagged !== null) return this.tapTag(tagged);
       const lot = this.pick(w.x, w.y);
       if (lot !== null) this.select(lot);
     });
@@ -323,6 +329,32 @@ export class RealtyScene extends Phaser.Scene {
   /** Top-left of tile (i, j)'s image, in world space. */
   tileXY(i, j) {
     return { x: this.origin.x + (i - j) * (TILE.w / 2), y: this.origin.y + (i + j) * (TILE.h / 2) };
+  }
+
+  /** The lot whose price tag is under a world point (the frontmost, with a little slop for thumbs), or null. */
+  pickTag(wx, wy) {
+    const views = this.lotViews.filter((v) => v.tag.visible).sort((a, b) => b.tag.depth - a.tag.depth);
+    for (const v of views) {
+      const b = v.tag.getBounds();
+      if (wx >= b.x - TAG_SLOP && wx <= b.right + TAG_SLOP && wy >= b.y - TAG_SLOP && wy <= b.bottom + TAG_SLOP) return v.k;
+    }
+    return null;
+  }
+
+  /** Tap a price tag: buy it if he can, sell it if it's his; otherwise say why not. */
+  tapTag(k) {
+    if (this.phase === 'closed') return;
+    this.select(k);
+    if (this.phase !== 'open') return;
+    const u = this.selectedUnit();
+    if (u === null) return;
+    const m = this.unitMonth(u);
+    if (this.acct.owned.has(u)) return this.sell(u);
+    if (canBuy(this.acct, this.session, u, m, this.cfg)) return this.buy(u);
+    const v = this.lotViews[k];
+    if (!this.session.listed[u][m]) this.flash(v, 'NOT FOR SALE', '#c8c2d8');
+    else this.flash(v, `NEED ${price(downPayment(this.session, u, m, this.cfg))}`, DOWN_CSS);
+    Audio.sfx('bad');
   }
 
   /** The lot under a world point: the frontmost building drawn there, else the tile. */
@@ -434,6 +466,7 @@ export class RealtyScene extends Phaser.Scene {
       }
     }
     this.drawLot(this.lotViews[k], true);
+    if (gone) for (const v of this.lotViews) this.drawLot(v, false); // cash changed: affordability too
     this.refreshHeader();
     if (this.selected === k) {
       this.drawInfo();
@@ -670,7 +703,12 @@ export class RealtyScene extends Phaser.Scene {
       return;
     }
     const p = session.prices[u][m];
-    v.tag.setText(unit.trophy ? `TROPHY ${price(p)}` : price(p)).setColor(owned || unit.trophy ? '#ffd166' : COLORS.text);
+    // His: green while it's worth more than he paid, red while it's worth less.
+    // Listed and affordable: a green tag. The trophy's lettering is gold.
+    const paid = acct.owned.get(u)?.paid;
+    const afford = !owned && canBuy(acct, session, u, m, this.cfg);
+    const color = owned ? (p >= paid ? UP_CSS : DOWN_CSS) : unit.trophy ? '#ffd166' : COLORS.text;
+    v.tag.setText(unit.trophy ? `TROPHY ${price(p)}` : price(p)).setColor(color).setBackgroundColor(afford ? TAG_AFFORD : TAG_BG);
     v.flag.setVisible(owned).setPosition(v.ax - v.tag.width / 2 - 2, top);
     if (!animate) return;
     // Its price just moved: a brief arrow beside the tag, then it fades.
@@ -720,8 +758,8 @@ export class RealtyScene extends Phaser.Scene {
     };
     if (this.selected === null) {
       set(this.phase === 'ready' ? 'HOW IT WORKS' : 'TAP A BUILDING', `Start with ${price(session.startCash)}. Bank lends ${Math.round((1 - cfg.down) * 100)}%. ${Math.round(cfg.fee * 100)}% fee per sale.`, [
-        'The chips show where each kind is heading next month.',
-        'Buy rising, sell before it cools. Trophy is cash only.',
+        'Chips show where each kind is heading. Buy rising, sell cooling.',
+        'Tap a price to buy (green = affordable), tap again to sell.',
       ]);
       return;
     }
@@ -834,10 +872,22 @@ export class RealtyScene extends Phaser.Scene {
         const sx = wx - cam.scrollX + MAP.x;
         const sy = wy - cam.scrollY + MAP.y;
         if (sx < MAP.x + 4 || sx > MAP.x + MAP.w - 4 || sy < MAP.y + 4 || sy > MAP.y + MAP.h - 4) continue;
-        if (this.pick(wx, wy) === v.k) return { x: sx, y: sy };
+        if (this.pickTag(wx, wy) === null && this.pick(wx, wy) === v.k) return { x: sx, y: sy };
       }
     }
     return null;
+  }
+
+  /** Where on screen to tap this lot's price tag (its center, if it's showing, frontmost there, and in view), or null. */
+  tagPoint(v) {
+    if (!v.tag.visible) return null;
+    const b = v.tag.getBounds();
+    const wx = Math.round(b.centerX);
+    const wy = Math.round(b.centerY);
+    const sx = wx - this.mapCam.scrollX + MAP.x;
+    const sy = wy - this.mapCam.scrollY + MAP.y;
+    if (sx < MAP.x + 4 || sx > MAP.x + MAP.w - 4 || sy < MAP.y + 4 || sy > MAP.y + MAP.h - 4) return null;
+    return this.pickTag(wx, wy) === v.k ? { x: sx, y: sy } : null;
   }
 
   /** Read by the debug hook / smoke test: the news reader's next move, and where to tap each unit. */
@@ -849,7 +899,11 @@ export class RealtyScene extends Phaser.Scene {
       const u = lotState(this.session, v.k, mk).unit;
       if (u === undefined) continue;
       const at = this.tapPoint(v);
-      units.push({ id: u, lot: v.k, x: at?.x ?? null, y: at?.y ?? null, onScreen: !!at, buyable: this.phase === 'open' && canBuy(this.acct, this.session, u, mk) });
+      const tag = this.tagPoint(v);
+      units.push({
+        id: u, lot: v.k, x: at?.x ?? null, y: at?.y ?? null, onScreen: !!at, tagX: tag?.x ?? null, tagY: tag?.y ?? null,
+        buyable: this.phase === 'open' && canBuy(this.acct, this.session, u, mk),
+      });
     }
     return {
       realty: {
