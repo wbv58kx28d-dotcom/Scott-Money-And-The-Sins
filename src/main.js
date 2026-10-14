@@ -35,6 +35,7 @@ waitForFonts().then(() => {
     roundPixels: true,
     audio: { noAudio: true }, // the beat is WebAudio (systems/audio.js)
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+    input: { activePointers: 2 }, // a thumb on the region joystick plus a press on the TALK button
     scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene],
   });
 });

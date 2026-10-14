@@ -3,9 +3,10 @@
 //
 // Phone controls: tap anywhere to walk there (he paths around water and
 // props), hold and drag to steer, or use the joystick in the bottom-right
-// corner. Tap an NPC to walk over and talk; the villain's talk ends with
-// FIGHT / NOT YET. Minor characters can offer a challenge (a beat tap or a
-// quiz); winning it reveals intel on the villain that shows in the fight
+// corner. Tap an NPC to walk over and talk, or press the TALK button beside
+// the joystick when someone's close (it lights up). The villain's talk ends
+// with FIGHT / NOT YET. Minor characters can offer a challenge (a beat tap or
+// a quiz); winning it reveals intel on the villain that shows in the fight
 // (systems/intel.js). Walking into an exit leaves for the overworld map.
 //
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
@@ -33,6 +34,7 @@ import { Menu } from '../ui/menu.js';
 import { Button } from '../ui/button.js';
 import { TimingBar } from '../ui/timingBar.js';
 import { Joystick } from '../ui/joystick.js';
+import { InteractButton } from '../ui/interactButton.js';
 import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
 import { drawCard, drawRibbonPanel, RIBBON_GOLD, CARD_INSET } from '../ui/ribbon.js';
 import { label, body, fitWidth, fitWrapped, snapCenter } from '../ui/text.js';
@@ -206,6 +208,7 @@ export default class RegionScene extends Phaser.Scene {
       this.menu = new Menu(this);
       this.timing = new TimingBar(this, this.bus);
       this.stick = new Joystick(this, FIELD.stick);
+      this.talkButton = new InteractButton(this, FIELD.talkButton);
     });
   }
 
@@ -213,6 +216,7 @@ export default class RegionScene extends Phaser.Scene {
 
   onPointerDown(pointer, over) {
     if (over.length || this.mode !== 'explore') return;
+    if (this.talkButton.contains(pointer)) return this.interact();
     if (this.stick.contains(pointer)) {
       this.path = [];
       this.pendingNpc = null;
@@ -242,6 +246,29 @@ export default class RegionScene extends Phaser.Scene {
       this.stick.release();
       if (this.mode === 'explore') this.face(this.player, this.facing);
     }
+  }
+
+  /** The TALK button: talk to the nearest NPC in range, walking the last steps if needed. */
+  interact() {
+    this.talkButton.pulse(this);
+    const npc = this.nearbyNpc();
+    if (!npc) return Audio.sfx('blip');
+    this.stick.release();
+    this.approach(npc);
+  }
+
+  /** The nearest NPC within the TALK button's range of $cott, or null. */
+  nearbyNpc() {
+    let best = null;
+    let bestD = FIELD.talkButton.range;
+    for (const n of this.npcs) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, n.x, n.y);
+      if (d <= bestD) {
+        best = n;
+        bestD = d;
+      }
+    }
+    return best;
   }
 
   npcAt(x, y) {
@@ -280,6 +307,7 @@ export default class RegionScene extends Phaser.Scene {
 
   update(time, delta) {
     if (this.mode !== 'explore') return;
+    this.talkButton.setReady(!!this.nearbyNpc());
     if (this.stick.active) return this.steer(delta);
     if (!this.path.length) return;
     let step = (FIELD.speed * delta) / 1000;
@@ -365,6 +393,7 @@ export default class RegionScene extends Phaser.Scene {
   async talkTo(npc) {
     this.mode = 'talk';
     this.stick.setVisible(false);
+    this.talkButton.setVisible(false);
     // Face each other.
     const dx = npc.x - this.player.x;
     const dy = npc.y - this.player.y;
@@ -391,6 +420,7 @@ export default class RegionScene extends Phaser.Scene {
     this.panel.setVisible(false);
     this.face(npc.sprite, npc.facing);
     this.stick.setVisible(true);
+    this.talkButton.setVisible(true);
     this.mode = 'explore';
   }
 
@@ -488,6 +518,7 @@ export default class RegionScene extends Phaser.Scene {
     if (this.mode === 'leaving') return;
     this.mode = 'leaving';
     this.stick.setVisible(false);
+    this.talkButton.setVisible(false);
     this.stop();
     this.cameras.main.fadeOut(250, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Overworld'));
@@ -502,6 +533,7 @@ export default class RegionScene extends Phaser.Scene {
       mode: this.mode,
       walking: this.path.length > 0,
       stick: { ...FIELD.stick, active: this.stick.active },
+      talkButton: { ...FIELD.talkButton, ready: this.talkButton.ready, near: this.nearbyNpc()?.id ?? null },
       player: { x: Math.round(this.player.x), y: Math.round(this.player.y), facing: this.facing },
       npcs: this.npcs.map((n) => ({
         id: n.id, tap: screen(n.x, n.y - 60), challenge: !!n.challenge, won: !!n.challenge && Save.hasWon(this.challengeId(n)),

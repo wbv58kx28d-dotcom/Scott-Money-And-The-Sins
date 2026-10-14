@@ -347,6 +347,19 @@ async function main() {
       if (push.after.stick.active || settled.player.y !== push.after.player.y) failures.push('joystick: letting go should stop him');
       console.log(`joystick: walked ${climbed}px up in 1 s, stopped on release`);
       const locals = before.npcs.filter((n) => n.challenge).map((n) => n.id);
+      // The TALK button: walk up beside Brad, check it lights up for him, press it, and he talks.
+      {
+        const brad = (await state(page)).npcs.find((n) => n.id === 'brad');
+        await tapGame(page, brad.tap.x - 90, brad.tap.y + 60);
+        for (let i = 0; i < 40 && (await state(page)).walking; i++) await sleep(150);
+        const near = await state(page);
+        if (!near.talkButton.ready || near.talkButton.near !== 'brad') failures.push(`talk button: should light up beside Brad (${JSON.stringify(near.talkButton)})`);
+        await tapGame(page, near.talkButton.x, near.talkButton.y);
+        for (let i = 0; i < 30 && (await state(page)).mode === 'explore'; i++) await sleep(150);
+        const talking = await state(page);
+        if (talking.mode !== 'talk') failures.push(`talk button: pressing it should start talking to Brad (mode ${talking.mode})`);
+        else console.log('talk button: lit up beside Brad and started the conversation');
+      }
       if (locals.length < 3) failures.push(`locals: expected 3 challenge NPCs, got ${locals.join(',')}`);
       await winChallenge(page, 'brad', 'FLEX ON HIM');
       await page.screenshot({ path: path.join(SHOTS, '14-local-brad.png') });

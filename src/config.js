@@ -117,5 +117,8 @@ export const FIELD = {
   // The on-screen joystick, bottom-right under the thumb (mirror x for lefties: 120). `grab` is
   // how close a touch must start to pick it up; below `deadZone` (of the radius) it doesn't
   // move, and the lightest push walks at `minSpeed`.
-  stick: { x: 600, y: 1150, radius: 60, knob: 22, grab: 110, deadZone: 0.2, minSpeed: 0.4 },
+  stick: { x: 600, y: 1150, radius: 60, knob: 22, grab: 90, deadZone: 0.2, minSpeed: 0.4 },
+  // The TALK button, down-left of the stick like a gamepad's A button. It lights up when an
+  // NPC is within `range` of $cott's feet; pressing it talks to the nearest one.
+  talkButton: { x: 440, y: 1186, radius: 36, grab: 56, range: 170 },
 };
