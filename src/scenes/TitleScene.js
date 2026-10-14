@@ -5,6 +5,7 @@ import { GAME_W, GAME_H, LAYOUT } from '../config.js';
 import { Audio } from '../systems/audio.js';
 import { label, body } from '../ui/text.js';
 import { drawCard, RIBBON_GOLD } from '../ui/ribbon.js';
+import { versionLabel } from '../version.js';
 
 const TITLE_STYLE = {
   color: '#ffd166',
@@ -42,6 +43,8 @@ export default class TitleScene extends Phaser.Scene {
     const tap = label(this, cx + 6, 1172, 'TAP TO START', 24).setOrigin(0.5);
     this.tweens.add({ targets: tap, alpha: 0.2, duration: 450, yoyo: true, repeat: -1 });
     body(this, cx, 1236, 'A parody. All villains are fictional.', 26, { color: '#8a8496' }).setOrigin(0.5);
+    // Which build this is, so a stale cached copy is easy to spot.
+    body(this, GAME_W - 12, GAME_H - 6, versionLabel(), 22, { color: '#6f6888' }).setOrigin(1, 1);
 
     // Start on pointerup, inside the gesture, so the sound plays on the first tap.
     this.input.once('pointerup', () => {

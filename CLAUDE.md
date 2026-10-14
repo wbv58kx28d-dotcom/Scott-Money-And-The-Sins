@@ -2,7 +2,7 @@
 
 Shared context for every chat and for Claude Code. In the repo this file is `CLAUDE.md`. In claude.ai, keep it in Project knowledge.
 
-_Last updated: Oct 13, 2026. Replaces `SCOTT_MONEY_RPG.md`._
+_Last updated: Oct 14, 2026. Replaces `SCOTT_MONEY_RPG.md`._
 
 **Who does what**
 - **claude.ai chats** handle art, lore, writing, and design decisions.
@@ -217,7 +217,7 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 
 ### 6.6 Walkable regions (built)
 - Each region is a map $cott walks around in a **3/4 top-down view, like *Chained Echoes***: one painted map bigger than the screen, with the camera following him. Characters face down, up, left, or right.
-- **Phone controls:** tap anywhere to walk there (he paths around water and props), hold and drag to steer, or use the **joystick**: a faint ring and knob in the bottom-right corner (`FIELD.stick` in `src/config.js`). A touch that starts on it steers him directly, sliding along walls; it hides while someone's talking. Tap an NPC to walk over and talk.
+- **Phone controls:** tap anywhere to walk there (he paths around water and props), hold and drag to steer, or use the **joystick**: a faint ring and knob in the bottom-right corner (`FIELD.stick` in `src/config.js`). A touch that starts on it steers him directly, sliding along walls. Beside it, down-left like a gamepad's A button, a **TALK button** (`FIELD.talkButton`) lights up gold when an NPC is in range and talks to the nearest one when pressed; it works with a thumb still on the stick (two touches are enabled). Both hide while someone's talking. Tapping an NPC to walk over and talk still works too.
 - **Lettering on world art** (sign boards) uses a tiny 3×5 pixel font drawn on the art's 2 px grid (`ui/pixelFont.js`). Ordinary text has 1 px strokes, which shimmer when a phone scales the canvas by a non-whole factor and the camera moves.
 - The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
 - Walking into an exit, or the MAP button, goes back to the overworld.
@@ -233,6 +233,7 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - **Config:** `pixelArt: true`, `roundPixels: true`, `scale: { mode: FIT, autoCenter: CENTER_BOTH }`, `audio: { noAudio: true }` until real audio files are added.
 - **Fonts:** Press Start 2P (headers and labels) and VT323 (body text), from Google Fonts. Wait for both to load before booting the game.
 - **Repo:** GitHub, plain ES modules with no build step. Deployed as a static site (see `HANDOFF.md`).
+- **Version:** `src/version.js` holds the version and release date, shown small in the title screen's bottom-right corner. **Bump it in every change that goes to `main`** (minor for features, patch for fixes). It loads with the rest of the game code, so if the title shows an old version, the browser is running a cached copy: GitHub Pages lets browsers keep files about 10 minutes, and phones may keep the page in memory until it's fully reloaded.
 
 ## 8. Art pipeline
 
@@ -333,4 +334,5 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **Walker sprites use 2 screen px per art pixel** (48×72 art-pixel frames), not 3, so characters can be about 4 heads tall instead of chibi (§8.4). $cott's sheet is the first one, made in PixelLab.
 - **Region ground is built from PixelLab terrain tiles** laid over each map's shapes by a script, not painted as one image, so positions and the walk mask always line up (§8.4). The Subreddit Swamps is the first.
 - **Minor characters can reveal villain intel** through small challenges (beat taps, quizzes). What you win is saved and shows on the villain's HUD from the start of the fight (§6.6).
-- **Regions have a minimal joystick** (bottom-right) alongside tap-to-walk, since far taps are hard to reach one-handed in portrait. Sign lettering is pixel-font art on the 2 px grid, so it doesn't shimmer while the camera moves (§6.6).
+- **Regions have a minimal joystick** (bottom-right) and a **TALK button** beside it, alongside tap-to-walk, since far taps are hard to reach one-handed in portrait. Sign lettering is pixel-font art on the 2 px grid, so it doesn't shimmer while the camera moves (§6.6).
+- **The title screen shows the version** (`src/version.js`), bumped with every change to `main`, so players can tell whether they're on the latest build or a cached copy (§7). v0.5.0 is the first.
