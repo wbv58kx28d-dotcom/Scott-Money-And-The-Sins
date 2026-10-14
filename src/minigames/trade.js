@@ -18,6 +18,7 @@ import {
   generateMarket, priceAt, hintHold, createAccount, buy, sell, holding, accountValue, gainOf, gradeFor, money, pct,
 } from '../systems/market.js';
 import { rng } from '../systems/rng.js';
+import { DEBUG } from '../systems/debug.js';
 import { Audio } from '../systems/audio.js';
 import { Button } from '../ui/button.js';
 import { StatBar } from '../ui/bars.js';
@@ -59,7 +60,7 @@ export class TradeScene extends Phaser.Scene {
 
   init({ parent, difficulty = 1, context = {}, done }) {
     const overrides = Object.fromEntries(OVERRIDES.filter((k) => context[k] !== undefined).map((k) => [k, context[k]]));
-    this.cfg = { ...TRADE, ...overrides, tickMs: TRADE.tickMs / difficulty };
+    this.cfg = { ...TRADE, ...overrides, tickMs: TRADE.tickMs / (difficulty * DEBUG.speed) };
     this.titleText = context.title ?? 'DAY TRADE';
     this.parentKey = parent;
     this.done = done;

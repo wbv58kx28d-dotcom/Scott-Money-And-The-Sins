@@ -230,7 +230,7 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 
 ### 6.7 $cott's phone (built)
 - A **PHONE** button (top-right in regions, top-left on the overworld map) opens $cott's phone over the game, which pauses underneath. It's the in-game menu: it replaced the region's MAP button and the map's SND button.
-- **Apps** (`src/data/phone.js`): **MAP** (out to the overworld), **STONKS** (stake cash on the day trade), **SHOP** (spend it), **SETTINGS** (sound, reset progress, version, and for now a **phone toggle**: TRY SMARTPHONE / TRY FLIP PHONE swaps models for free while the phone is a work in progress; take it out before release). More apps go in the same list.
+- **Apps** (`src/data/phone.js`): **MAP** (out to the overworld), **STONKS** (stake cash on the day trade), **REALTY** (the property ladder, §6.9), **SHOP** (spend it), **SETTINGS** (sound, reset progress, version, and for now a **phone toggle**: TRY SMARTPHONE / TRY FLIP PHONE swaps models for free while the phone is a work in progress; take it out before release). More apps go in the same list.
 - **Two models.** $cott starts on a **flip phone**: a green LCD with pixel-font lettering, a 2×2 icon grid, and a keypad whose right soft key is BACK and red key hangs up. The shop sells the **smartphone** ($2,500): wallpaper, status bar, a cash widget, a 4-column grid of app tiles, and a home bar.
 - **Money:** $cott starts with $500. Winning a fight pays the villain's `reward` (Derek: $1,000 on the first clear, $150 for a rematch). **Stonks:** stake $100/$250/$500 on **$cott's day trade** (§6.8) under a random parody ticker. The trade opens with the stake as its cash, and whatever it's worth at the closing bell comes back. The phone steps aside while the trade plays full-screen, then shows the profit or loss. Each fight refills **3 trades**, so the market can't be farmed forever.
 - **Shop:** Cold Brew $150, Hype Man Voicemail $300 (they stack in the stash, §5.8), and the smartphone.
@@ -246,6 +246,18 @@ $cott's own minigame, not a Sin's. It's played for Bagholder Brad's challenge an
 - Every market is checked before it's played: holding from open to close never reaches the goal (diamond hands don't pay), and trading the swings clears it with room to spare. By simulation, reacting 0.7 s late to every turn always passes, and 1 s late passes about 90% of the time.
 - Tuning and headlines: `src/data/trade.js`. A challenge can override the ticker, length, stake, goal, and headlines. Price paths and account math: `src/systems/market.js` (pure, unit-tested). A natural base for Keezus's crypto bet (§6.3), which adds shorting and leverage.
 
+### 6.9 $cott's property ladder (built, first pass)
+$cott's own minigame, played from the phone's REALTY app (§6.7). Play money for now: it doesn't touch his cash. It follows the §6.3 contract (`src/minigames/realty.js`, an overlay scene).
+- **Pick a city:** Tokyo (towers over a village of old wooden homes), Los Angeles (bungalows, stucco villas, a hilltop mansion), or Seattle (craftsman houses, condos, glass towers). Each has its own buildings, unit names, and local headlines.
+- **The neighborhood:** 9 units in three tiers, 4 low, 3 mid, 2 high. The priciest high unit is the **trophy**; buying it wins. Units go on and off the market each month (every tier always has something listed; the trophy always is). Unlisted ones are dimmed.
+- **Money:** $cott starts with enough to buy the cheapest home outright. The **bank lends half** of any price but the trophy's, which is **cash only**. A sale repays the loan, less a **6% realtor fee**.
+- **Clock:** 48 months, a month every 2 s (about 96 s).
+- **News:** a headline breaks every 2–4 months and crawls across the ticker (BREAKING news holds still a moment first; filler and reruns crawl in between). Prices start moving 2–3 months later. Each headline hits low, mid, and high differently (`fx` per tier). Headlines are picked so every tier swings both ways and ends near where it started, so holding pays nothing and trading the swings does.
+- **Grades:** trophy by half time is *legendary* ("REAL ESTATE MOGUL"), by 70% *great*, by the end *pass*; otherwise *fail* ("STILL RENTING").
+- **Fairness:** every session is checked before it's played: a player who acts a month after each headline wins (around month 30 of 48 by simulation), one acting two months late still wins, and buying a home and holding it never does.
+- **Art:** buildings are drawn stand-ins (`src/ui/buildings.js`), baked into textures once. Next: an isometric map (like web real-estate games), more lots, PixelLab art (Tokyo first), and buildings that get built, torn down, or renovated during a session.
+- Tuning, cities, and headlines: `src/data/realty.js`. Sessions and account math: `src/systems/realty.js` (pure, unit-tested in `tools/realty.test.mjs`). Debug: `&speed=4` runs minigame clocks faster.
+
 ## 7. Tech stack
 
 - **Engine:** Phaser **3.80.1**, pinned. Ask before changing versions.
@@ -253,6 +265,7 @@ $cott's own minigame, not a Sin's. It's played for Bagholder Brad's challenge an
 - **Config:** `pixelArt: true`, `roundPixels: true`, `scale: { mode: FIT, autoCenter: CENTER_BOTH }`, `audio: { noAudio: true }` until real audio files are added.
 - **Fonts:** Press Start 2P (headers and labels) and VT323 (body text), from Google Fonts. Wait for both to load before booting the game.
 - **Repo:** GitHub, plain ES modules with no build step. Deployed as a static site (see `HANDOFF.md`).
+- **Tests:** `npm test` (unit tests in `tools/*.test.mjs`) and `npm run smoke` (Playwright plays the game in headless Chromium; screenshots land in `tools/screenshots/`). Headless Chromium has no GPU, so WebGL runs in software at a few frames a second and timing checks give false failures. The smoke test loads every step but one with `&canvas=1` (Phaser's Canvas renderer, 60 fps headless) and waits on game state instead of fixed sleeps. Do the same in any new browser check.
 - **Version:** `src/version.js` holds the version and release date, shown small in the title screen's bottom-right corner. **Bump it in every change that goes to `main`** (minor for features, patch for fixes). It loads with the rest of the game code, so if the title shows an old version, the browser is running a cached copy: GitHub Pages lets browsers keep files about 10 minutes, and phones may keep the page in memory until it's fully reloaded.
 
 ## 8. Art pipeline
@@ -360,5 +373,7 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **$cott's phone is the in-game menu** (§6.7): MAP, STONKS, SHOP, and SETTINGS apps. He starts on a flip phone and buys the smartphone upgrade in the shop. Cash comes from fight rewards and Stonks trades (3 per fight) and buys battle items.
 - **Stonks plays the day trade** (§6.8) with real cash at stake, replacing the placeholder ticker bet. While the phone is in progress, SETTINGS has a toggle to swap models (§6.7).
 - **The title screen asks CONTINUE or START FRESH** when there's a save (§6.5).
+- **$cott's property ladder** (§6.9): flip homes in a city neighborhood, reading a news ticker, up to a cash-only trophy property. The bank lends half on everything else; without that, the climb was out of reach in a session. Play money for now.
+- **Browser tests use the Canvas renderer** (`&canvas=1`): headless Chromium's software WebGL is too slow to time anything (§7).
 - **$cott has his own day-trading minigame** (§6.8): buy and sell as a live stock chart swings, finish up 25% by the closing bell. Bagholder Brad's challenge became this trade ("teach Brad to sell") instead of a beat tap; Chad keeps the beat challenge.
 - **Tall ribbon shapes stand upright.** Slanted edges looked odd on tall cards (the trade chart, the battle HUD cards), so anything over 140 px tall drops the lean (§8.2).

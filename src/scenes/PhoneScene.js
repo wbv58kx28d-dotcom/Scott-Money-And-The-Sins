@@ -20,6 +20,9 @@ import { Audio } from '../systems/audio.js';
 import { rng } from '../systems/rng.js';
 import { money, pct } from '../systems/market.js';
 import trade from '../minigames/trade.js';
+import realty from '../minigames/realty.js';
+import { REALTY, CITIES } from '../data/realty.js';
+import { price } from '../systems/realty.js';
 import { VERSION } from '../version.js';
 import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
 import { pixelIcon } from '../ui/phoneIcons.js';
@@ -326,6 +329,7 @@ export default class PhoneScene extends Phaser.Scene {
   back() {
     if (this.page === 'home') return this.close();
     if (this.page === 'stonks-result') return this.stonks();
+    if (this.page === 'realty-result') return this.realty();
     this.home();
   }
 
@@ -338,17 +342,22 @@ export default class PhoneScene extends Phaser.Scene {
       const c = FLIP.content;
       this.text(c.x + c.w / 2, c.y, 'MENU', { size: 'l', align: 'center' });
       const cols = PHONES.flip.cols;
-      const cell = { w: c.w / cols, h: 124 };
+      const rows = Math.ceil(apps.length / cols);
+      // Rows shrink to fit the LCD as apps are added; a short last row is centered.
+      const cell = { w: c.w / cols, h: Math.min(124, Math.floor((c.h - 30) / rows)) };
+      const pad = cell.h < 100 ? 2 : 8;
       apps.forEach((app, i) => {
-        const cx = c.x + (i % cols) * cell.w + cell.w / 2;
-        const top = c.y + 30 + Math.floor(i / cols) * cell.h;
+        const row = Math.floor(i / cols);
+        const inRow = Math.min(cols, apps.length - row * cols);
+        const cx = c.x + (c.w - inRow * cell.w) / 2 + (i % cols) * cell.w + cell.w / 2;
+        const top = c.y + 30 + row * cell.h;
         const icon = `phone_icon_flip_${app.id}`;
         if (this.textures.exists(icon)) {
-          this.pageLayer.add(this.add.image(Math.round(cx - 24), top + 8, icon).setOrigin(0));
+          this.pageLayer.add(this.add.image(Math.round(cx - 24), top + pad, icon).setOrigin(0));
         } else {
-          this.pageLayer.add(pixelIcon(this, Math.round(cx - 22), top + 10, app.icon, { px: 5, color: FLIP.colors.ink }));
+          this.pageLayer.add(pixelIcon(this, Math.round(cx - 22), top + pad + 2, app.icon, { px: 5, color: FLIP.colors.ink }));
         }
-        this.text(cx, top + 66, app.name, { size: 'm', align: 'center', maxW: cell.w - 8 });
+        this.text(cx, top + pad + 56, app.name, { size: 'm', align: 'center', maxW: cell.w - 8 });
         this.appTap(app, cx - cell.w / 2 + 4, top, cell.w - 8, cell.h - 6);
       });
     } else {
@@ -393,6 +402,7 @@ export default class PhoneScene extends Phaser.Scene {
   openApp(id) {
     if (id === 'map') return this.openMap();
     if (id === 'stonks') return this.stonks();
+    if (id === 'realty') return this.realty();
     if (id === 'shop') return this.shop();
     if (id === 'settings') return this.settings();
   }
@@ -482,6 +492,65 @@ export default class PhoneScene extends Phaser.Scene {
     const btnH = this.flip ? 56 : 110;
     const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
     this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.stonks(), { enabled: Save.trades > 0 && Save.cash >= ECONOMY.stakes[0], accent });
+    this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
+  }
+
+  // ---- REALTY ----------------------------------------------------------------------------
+  // $cott's property ladder (minigames/realty.js). Pick a city, climb to its
+  // trophy. Play money for now: it doesn't touch his cash.
+
+  realty() {
+    this.clearPage('realty');
+    const c = this.flip ? FLIP.content : SMART.content;
+    const accent = APPS.find((a) => a.id === 'realty').color;
+    this.header('REALTY', accent);
+    const top = c.y + (this.flip ? 28 : 90);
+    this.text(c.x + c.w / 2, top, this.flip ? 'PICK A CITY' : 'PICK A CITY. CLIMB TO THE TROPHY.', { size: this.flip ? 'm' : 's', align: 'center', maxW: c.w });
+    const rowH = this.flip ? 58 : 130;
+    const first = top + (this.flip ? 24 : 50);
+    CITIES.forEach((city, i) => {
+      const y = first + i * (rowH + (this.flip ? 6 : 16));
+      this.button(c.x, y, c.w, rowH, city.name, () => this.playRealty(city.id), {
+        accent: city.accent, sub: this.flip ? null : city.blurb,
+      });
+    });
+    if (!this.flip) {
+      this.text(c.x + c.w / 2, first + CITIES.length * (rowH + 16) + 16, 'Play money for now. Your cash is safe.', {
+        size: 's', align: 'center', font: 'body', color: '#e2d9ff', maxW: c.w,
+      });
+    }
+  }
+
+  async playRealty(city) {
+    if (this.trading) return;
+    this.trading = true;
+    this.page = 'realty-play';
+    this.root.setVisible(false);
+    const result = await realty.run(this, { context: { city } });
+    this.trading = false;
+    this.root.setVisible(true);
+    this.realtyResult(result);
+  }
+
+  realtyResult({ won, value, grade }) {
+    this.clearPage('realty-result');
+    const c = this.flip ? FLIP.content : SMART.content;
+    const accent = APPS.find((a) => a.id === 'realty').color;
+    this.header(won !== null ? 'SOLD!' : 'TIME UP', accent);
+    const top = c.y + (this.flip ? 34 : 120);
+    const ink = this.flip ? FLIP.colors.ink : null;
+    if (won !== null) {
+      this.text(c.x + c.w / 2, top, `MONTH ${won}`, { size: 'xl', align: 'center', color: ink ?? '#ffd166' });
+      this.text(c.x + c.w / 2, top + (this.flip ? 34 : 80), REALTY.grades.find((g) => g.id === grade)?.label ?? 'SOLD!', {
+        size: 's', align: 'center', font: 'body', color: ink ?? '#e2d9ff', maxW: c.w,
+      });
+    } else {
+      this.text(c.x + c.w / 2, top, price(value), { size: 'xl', align: 'center', color: ink ?? '#ff5c8a' });
+      this.text(c.x + c.w / 2, top + (this.flip ? 34 : 80), 'NET WORTH. STILL RENTING.', { size: 's', align: 'center', font: 'body', color: ink ?? '#e2d9ff', maxW: c.w });
+    }
+    const btnH = this.flip ? 56 : 110;
+    const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
+    this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.realty(), { accent });
     this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
   }
 

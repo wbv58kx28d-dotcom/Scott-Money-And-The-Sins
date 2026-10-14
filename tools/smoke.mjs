@@ -7,6 +7,12 @@
 //
 // If Playwright can't find a browser, point it at one:
 //   CHROMIUM_PATH=/path/to/chrome npm run smoke
+//
+// Headless Chromium has no GPU: WebGL falls back to software and runs at a few
+// frames a second, which makes timing-based checks flaky. Every step but the
+// scripted battle (which checks the WebGL renderer) loads with &canvas=1, the
+// Canvas renderer, which holds 60 fps headless. Checks should also wait on
+// game state (page.waitForFunction) rather than sleep a fixed time.
 
 import http from 'node:http';
 import fs from 'node:fs/promises';
@@ -272,7 +278,7 @@ async function main() {
     {
       const errors = [];
       const page = await newPage(browser, errors);
-      const url = `${base}?debug=1&title=1`;
+      const url = `${base}?debug=1&canvas=1&title=1`;
       const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('scottmoney.save') ?? 'null'));
       const onTitle = async () => {
         await page.waitForFunction(() => window.__smm?.state().scene === 'Title', null, { timeout: 15_000 });
@@ -370,7 +376,7 @@ async function main() {
     {
       const errors = [];
       const page = await newPage(browser, errors);
-      await page.goto(`${base}?debug=1&battle=derek&seed=7&fast=1`);
+      await page.goto(`${base}?debug=1&canvas=1&battle=derek&seed=7&fast=1`);
       await page.waitForFunction(() => window.__smm?.state().scene === 'Battle', null, { timeout: 15_000 });
       const result = await playBattle(page, { label: 'timed run', shots: { over: '09-timed-end.png' } });
       console.log(`timed run: ${result.result} in ${result.round} rounds (${result.actions} taps)`);
@@ -381,7 +387,7 @@ async function main() {
     {
       const errors = [];
       const page = await newPage(browser, errors);
-      await page.goto(`${base}?debug=1&region=start&perfect=1&seed=9&fast=1`);
+      await page.goto(`${base}?debug=1&canvas=1&region=start&perfect=1&seed=9&fast=1`);
       await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
       await sleep(600);
       const before = await state(page);
@@ -439,7 +445,7 @@ async function main() {
     {
       const errors = [];
       const page = await newPage(browser, errors);
-      await page.goto(`${base}?debug=1&region=start&fast=1&seed=4&cash=3000`);
+      await page.goto(`${base}?debug=1&canvas=1&region=start&fast=1&seed=4&cash=3000&speed=3`);
       await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
       await sleep(600);
       const press = async (text) => {
@@ -472,6 +478,42 @@ async function main() {
       if (s.trades !== 2 || s.cash === 2900) failures.push(`phone: a trade should spend one of 3 trades and settle (${JSON.stringify({ page: s.page, trades: s.trades, cash: s.cash })})`);
       const afterTrade = s.cash;
       await press('DONE');
+      // REALTY: the property ladder. Buy a listed home, sell it, then let the clock run out.
+      // (Headless Chromium draws it at a few frames a second, so wait for each tap to land.)
+      await press('REALTY');
+      await press('TOKYO');
+      const pressButton = async (texts) => {
+        const b = (await state(page)).buttons.find((x) => texts.includes(x.text) && x.enabled);
+        if (b) await tapGame(page, b.x, b.y);
+        return !!b;
+      };
+      const until = (fn, arg = null, ms = 5000) => page.waitForFunction(fn, arg, { timeout: ms, polling: 100 }).then(() => true, () => false);
+      await until(() => window.__smm.state().realty?.phase === 'ready');
+      await page.screenshot({ path: path.join(SHOTS, '16c-realty-ready.png') });
+      await pressButton(['OPEN HOUSE']);
+      await until(() => window.__smm.state().realtyUnits?.some((u) => u.buyable));
+      const home = (await state(page)).realtyUnits.find((u) => u.buyable);
+      if (!home) failures.push('phone: the property ladder opened with nothing $cott could buy');
+      else {
+        await tapGame(page, home.x, home.y);
+        await until((id) => window.__smm.state().realty?.selected === id, home.id);
+        await pressButton(['BUY']);
+        if (!(await until((id) => window.__smm.state().realty?.owned.includes(id), home.id))) failures.push('phone: BUY on a listed home should buy it');
+        await page.screenshot({ path: path.join(SHOTS, '16d-realty-owned.png') });
+        await pressButton(['SELL']);
+        if (!(await until(() => window.__smm.state().realty?.history.some((h) => h.type === 'sell')))) failures.push('phone: SELL should sell the home');
+      }
+      const realtyStarted = Date.now();
+      let history = [];
+      for (s = await state(page); s.page !== 'realty-result'; s = await state(page)) {
+        if (Date.now() - realtyStarted > 120_000) throw new Error(`phone: the property ladder never ended (${JSON.stringify(s.realty)})`);
+        if (s.realty) history = s.realty.history;
+        if (s.realtyAnswer === 'CONTINUE') await pressButton(['CONTINUE']);
+        await sleep(400);
+      }
+      if (s.cash !== afterTrade) failures.push(`phone: the property ladder is play money, but cash went ${afterTrade} -> ${s.cash}`);
+      await page.screenshot({ path: path.join(SHOTS, '16e-realty-result.png') });
+      await press('DONE');
       // The work-in-progress toggle in SETTINGS swaps models both ways.
       await press('SETTINGS');
       await press('TRY SMARTPHONE');
@@ -496,7 +538,7 @@ async function main() {
       await page.waitForFunction(() => window.__smm.state().scene === 'Phone', null, { timeout: 5000 });
       await press('HOME');
       await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 5000 }).catch(() => failures.push('phone: HOME on the home screen should put the phone away'));
-      console.log(`phone: traded $100 -> $${afterTrade - 2900}, toggled models, bought a Cold Brew and the smartphone, MAP app reached the overworld`);
+      console.log(`phone: traded $100 -> $${afterTrade - 2900}, made ${history.length} property deals, toggled models, bought a Cold Brew and the smartphone, MAP app reached the overworld`);
       failures.push(...errors.map((e) => `phone: ${e}`));
       await page.context().close();
     }
@@ -505,7 +547,7 @@ async function main() {
     {
       const errors = [];
       const page = await newPage(browser, errors);
-      const url = `${base}?debug=1&perfect=1&seed=123&fast=1`;
+      const url = `${base}?debug=1&canvas=1&perfect=1&seed=123&fast=1`;
       await page.goto(url);
       await page.waitForFunction(() => window.__smm?.state().scene === 'Overworld', null, { timeout: 20_000 });
       await sleep(600);
