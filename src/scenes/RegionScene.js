@@ -2,11 +2,11 @@
 // 3/4 top-down view, Chained Echoes style, and finds its villain.
 //
 // Phone controls: tap anywhere to walk there (he paths around water and
-// props), or hold and drag to steer. Tap an NPC to walk over and talk; the
-// villain's talk ends with FIGHT / NOT YET. Minor characters can offer a
-// challenge (a beat tap or a quiz); winning it reveals intel on the villain
-// that shows in the fight (systems/intel.js). Walking into an exit leaves for
-// the overworld map.
+// props), hold and drag to steer, or use the joystick in the bottom-right
+// corner. Tap an NPC to walk over and talk; the villain's talk ends with
+// FIGHT / NOT YET. Minor characters can offer a challenge (a beat tap or a
+// quiz); winning it reveals intel on the villain that shows in the fight
+// (systems/intel.js). Walking into an exit leaves for the overworld map.
 //
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
 // everything in the world sits below the UI's ordinary depths. UI is created
@@ -32,8 +32,10 @@ import { DialogBox } from '../ui/dialog.js';
 import { Menu } from '../ui/menu.js';
 import { Button } from '../ui/button.js';
 import { TimingBar } from '../ui/timingBar.js';
+import { Joystick } from '../ui/joystick.js';
+import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
 import { drawCard, drawRibbonPanel, RIBBON_GOLD, CARD_INSET } from '../ui/ribbon.js';
-import { label, body, fitWidth, fitWrapped } from '../ui/text.js';
+import { label, body, fitWidth, fitWrapped, snapCenter } from '../ui/text.js';
 
 const WORLD_DEPTH = 100000;
 const GOLD = 0xffd166;
@@ -86,7 +88,7 @@ export default class RegionScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (p, over) => this.onPointerDown(p, over));
     this.input.on('pointermove', (p) => this.onPointerMove(p));
-    this.input.on('pointerup', () => (this.dragging = false));
+    this.input.on('pointerup', (p) => this.onPointerUp(p));
     this.cameras.main.fadeIn(250, 0, 0, 0);
   }
 
@@ -126,11 +128,14 @@ export default class RegionScene extends Phaser.Scene {
       const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
       if (p.block) this.grid.block(footprint(p.x, p.y, p.block));
       if (p.label) {
-        // Written on the sign's board, centered ~59% up from the feet.
-        const t = label(this, p.x, Math.round(p.y - img.height * 0.59), p.label, 10, { color: '#2a1a10', strokeThickness: 0 })
-          .setOrigin(0.5)
-          .setDepth(worldDepth(p.y) + 0.5);
-        fitWidth(t, img.width - 22, 6);
+        // Painted on the sign's board, centered ~59% up from the feet, in the pixel
+        // font on the sign's own 2 px art grid so it doesn't shimmer when the camera moves.
+        const px = pixelTextWidth(p.label, 2) <= img.width - 22 ? 2 : 1;
+        const left = p.x - img.width / 2;
+        const onGrid = (v, origin) => origin + Math.round((v - origin) / px) * px;
+        const x = onGrid(p.x - pixelTextWidth(p.label, px) / 2, left);
+        const y = onGrid(p.y - img.height * 0.59 - (5 * px) / 2, p.y - img.height);
+        pixelText(this, x, y, p.label, { px }).setDepth(worldDepth(p.y) + 0.5);
       }
     }
 
@@ -143,9 +148,8 @@ export default class RegionScene extends Phaser.Scene {
       const mark = n.fight && !cleared ? ['!', '#ffd166'] : n.challenge && !Save.hasWon(this.challengeId(n)) ? ['?', INTEL_CSS] : null;
       let alert = null;
       if (mark) {
-        alert = label(this, n.x, n.y - FIELD.frame.h - 6, mark[0], 28, { color: mark[1], strokeThickness: 8 })
-          .setOrigin(0.5, 1)
-          .setDepth(-1);
+        alert = label(this, 0, 0, mark[0], 28, { color: mark[1], strokeThickness: 8 }).setDepth(-1);
+        snapCenter(alert, n.x, n.y - FIELD.frame.h - 6 - alert.height / 2);
         this.tweens.add({ targets: alert, y: alert.y - 10, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       }
       return { ...n, sprite, alert };
@@ -201,6 +205,7 @@ export default class RegionScene extends Phaser.Scene {
       this.dialog = new DialogBox(this, this.bus, { instant: DEBUG.fast });
       this.menu = new Menu(this);
       this.timing = new TimingBar(this, this.bus);
+      this.stick = new Joystick(this, FIELD.stick);
     });
   }
 
@@ -208,6 +213,12 @@ export default class RegionScene extends Phaser.Scene {
 
   onPointerDown(pointer, over) {
     if (over.length || this.mode !== 'explore') return;
+    if (this.stick.contains(pointer)) {
+      this.path = [];
+      this.pendingNpc = null;
+      this.stick.begin(pointer);
+      return;
+    }
     this.dragging = true;
     this.lastAim = this.time.now;
     const npc = this.npcAt(pointer.worldX, pointer.worldY);
@@ -217,11 +228,20 @@ export default class RegionScene extends Phaser.Scene {
 
   /** Holding and dragging steers: re-aim at the finger every so often. */
   onPointerMove(pointer) {
+    if (this.stick.active) return this.stick.move(pointer);
     if (!this.dragging || !pointer.isDown || this.mode !== 'explore') return;
     if (this.time.now - this.lastAim < FIELD.dragRepathMs) return;
     if (Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.x, pointer.y) < FIELD.tapSlop) return;
     this.lastAim = this.time.now;
     this.walkTo(pointer.worldX, pointer.worldY, { quiet: true });
+  }
+
+  onPointerUp(pointer) {
+    this.dragging = false;
+    if (this.stick.active && pointer.id === this.stick.pointerId) {
+      this.stick.release();
+      if (this.mode === 'explore') this.face(this.player, this.facing);
+    }
   }
 
   npcAt(x, y) {
@@ -259,7 +279,9 @@ export default class RegionScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (this.mode !== 'explore' || !this.path.length) return;
+    if (this.mode !== 'explore') return;
+    if (this.stick.active) return this.steer(delta);
+    if (!this.path.length) return;
     let step = (FIELD.speed * delta) / 1000;
     let mx = 0;
     let my = 0;
@@ -284,13 +306,41 @@ export default class RegionScene extends Phaser.Scene {
     this.player.setDepth(worldDepth(this.player.y));
     if (mx || my) this.walkAnim(Math.abs(mx) > Math.abs(my) ? (mx < 0 ? 'left' : 'right') : my < 0 ? 'up' : 'down');
 
-    const exit = this.map.exits.find((e) => Phaser.Geom.Rectangle.Contains(new Phaser.Geom.Rectangle(e.x, e.y, e.w, e.h), this.player.x, this.player.y));
-    if (exit) return this.leave();
+    if (this.atExit()) return this.leave();
     if (this.pendingNpc && this.closeTo(this.pendingNpc)) return this.talkTo(this.pendingNpc);
     if (!this.path.length) {
       this.face(this.player, this.facing);
       if (this.pendingNpc) this.pendingNpc = null; // couldn't get close enough
     }
+  }
+
+  /** Joystick walking: move along the stick, sliding along walls the way it can. */
+  steer(delta) {
+    const v = this.stick.vector();
+    if (!v) {
+      if (this.player.anims.isPlaying) this.face(this.player, this.facing);
+      return;
+    }
+    const { minSpeed } = FIELD.stick;
+    const step = (FIELD.speed * (minSpeed + (1 - minSpeed) * v.strength) * delta) / 1000;
+    const { x, y } = this.player;
+    const tries = [[v.x, v.y], [Math.sign(v.x), 0], [0, Math.sign(v.y)]];
+    for (const [dx, dy] of tries) {
+      if (!dx && !dy) continue;
+      const nx = x + dx * step;
+      const ny = y + dy * step;
+      if (this.grid.walkableAt(nx, ny)) {
+        this.player.setPosition(nx, ny);
+        break;
+      }
+    }
+    this.player.setDepth(worldDepth(this.player.y));
+    this.walkAnim(Math.abs(v.x) > Math.abs(v.y) ? (v.x < 0 ? 'left' : 'right') : v.y < 0 ? 'up' : 'down');
+    if (this.atExit()) this.leave();
+  }
+
+  atExit() {
+    return this.map.exits.some((e) => Phaser.Geom.Rectangle.Contains(new Phaser.Geom.Rectangle(e.x, e.y, e.w, e.h), this.player.x, this.player.y));
   }
 
   walkAnim(facing) {
@@ -314,6 +364,7 @@ export default class RegionScene extends Phaser.Scene {
 
   async talkTo(npc) {
     this.mode = 'talk';
+    this.stick.setVisible(false);
     // Face each other.
     const dx = npc.x - this.player.x;
     const dy = npc.y - this.player.y;
@@ -339,6 +390,7 @@ export default class RegionScene extends Phaser.Scene {
     }
     this.panel.setVisible(false);
     this.face(npc.sprite, npc.facing);
+    this.stick.setVisible(true);
     this.mode = 'explore';
   }
 
@@ -435,6 +487,7 @@ export default class RegionScene extends Phaser.Scene {
   leave() {
     if (this.mode === 'leaving') return;
     this.mode = 'leaving';
+    this.stick.setVisible(false);
     this.stop();
     this.cameras.main.fadeOut(250, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Overworld'));
@@ -448,6 +501,7 @@ export default class RegionScene extends Phaser.Scene {
       region: this.region.id,
       mode: this.mode,
       walking: this.path.length > 0,
+      stick: { ...FIELD.stick, active: this.stick.active },
       player: { x: Math.round(this.player.x), y: Math.round(this.player.y), facing: this.facing },
       npcs: this.npcs.map((n) => ({
         id: n.id, tap: screen(n.x, n.y - 60), challenge: !!n.challenge, won: !!n.challenge && Save.hasWon(this.challengeId(n)),

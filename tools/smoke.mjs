@@ -119,6 +119,26 @@ async function walkToVillain(page, failures, { shots = true } = {}) {
   throw new Error('region: no FIGHT button after talking to Derek');
 }
 
+/** Hold a touch at game point `from`, slide it to `to`, keep it there `holdMs`, then lift. */
+async function touchDrag(page, from, to, holdMs) {
+  const box = await (await page.$('canvas')).boundingBox();
+  const s = box.width / GAME_W;
+  const pt = ({ x, y }) => [{ x: box.x + x * s, y: box.y + y * s, id: 1 }];
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(from) });
+  for (let i = 1; i <= 5; i++) {
+    const t = i / 5;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }) });
+    await sleep(30);
+  }
+  const midway = await state(page);
+  await sleep(holdMs);
+  const held = await state(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(150);
+  return { midway, held, after: await state(page) };
+}
+
 /**
  * In a walkable region: walk to a local, take their challenge, and win it.
  * Beat challenges rely on &perfect=1; quiz answers come from the debug state.
@@ -314,6 +334,18 @@ async function main() {
       await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
       await sleep(600);
       const before = await state(page);
+      // The joystick: push it up for a second and $cott should walk up the path, then stop on release.
+      const { stick } = before;
+      const push = await touchDrag(page, stick, { x: stick.x, y: stick.y - stick.radius }, 1000);
+      const climbed = before.player.y - push.held.player.y;
+      if (!push.midway.stick.active) failures.push('joystick: a touch on it should grab it');
+      // Headless Chromium runs slow frames, so this only checks he clearly moved (on a phone it's ~320 px/s).
+      if (climbed < 60) failures.push(`joystick: pushing up should walk $cott up (moved ${climbed}px)`);
+      if (push.held.player.facing !== 'up') failures.push(`joystick: $cott should face up, faced ${push.held.player.facing}`);
+      await sleep(300);
+      const settled = await state(page);
+      if (push.after.stick.active || settled.player.y !== push.after.player.y) failures.push('joystick: letting go should stop him');
+      console.log(`joystick: walked ${climbed}px up in 1 s, stopped on release`);
       const locals = before.npcs.filter((n) => n.challenge).map((n) => n.id);
       if (locals.length < 3) failures.push(`locals: expected 3 challenge NPCs, got ${locals.join(',')}`);
       await winChallenge(page, 'brad', 'FLEX ON HIM');

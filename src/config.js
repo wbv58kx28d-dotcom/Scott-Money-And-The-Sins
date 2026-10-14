@@ -114,4 +114,8 @@ export const FIELD = {
   tapSlop: 24,
   card: { x: 16, y: 18, w: 420, h: 84 }, // region name, top-left
   buttons: { y: 52, h: 48, right: 700, gap: 8 }, // MAP and SND, top-right
+  // The on-screen joystick, bottom-right under the thumb (mirror x for lefties: 120). `grab` is
+  // how close a touch must start to pick it up; below `deadZone` (of the radius) it doesn't
+  // move, and the lightest push walks at `minSpeed`.
+  stick: { x: 600, y: 1150, radius: 60, knob: 22, grab: 110, deadZone: 0.2, minSpeed: 0.4 },
 };
