@@ -138,6 +138,7 @@ A marker sweeps across a bar, bouncing end to end from a random starting side, a
 ### 5.8 Items
 - **Cold Brew** (2 per fight): restores 30 Flow.
 - **Hype Man Voicemail** (1 per fight): restores 35 Clout.
+- **Shop extras:** items bought in the phone's shop (§6.7) wait in a saved stash and add to the per-fight counts; the free ones are used first.
 - Using an item takes the turn. **Run** doesn't consume a turn ("$cott doesn't run. He pivots.").
 - **STALL:** if $cott can't afford any diss, has no items left, and the mic isn't ready, RUN becomes STALL, which skips his turn so Flow can regen. This fixes a prototype soft-lock.
 
@@ -220,14 +221,23 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - **Phone controls:** tap anywhere to walk there (he paths around water and props), hold and drag to steer, or use the **joystick**: a faint ring and knob in the bottom-right corner (`FIELD.stick` in `src/config.js`). A touch that starts on it steers him directly, sliding along walls. Beside it, down-left like a gamepad's A button, a **TALK button** (`FIELD.talkButton`) lights up gold when an NPC is in range and talks to the nearest one when pressed; it works with a thumb still on the stick (two touches are enabled). Both hide while someone's talking. Tapping an NPC to walk over and talk still works too.
 - **Lettering on world art** (sign boards) uses a tiny 3×5 pixel font drawn on the art's 2 px grid (`ui/pixelFont.js`). Ordinary text has 1 px strokes, which shimmer when a phone scales the canvas by a non-whole factor and the camera moves.
 - The villain waits somewhere in the region. Their talk ends with **FIGHT / NOT YET** (REMATCH once cleared). The pre-battle parley (§6.2) will hang off this talk, and side quests (§6.4) become NPCs and spots in the regions.
-- Walking into an exit, or the MAP button, goes back to the overworld.
+- Walking into an exit, or the phone's MAP app (§6.7), goes back to the overworld.
 - Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
-- **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Three kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better), **quiz** (multiple choice; the first listed answer is right, shown shuffled), and **trade** ($cott's day trade, §6.7). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
+- **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Three kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better), **quiz** (multiple choice; the first listed answer is right, shown shuffled), and **trade** ($cott's day trade, §6.8). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
 - **Subreddit Swamps locals:** **Bagholder Brad** (day trade, "teach Brad to sell"; reveals WEAK FLEX), **Mod Morgan** (rules quiz; reveals RESISTS ROAST and ROAST→INTELLECT), and **Chad**, Derek's wife's boyfriend (two harder beats; reveals FLEX→WEALTH and WORDPLAY→CAREER). Together they reveal all of Derek. Their lines are placeholders for the writing chat.
 - Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the three locals, the ground, and the props.
 
-### 6.7 $cott's day trade (built)
-$cott's own minigame, not a Sin's. It follows the §6.3 contract (`src/minigames/trade.js`, an overlay scene), so the parley and side quests can use it too.
+### 6.7 $cott's phone (built)
+- A **PHONE** button (top-right in regions, top-left on the overworld map) opens $cott's phone over the game, which pauses underneath. It's the in-game menu: it replaced the region's MAP button and the map's SND button.
+- **Apps** (`src/data/phone.js`): **MAP** (out to the overworld), **STONKS** (trade for cash), **SHOP** (spend it), **SETTINGS** (sound, reset progress, version). More apps go in the same list.
+- **Two models.** $cott starts on a **flip phone**: a green LCD with pixel-font lettering, a 2×2 icon grid, and a keypad whose right soft key is BACK and red key hangs up; its Stonks shows only the price and an arrow. The shop sells the **smartphone** ($2,500): wallpaper, status bar, a cash widget, a 4-column grid of app tiles, a home bar, and a live chart in Stonks.
+- **Money:** $cott starts with $500. Winning a fight pays the villain's `reward` (Derek: $1,000 on the first clear, $150 for a rematch). **Stonks:** pick a ticker (HODL is safe, APE spicy, MOON degenerate), stake $100/$250/$500, and SELL before the market closes (about 12 s) or the ticker gets rugged. Prices drift slightly upward on average. Each fight refills **3 trades**, so the market can't be farmed forever.
+- **Shop:** Cold Brew $150, Hype Man Voicemail $300 (they stack in the stash, §5.8), and the smartphone.
+- Saved with the rest of the progress: cash, phone model, stash, trades left. Debug flags: `&cash=5000`, `&phone=smart`.
+- Code: `scenes/PhoneScene.js` (both bodies, the home screens, the apps), `systems/stonks.js` (market math), `ui/phoneIcons.js` (pixel app icons).
+
+### 6.8 $cott's day trade (built)
+$cott's own minigame, not a Sin's, and separate from the phone's Stonks app (§6.7): Stonks is a quick bet for cash, this is a skill game played for a challenge. It follows the §6.3 contract (`src/minigames/trade.js`, an overlay scene), so the parley and side quests can use it too.
 - A live price chart draws across the screen for **24 seconds**. One big button flips between **BUY** (all in at the current price) and **SELL** (cash out). Whatever's still held at the **closing bell** is sold.
 - **Goal:** finish up **25%** or better. Grades: under the goal is *fail* ("PAPER LOSSES"), the goal is *pass*, 2× the goal is *great* ("TENDIES!"), 4× is *legendary* ("TO THE MOON!").
 - The price swings in legs that alternate up and down. Some legs are **news**: a BREAKING headline (parody only) shows about 0.6 s before a sharp move, so reading the news pays.
@@ -345,5 +355,6 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **Minor characters can reveal villain intel** through small challenges (beat taps, quizzes). What you win is saved and shows on the villain's HUD from the start of the fight (§6.6).
 - **Regions have a minimal joystick** (bottom-right) and a **TALK button** beside it, alongside tap-to-walk, since far taps are hard to reach one-handed in portrait. Sign lettering is pixel-font art on the 2 px grid, so it doesn't shimmer while the camera moves (§6.6).
 - **The title screen shows the version** (`src/version.js`), bumped with every change to `main`, so players can tell whether they're on the latest build or a cached copy (§7). v0.5.0 is the first.
-- **$cott has his own day-trading minigame** (§6.7): buy and sell as a live stock chart swings, finish up 25% by the closing bell. Bagholder Brad's challenge became this trade ("teach Brad to sell") instead of a beat tap; Chad keeps the beat challenge.
+- **$cott's phone is the in-game menu** (§6.7): MAP, STONKS, SHOP, and SETTINGS apps. He starts on a flip phone and buys the smartphone upgrade in the shop. Cash comes from fight rewards and Stonks trades (3 per fight) and buys battle items.
+- **$cott has his own day-trading minigame** (§6.8): buy and sell as a live stock chart swings, finish up 25% by the closing bell. Bagholder Brad's challenge became this trade ("teach Brad to sell") instead of a beat tap; Chad keeps the beat challenge.
 - **Tall ribbon shapes stand upright.** Slanted edges looked odd on tall cards (the trade chart, the battle HUD cards), so anything over 140 px tall drops the lean (§8.2).

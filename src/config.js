@@ -84,7 +84,7 @@ export const LAYOUT = {
 export const MAP = {
   panel: { x: 16, y: 1112, w: 688, h: 152 },
   enterButton: { w: 176, h: 104 }, // right side of the panel
-  sndButton: { x: 56, y: 44, w: 72, h: 40 },
+  phoneButton: { x: 76, y: 44, w: 112, h: 40 },
   pin: { radius: 11, labelGap: 18 }, // region names sit below their pin
   token: { radius: 22, lift: 40, bob: 4 }, // $cott's coin floats above the pin
   route: { dash: 12, gap: 9, width: 4 },
@@ -113,7 +113,7 @@ export const FIELD = {
   dragRepathMs: 120, // while a finger is held down and dragged, re-aim this often
   tapSlop: 24,
   card: { x: 16, y: 18, w: 420, h: 84 }, // region name, top-left
-  buttons: { y: 52, h: 48, right: 700, gap: 8 }, // MAP and SND, top-right
+  buttons: { y: 52, h: 48, right: 700, gap: 8 }, // the PHONE button, top-right
   // The on-screen joystick, bottom-right under the thumb (mirror x for lefties: 120). `grab` is
   // how close a touch must start to pick it up; below `deadZone` (of the radius) it doesn't
   // move, and the lightest push walks at `minSpeed`.

@@ -22,6 +22,7 @@ import {
 } from '../systems/combat.js';
 import { chooseEnemyMove } from '../systems/ai.js';
 import { seedDiscovered, scoutingLine } from '../systems/intel.js';
+import { money } from '../systems/stonks.js';
 import { Crowd } from '../systems/crowd.js';
 import { rng } from '../systems/rng.js';
 import { Audio } from '../systems/audio.js';
@@ -66,6 +67,9 @@ export default class BattleScene extends Phaser.Scene {
     const def = ENEMIES[this.enemyId];
     this.def = def;
     this.scott = createBattler(SCOTT);
+    // Items bought in the phone's shop join the free per-fight ones; the free ones go first.
+    this.freeItems = { ...this.scott.items };
+    for (const id of SCOTT.items) this.scott.items[id] += Save.stash(id);
     this.enemy = createBattler(def);
     // Intel scouted in the region (systems/intel.js) starts out on the HUD.
     seedDiscovered(this.enemy, Save.intelFor(def.id));
@@ -354,6 +358,8 @@ export default class BattleScene extends Phaser.Scene {
   async useItem(id) {
     const item = ITEMS[id];
     this.scott.items[id] -= 1;
+    if (this.freeItems[id] > 0) this.freeItems[id] -= 1;
+    else Save.useStash(id);
     restore(this.scott, item.restore);
     Audio.sfx('heal');
     this.scottHud.refresh();
@@ -501,6 +507,11 @@ export default class BattleScene extends Phaser.Scene {
     for (const line of won ? this.def.script.victory : this.def.script.defeat) await this.sayLine(line);
     this.dialog.hide();
     if (won && this.regionId) Save.clearRegion(this.regionId);
+    // A win pays out (full on a first clear, less on a rematch); any fight reopens the market.
+    const reward = this.def.reward ?? {};
+    this.cashWon = won ? (this.firstClear ? reward.cash : reward.rematch) ?? 0 : 0;
+    if (this.cashWon) Save.earn(this.cashWon);
+    Save.refillTrades();
     this.showEndScreen(won);
   }
 
@@ -512,7 +523,7 @@ export default class BattleScene extends Phaser.Scene {
       color: won ? '#ffd166' : '#ff5c8a',
       strokeThickness: 12,
     }).setOrigin(0.5).setDepth(51);
-    const text = fill(screen.body, { soft: this.enemy.discovered.softSpots.size, softTotal: this.def.softSpots.length });
+    const text = fill(screen.body, { soft: this.enemy.discovered.softSpots.size, softTotal: this.def.softSpots.length, cash: money(this.cashWon) });
     body(this, GAME_W / 2, 444, text, 44, { color: '#f2eaff', align: 'center', wordWrap: { width: 632 } })
       .setOrigin(0.5, 0)
       .setDepth(51);

@@ -393,7 +393,55 @@ async function main() {
       await page.context().close();
     }
 
-    // 5. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
+    // 5. $cott's phone: trade on Stonks, shop (including the smartphone upgrade), and the MAP app.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&region=start&fast=1&seed=4&cash=3000`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
+      await sleep(600);
+      const press = async (text) => {
+        const s = await state(page);
+        const t = (s.targets ?? s.buttons).find((b) => b.text === text);
+        if (!t) throw new Error(`phone: no "${text}" to press (have ${JSON.stringify((s.targets ?? s.buttons).map((b) => b.text))})`);
+        await tapGame(page, t.x, t.y);
+        await sleep(350);
+      };
+      await press('PHONE');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Phone', null, { timeout: 5000 });
+      let s = await state(page);
+      if (s.phone !== 'flip') failures.push(`phone: should start as a flip phone, got ${s.phone}`);
+      await page.screenshot({ path: path.join(SHOTS, '16-phone-flip.png') });
+      await press('STONKS');
+      await press('$HODL');
+      await press('$100');
+      await sleep(800);
+      await press('SELL');
+      s = await state(page);
+      if (s.page !== 'stonks-result' || s.trades !== 2 || s.cash === 2900) failures.push(`phone: a trade should spend one of 3 trades and settle (${JSON.stringify({ page: s.page, trades: s.trades, cash: s.cash })})`);
+      const afterTrade = s.cash;
+      await press('DONE');
+      await press('SHOP');
+      await press('BREW $150');
+      s = await state(page);
+      if (s.cash !== afterTrade - 150) failures.push(`phone: buying a Cold Brew should cost $150 (${afterTrade} -> ${s.cash})`);
+      await press('SMARTPHONE $2,500');
+      await page.waitForFunction(() => window.__smm.state().phone === 'smart', null, { timeout: 5000 }).catch(() => failures.push('phone: buying the smartphone should upgrade the phone'));
+      await sleep(500);
+      await page.screenshot({ path: path.join(SHOTS, '17-phone-smart.png') });
+      await press('MAP');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 10_000 }).catch(() => failures.push('phone: the MAP app should go to the overworld'));
+      await sleep(600);
+      await press('PHONE');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Phone', null, { timeout: 5000 });
+      await press('HOME');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 5000 }).catch(() => failures.push('phone: HOME on the home screen should put the phone away'));
+      console.log(`phone: traded $100 -> $${afterTrade - 2900}, bought a Cold Brew and the smartphone, MAP app reached the overworld`);
+      failures.push(...errors.map((e) => `phone: ${e}`));
+      await page.context().close();
+    }
+
+    // 6. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
     {
       const errors = [];
       const page = await newPage(browser, errors);
