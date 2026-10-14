@@ -17,7 +17,7 @@ export const REALTY = {
   fee: 0.06, // the realtor's cut of every sale
   down: 0.5, // the bank lends the rest of any price but the trophy's (cash only)
   startCash: 1.1, // × the cheapest home's price
-  trophy: 1.1, // the trophy is priced this × the top of the high tier
+  trophy: 1.2, // the trophy is priced this × the top of the high tier
 
   // Every unit wobbles a little each month around a slow drift.
   drift: 0.004,
@@ -31,16 +31,44 @@ export const REALTY = {
   // `pickFrom` is chosen at random (systems/realty.js).
   news: { every: [2, 4], lead: [2, 3], spread: [1, 2], first: [1, 2], pickFrom: 3, scale: 1.25 },
 
+  // The neighborhood: a size × size grid of lots seen in isometric, with a road
+  // along row and column `road`. That splits it into four blocks: the back
+  // block is the skyline (high tier, with the trophy on its back corner), the
+  // two side blocks are midtown (mid), and the front block is the village (low).
+  map: { size: 7, road: 3 },
+  // How many units of each tier stand at the opening bell (plus the trophy).
+  // The rest of the lots are empty, for now.
+  start: { low: 6, mid: 10, high: 4 },
+  // Development: every `every` months something happens on a lot. A crane goes
+  // up on an empty lot and finishes `build` months later as a new listed unit
+  // of that zone's tier; or a unit is booked for the wrecking ball (torn down
+  // `notice` months later, and if it's $cott's the developer buys him out at
+  // market price, no fee); or a unit is booked for a renovation (worth
+  // `reno` × as much from `notice` months later). Bookings show on the ticker.
+  dev: { every: [2, 3], first: [2, 4], build: [3, 5], notice: 2, reno: 1.25, weights: { build: 0.45, demolish: 0.2, renovate: 0.35 }, minAge: 8 },
+  zones: { low: 'THE VILLAGE', mid: 'MIDTOWN', high: 'THE SKYLINE' },
+  // Ticker lines for development ({name}, {zone}). They don't move tier prices.
+  devNews: {
+    build: 'CRANES GO UP IN {zone}',
+    open: 'NOW OPEN: {name}. UNITS LISTED.',
+    demolish: 'WRECKING BALL BOOKED FOR {name}',
+    gone: '{name} IS RUBBLE NOW',
+    renovate: 'PERMITS FILED: {name} GETTING A GLOW-UP',
+    renovated: '{name} UNVEILS ITS GLOW-UP',
+  },
+
   // Units that aren't $cott's are on and off the market. Each month a listing
   // can come down or go up; every tier always has at least one listed. The
-  // trophy is always listed: the goal is the price, not the wait.
-  listings: { start: 0.6, flip: 0.25 },
+  // trophy is always listed: the goal is the price, not the wait. A new
+  // build is listed for its first `fresh` months; one booked for the wrecking
+  // ball comes off the market.
+  listings: { start: 0.6, flip: 0.25, fresh: 3 },
 
   // Every session is checked before it's played (tools/realty.test.mjs): a
   // player who reads the news can reach the trophy with time to spare, while
   // one who buys a starter home and holds it never can. By simulation, a
-  // reader reacting a month after each headline wins around month 30 of 48
-  // (15 at best). One reacting `lateDelay` months late must still win.
+  // reader reacting a month after each headline wins around month 27 of 48
+  // (13 at best). One reacting `lateDelay` months late must still win.
   fair: { readerBy: 0.8, lateDelay: 2, floor: 0.45, tries: 300 },
 
   // Grades follow the minigame contract (CLAUDE.md §6.3), by how early the
@@ -80,8 +108,10 @@ export const REALTY = {
   ],
 };
 
-// Cities. Each has its own buildings (`kinds`, drawn by minigames/realty.js
-// until PixelLab art lands), unit names, prices, and local headlines.
+// Cities. Each has its own buildings, unit names (a random first part plus a
+// second: "KOI POND" + "COTTAGE"), prices, and local headlines. `art` lists
+// PixelLab sprites (tools/realty-art/); a city without it gets drawn
+// stand-ins (ui/buildings.js, by `kind`).
 export const CITIES = [
   {
     id: 'tokyo',
@@ -91,9 +121,26 @@ export const CITIES = [
     ground: 0x2a2438,
     accent: 0xff5c8a,
     tiers: {
-      low: { kind: 'machiya', label: 'VILLAGE HOME', count: 4, price: [80_000, 125_000], names: ["GRANDMA'S MACHIYA", 'RAMEN-SIDE HOUSE', 'SHRINE VIEW COTTAGE', 'TATAMI TINY HOME', 'KOI POND HOUSE'] },
-      mid: { kind: 'apartment', label: 'APARTMENT', count: 3, price: [150_000, 240_000], names: ['CAPSULE LOFTS', 'NEON HEIGHTS', 'VENDING MACHINE VIEWS', 'KARAOKE COURT'] },
-      high: { kind: 'tower', label: 'TOWER', count: 2, price: [280_000, 400_000], names: ['SKY SAMURAI TOWER', 'ROBOT BUTLER RESIDENCES'], trophy: 'NEON SPIRE PENTHOUSE' },
+      low: {
+        kind: 'machiya', label: 'VILLAGE HOME', price: [80_000, 125_000],
+        names: [["GRANDMA'S", 'SHRINE VIEW', 'KOI POND', 'TATAMI', 'LANTERN', 'PERSIMMON', 'CICADA', 'RAMEN-SIDE', 'BONSAI', 'TEAPOT'], ['HOUSE', 'COTTAGE', 'MACHIYA', 'HOME']],
+      },
+      mid: {
+        kind: 'apartment', label: 'APARTMENT', price: [150_000, 240_000],
+        names: [['CAPSULE', 'NEON', 'KARAOKE', 'VENDING', 'SAKURA', 'PACHINKO', 'MANGA', 'BENTO', 'ARCADE', 'GACHA'], ['LOFTS', 'HEIGHTS', 'COURT', 'TERRACE', 'MANSION']],
+      },
+      high: {
+        kind: 'tower', label: 'TOWER', price: [280_000, 400_000], trophy: 'NEON SPIRE PENTHOUSE',
+        names: [['SKY SAMURAI', 'ROBOT BUTLER', 'MEGA', 'CYBER', 'ORBIT', 'HOLO', 'QUANTUM'], ['TOWER', 'RESIDENCES', 'HEIGHTS']],
+      },
+    },
+    // PixelLab art (tools/realty-art/): variants per tier, the trophy, and a construction site.
+    art: {
+      low: ['low_machiya', 'low_noren', 'low_twostory'],
+      mid: ['mid_neon', 'mid_capsule', 'mid_karaoke'],
+      high: ['high_glass', 'high_neon', 'high_block'],
+      trophy: 'trophy_spire',
+      site: 'site_construction',
     },
     headlines: [
       { text: 'TOKYO TO HOST THE ROBOT OLYMPICS', fx: [0, 0.2, 0.35] },
@@ -115,9 +162,18 @@ export const CITIES = [
     ground: 0x3a2a30,
     accent: 0xffb347,
     tiers: {
-      low: { kind: 'bungalow', label: 'BUNGALOW', count: 4, price: [85_000, 130_000], names: ['PALM TREE BUNGALOW', 'TACO TRUCK ADJACENT', 'STUDIO LOT SHACK', 'SMOGVIEW COTTAGE', 'SURFBOARD GARAGE'] },
-      mid: { kind: 'villa', label: 'VILLA', count: 3, price: [150_000, 240_000], names: ['STUCCO VILLA', 'SPANISH TILE DUPLEX', 'POOLSIDE FOURPLEX', 'AGENT HOUSE'] },
-      high: { kind: 'mansion', label: 'MANSION', count: 2, price: [280_000, 400_000], names: ['INFINITY POOL ESTATE', 'GATED GLASS BOX'], trophy: 'HILLTOP MEGA-MANSION' },
+      low: {
+        kind: 'bungalow', label: 'BUNGALOW', price: [85_000, 130_000],
+        names: [['PALM TREE', 'TACO TRUCK', 'STUDIO LOT', 'SMOGVIEW', 'SURFBOARD', 'JUICE BAR', 'AVOCADO', 'CANYON', 'BOARDWALK', 'SUNSET'], ['BUNGALOW', 'COTTAGE', 'SHACK', 'HOUSE']],
+      },
+      mid: {
+        kind: 'villa', label: 'VILLA', price: [150_000, 240_000],
+        names: [['STUCCO', 'SPANISH TILE', 'POOLSIDE', 'AGENT', 'PILATES', 'KOMBUCHA', 'SCREENPLAY', 'VALET', 'HEADSHOT', 'CASTING'], ['VILLA', 'DUPLEX', 'FOURPLEX', 'COURT', 'LOFTS']],
+      },
+      high: {
+        kind: 'mansion', label: 'MANSION', price: [280_000, 400_000], trophy: 'HILLTOP MEGA-MANSION',
+        names: [['INFINITY POOL', 'GATED GLASS', 'PRODUCER', 'CANYON VIEW', 'HELIPAD', 'WINE CAVE', 'SCREENING ROOM'], ['ESTATE', 'MANSION', 'COMPOUND']],
+      },
     },
     headlines: [
       { text: 'STREAMING GIANT GREENLIGHTS 900 SHOWS', fx: [0, 0.3, 0.2] },
@@ -140,9 +196,18 @@ export const CITIES = [
     ground: 0x26302e,
     accent: 0x7cf29c,
     tiers: {
-      low: { kind: 'craftsman', label: 'CRAFTSMAN', count: 4, price: [80_000, 125_000], names: ['MOSSY CRAFTSMAN', 'RAINCOAT COTTAGE', 'GRUNGE GARAGE HOUSE', 'FERRY VIEW FIXER', 'SALMON RUN SHACK'] },
-      mid: { kind: 'condo', label: 'CONDO', count: 3, price: [150_000, 240_000], names: ['DRIZZLE CONDOS', 'LATTE LOFTS', 'TECH BRO TOWNHOMES', 'FLEECE VEST FLATS'] },
-      high: { kind: 'glass', label: 'GLASS TOWER', count: 2, price: [280_000, 400_000], names: ['LAKEFRONT GLASS', 'CLOUD CAMPUS SUITES'], trophy: 'NEEDLE VIEW SKY HOME' },
+      low: {
+        kind: 'craftsman', label: 'CRAFTSMAN', price: [80_000, 125_000],
+        names: [['MOSSY', 'RAINCOAT', 'GRUNGE', 'FERRY VIEW', 'SALMON RUN', 'FLANNEL', 'PUDDLE', 'TOTEM', 'CEDAR', 'FOGHORN'], ['CRAFTSMAN', 'COTTAGE', 'FIXER', 'HOUSE']],
+      },
+      mid: {
+        kind: 'condo', label: 'CONDO', price: [150_000, 240_000],
+        names: [['DRIZZLE', 'LATTE', 'TECH BRO', 'FLEECE VEST', 'KAYAK', 'MICROBREW', 'STARTUP', 'VINYL', 'BIKE LANE', 'PODCAST'], ['CONDOS', 'LOFTS', 'TOWNHOMES', 'FLATS', 'COURT']],
+      },
+      high: {
+        kind: 'glass', label: 'GLASS TOWER', price: [280_000, 400_000], trophy: 'NEEDLE VIEW SKY HOME',
+        names: [['LAKEFRONT', 'CLOUD CAMPUS', 'RAINPROOF', 'SERVER FARM', 'ORCA VIEW', 'STOCK OPTION', 'MOUNTAIN VIEW'], ['GLASS', 'SUITES', 'TOWER']],
+      },
     },
     headlines: [
       { text: 'EVERYTHING-STORE OPENS HQ NUMBER 3', fx: [0, 0.35, 0.2] },

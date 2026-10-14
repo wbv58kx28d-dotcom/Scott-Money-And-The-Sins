@@ -9,7 +9,7 @@ import { REALTY, CITIES, TIERS } from '../src/data/realty.js';
 import { createRng } from '../src/systems/rng.js';
 import {
   generateSession, isFair, holderWins, playReader, createAccount, canBuy, buyUnit, sellUnit, saleProceeds,
-  downPayment, netWorth, gradeFor, readerMoves, price,
+  downPayment, netWorth, gradeFor, readerMoves, price, mapLots, lotState, settle, standingAt, variantAt,
 } from '../src/systems/realty.js';
 
 test('every city deals fair sessions: the news reader wins, buy-and-hold never does', () => {
@@ -105,4 +105,75 @@ test('headlines move tiers both ways, and prices read like listings', () => {
   assert.equal(price(95_000), '$95K');
   assert.equal(price(1_250_000), '$1.25M');
   assert.equal(price(2_000_000), '$2M');
+});
+
+test('the map: a 7×7 grid minus a road cross, zoned by block, the trophy on the back corner', () => {
+  const lots = mapLots();
+  assert.equal(lots.length, 36);
+  const count = (z) => lots.filter((l) => l.zone === z).length;
+  assert.deepEqual([count('low'), count('mid'), count('high')], [9, 18, 9]);
+  const s = generateSession(createRng(12), CITIES[0]);
+  const t = s.units[s.trophy];
+  assert.deepEqual([s.lots[t.lot].i, s.lots[t.lot].j], [0, 0]);
+  for (const u of s.units) assert.equal(s.lots[u.lot].zone, u.tier, `${u.name} stands in its zone`);
+  assert.equal(new Set(s.units.map((u) => u.name)).size, s.units.length, 'names are unique');
+});
+
+test('development: one building per lot at a time; cranes, wrecking balls, and glow-ups behave', () => {
+  for (const city of CITIES) {
+    const rng = createRng(13);
+    for (let n = 0; n < 20; n++) {
+      const s = generateSession(rng, city);
+      for (let m = 0; m <= s.months; m++) {
+        s.lots.forEach((_, lot) => {
+          const here = s.units.filter((u) => u.lot === lot && standingAt(s, u.id, m));
+          assert.ok(here.length <= 1, `${city.id}: lot ${lot} holds ${here.length} units at month ${m}`);
+          const st = lotState(s, lot, m);
+          if (st.site) assert.equal(here.length, 0, 'a crane only stands on an empty lot');
+        });
+      }
+      for (const e of s.dev) {
+        const u = s.units[e.unit];
+        assert.ok(!u.trophy, 'the trophy is never touched');
+        if (e.type === 'build') {
+          assert.equal(u.born, e.at);
+          assert.ok(s.listed[u.id][e.at], 'a new build opens listed');
+          assert.equal(s.prices[u.id][e.at - 1], null, "it isn't standing before it opens");
+        }
+        if (e.type === 'demolish') {
+          assert.equal(u.gone, e.at);
+          assert.equal(s.prices[u.id][e.at], null);
+          for (let m = e.announce; m < e.at; m++) assert.equal(s.listed[u.id][m], false, 'booked for the wrecking ball: off the market');
+        }
+        if (e.type === 'renovate') {
+          assert.ok(u.renos.some((r) => r.month === e.at));
+          assert.ok(variantAt(u, e.at) !== variantAt(u, e.at - 1) || (city.art?.[u.tier]?.length ?? 3) === 1, 'it gets a new look');
+        }
+      }
+      assert.ok(s.dev.length >= 8, `${city.id}: plenty of development (${s.dev.length})`);
+    }
+  }
+});
+
+test("a wrecking ball on $cott's unit buys him out at last month's price, no fee", () => {
+  const rng = createRng(14);
+  let s;
+  let e;
+  for (let n = 0; n < 50 && !e; n++) {
+    s = generateSession(rng, CITIES[0]);
+    e = s.dev.find((d) => d.type === 'demolish');
+  }
+  assert.ok(e, 'found a demolition');
+  const m = e.announce - 1;
+  const acct = createAccount(10_000_000);
+  // Force a purchase the month before it's booked (it may not be listed then).
+  s.listed[e.unit][m] = true;
+  assert.ok(buyUnit(acct, s, e.unit, m));
+  const { loan } = acct.owned.get(e.unit);
+  const before = acct.cash;
+  assert.deepEqual(settle(acct, s, e.at - 1), [], 'nothing happens before the wrecking ball');
+  const out = settle(acct, s, e.at);
+  assert.equal(out.length, 1);
+  assert.equal(acct.cash, before + Math.round(s.prices[e.unit][e.at - 1] - loan));
+  assert.equal(acct.owned.size, 0);
 });

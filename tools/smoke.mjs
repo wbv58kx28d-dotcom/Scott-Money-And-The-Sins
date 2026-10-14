@@ -491,12 +491,12 @@ async function main() {
       await until(() => window.__smm.state().realty?.phase === 'ready');
       await page.screenshot({ path: path.join(SHOTS, '16c-realty-ready.png') });
       await pressButton(['OPEN HOUSE']);
-      await until(() => window.__smm.state().realtyUnits?.some((u) => u.buyable));
-      const home = (await state(page)).realtyUnits.find((u) => u.buyable);
+      await until(() => window.__smm.state().realtyUnits?.some((u) => u.buyable && u.onScreen));
+      const home = (await state(page)).realtyUnits.find((u) => u.buyable && u.onScreen);
       if (!home) failures.push('phone: the property ladder opened with nothing $cott could buy');
       else {
         await tapGame(page, home.x, home.y);
-        await until((id) => window.__smm.state().realty?.selected === id, home.id);
+        await until((id) => window.__smm.state().realty?.selectedUnit === id, home.id);
         await pressButton(['BUY']);
         if (!(await until((id) => window.__smm.state().realty?.owned.includes(id), home.id))) failures.push('phone: BUY on a listed home should buy it');
         await page.screenshot({ path: path.join(SHOTS, '16d-realty-owned.png') });
