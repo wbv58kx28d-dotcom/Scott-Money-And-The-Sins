@@ -3,6 +3,7 @@
 // tuning; the scene only draws it.
 
 // Phone models. $cott starts on the flip phone and buys the upgrade in the shop.
+// (While the phone is a work in progress, SETTINGS can also swap models freely.)
 export const PHONES = {
   flip: { id: 'flip', name: 'FLIP PHONE', cols: 2 },
   smart: { id: 'smart', name: 'SMARTPHONE', cols: 4 },
@@ -28,19 +29,13 @@ export const SHOP = [
   },
 ];
 
-// Stonks: pick a ticker and a stake, watch the price, SELL before it rugs.
-// Each tick the price moves by a random step of up to `vol` (a fraction),
-// plus `drift`; each tick there's a `rug` chance it crashes by `rugDrop`.
-export const STOCKS = [
-  { id: 'HODL', name: 'HODL INDEX', vol: 0.025, drift: 0.004, rug: 0, rugDrop: 0 },
-  { id: 'APE', name: 'APE COIN', vol: 0.06, drift: 0.006, rug: 0.008, rugDrop: 0.5 },
-  { id: 'MOON', name: 'MOONSHOT', vol: 0.12, drift: 0.012, rug: 0.02, rugDrop: 0.8 },
-];
-
+// Stonks: stake some of $cott's cash on a day trade (minigames/trade.js, the
+// same game as Bagholder Brad's challenge). The trade starts with the stake,
+// and whatever the account is worth at the closing bell comes back as cash.
 export const ECONOMY = {
   startCash: 500,
   stakes: [100, 250, 500], // what a trade can put in (if $cott has it)
   tradesPerFight: 3, // trades refill after every fight, so the market can't be farmed forever
-  tickMs: 160, // how often the price moves
-  maxTicks: 75, // the market closes itself after this many ticks (~12 s)
+  // A ticker is picked at random for each trade. Parody only.
+  tickers: ['$APE', '$MOON', '$HODL', '$YOLO', '$BAGS', '$DOGE2', '$LAMBO', '$RUG'],
 };

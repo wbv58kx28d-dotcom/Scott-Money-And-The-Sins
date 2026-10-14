@@ -214,6 +214,7 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - Flow: Title → map → tap a region → ENTER → walk the region to its villain (§6.6) → fight → back to the map. A region without a walkable map yet goes straight to its fight. Regions open by tier (§2): locked ones are fogged, open ones glow, cleared ones get a check. Clearing a region lifts the fog off whatever it opened and extends the dashed route. An open region without a villain file shows "coming soon".
 - $cott's gold coin token stands on the last region he entered.
 - Progress saves in `localStorage` (cleared regions, recruited Sins and levels, quests, token position). Clearing a region recruits its Sin at level 1.
+- **Title screen:** with progress saved, it offers **CONTINUE** or **START FRESH** (a second tap confirms, then the save is wiped). A new player just sees TAP TO START. Debug: `&title=1` shows the title even in debug mode.
 - Not built yet: side-quest stops inside regions.
 
 ### 6.6 Walkable regions (built)
@@ -229,15 +230,16 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 
 ### 6.7 $cott's phone (built)
 - A **PHONE** button (top-right in regions, top-left on the overworld map) opens $cott's phone over the game, which pauses underneath. It's the in-game menu: it replaced the region's MAP button and the map's SND button.
-- **Apps** (`src/data/phone.js`): **MAP** (out to the overworld), **STONKS** (trade for cash), **SHOP** (spend it), **SETTINGS** (sound, reset progress, version). More apps go in the same list.
-- **Two models.** $cott starts on a **flip phone**: a green LCD with pixel-font lettering, a 2×2 icon grid, and a keypad whose right soft key is BACK and red key hangs up; its Stonks shows only the price and an arrow. The shop sells the **smartphone** ($2,500): wallpaper, status bar, a cash widget, a 4-column grid of app tiles, a home bar, and a live chart in Stonks.
-- **Money:** $cott starts with $500. Winning a fight pays the villain's `reward` (Derek: $1,000 on the first clear, $150 for a rematch). **Stonks:** pick a ticker (HODL is safe, APE spicy, MOON degenerate), stake $100/$250/$500, and SELL before the market closes (about 12 s) or the ticker gets rugged. Prices drift slightly upward on average. Each fight refills **3 trades**, so the market can't be farmed forever.
+- **Apps** (`src/data/phone.js`): **MAP** (out to the overworld), **STONKS** (stake cash on the day trade), **SHOP** (spend it), **SETTINGS** (sound, reset progress, version, and for now a **phone toggle**: TRY SMARTPHONE / TRY FLIP PHONE swaps models for free while the phone is a work in progress; take it out before release). More apps go in the same list.
+- **Two models.** $cott starts on a **flip phone**: a green LCD with pixel-font lettering, a 2×2 icon grid, and a keypad whose right soft key is BACK and red key hangs up. The shop sells the **smartphone** ($2,500): wallpaper, status bar, a cash widget, a 4-column grid of app tiles, and a home bar.
+- **Money:** $cott starts with $500. Winning a fight pays the villain's `reward` (Derek: $1,000 on the first clear, $150 for a rematch). **Stonks:** stake $100/$250/$500 on **$cott's day trade** (§6.8) under a random parody ticker. The trade opens with the stake as its cash, and whatever it's worth at the closing bell comes back. The phone steps aside while the trade plays full-screen, then shows the profit or loss. Each fight refills **3 trades**, so the market can't be farmed forever.
 - **Shop:** Cold Brew $150, Hype Man Voicemail $300 (they stack in the stash, §5.8), and the smartphone.
 - Saved with the rest of the progress: cash, phone model, stash, trades left. Debug flags: `&cash=5000`, `&phone=smart`.
-- Code: `scenes/PhoneScene.js` (both bodies, the home screens, the apps), `systems/stonks.js` (market math), `ui/phoneIcons.js` (pixel app icons).
+- **Art (PixelLab):** both phone bodies come from `create_ui_asset` with a layout template of the screen and keys, so the art lands where the code expects it. Also from PixelLab: the flip phone's 2-tone LCD icons (palette-locked to the LCD), the smartphone's app tiles, and its synthwave wallpaper. Sources live in `tools/phone-art/src/`; `tools/phone-art/build.py` crops and scales them into `assets/phone/` (bodies at 2×, LCD icons at 3×, tiles at 2×), lifts the flip phone's glass glare into an overlay drawn over the LCD, and lays the wallpaper into the smartphone's glass (a gold-framed slab). The screen and key rects in `PhoneScene.js` were measured from the art; if art is missing, a drawn stand-in uses the same rects.
+- Code: `scenes/PhoneScene.js` (both bodies, the home screens, the apps),  `ui/phoneIcons.js` (fallback pixel icons).
 
 ### 6.8 $cott's day trade (built)
-$cott's own minigame, not a Sin's, and separate from the phone's Stonks app (§6.7): Stonks is a quick bet for cash, this is a skill game played for a challenge. It follows the §6.3 contract (`src/minigames/trade.js`, an overlay scene), so the parley and side quests can use it too.
+$cott's own minigame, not a Sin's. It's played for Bagholder Brad's challenge and, with real cash at stake, in the phone's Stonks app (§6.7); its result includes the account's final `value` for that. It follows the §6.3 contract (`src/minigames/trade.js`, an overlay scene), so the parley and side quests can use it too.
 - A live price chart draws across the screen for **24 seconds**. One big button flips between **BUY** (all in at the current price) and **SELL** (cash out). Whatever's still held at the **closing bell** is sold.
 - **Goal:** finish up **25%** or better. Grades: under the goal is *fail* ("PAPER LOSSES"), the goal is *pass*, 2× the goal is *great* ("TENDIES!"), 4× is *legendary* ("TO THE MOON!").
 - The price swings in legs that alternate up and down. Some legs are **news**: a BREAKING headline (parody only) shows about 0.6 s before a sharp move, so reading the news pays.
@@ -356,5 +358,7 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **Regions have a minimal joystick** (bottom-right) and a **TALK button** beside it, alongside tap-to-walk, since far taps are hard to reach one-handed in portrait. Sign lettering is pixel-font art on the 2 px grid, so it doesn't shimmer while the camera moves (§6.6).
 - **The title screen shows the version** (`src/version.js`), bumped with every change to `main`, so players can tell whether they're on the latest build or a cached copy (§7). v0.5.0 is the first.
 - **$cott's phone is the in-game menu** (§6.7): MAP, STONKS, SHOP, and SETTINGS apps. He starts on a flip phone and buys the smartphone upgrade in the shop. Cash comes from fight rewards and Stonks trades (3 per fight) and buys battle items.
+- **Stonks plays the day trade** (§6.8) with real cash at stake, replacing the placeholder ticker bet. While the phone is in progress, SETTINGS has a toggle to swap models (§6.7).
+- **The title screen asks CONTINUE or START FRESH** when there's a save (§6.5).
 - **$cott has his own day-trading minigame** (§6.8): buy and sell as a live stock chart swings, finish up 25% by the closing bell. Bagholder Brad's challenge became this trade ("teach Brad to sell") instead of a beat tap; Chad keeps the beat challenge.
 - **Tall ribbon shapes stand upright.** Slanted edges looked odd on tall cards (the trade chart, the battle HUD cards), so anything over 140 px tall drops the lean (§8.2).

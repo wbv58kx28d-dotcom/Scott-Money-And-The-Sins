@@ -1,47 +1,55 @@
 // $cott's phone: the in-game menu (CLAUDE.md §6.7). It opens over a region or
 // the overworld map, which pause underneath, and holds the apps in
-// data/phone.js: MAP, STONKS (trade for cash), SHOP (spend it), SETTINGS.
+// data/phone.js: MAP, STONKS (stake cash on $cott's day trade,
+// minigames/trade.js), SHOP (spend it), SETTINGS.
 //
 // $cott starts on a flip phone: a green LCD with chunky pixel lettering
 // (ui/pixelFont.js), a 2×2 icon grid, and a keypad whose right soft key goes
 // back and whose red key hangs up. The SHOP sells the smartphone upgrade:
 // wallpaper, a status bar, a cash widget, and a 4-column grid of app tiles.
 // Each model draws its own body and widgets; the apps are written once against
-// small helpers (text, button) that draw in the current model's style.
+// small helpers (text, button) that draw in the current model's style. While
+// the phone is a work in progress, SETTINGS can swap models for testing.
 
 import { GAME_W, GAME_H } from '../config.js';
-import { PHONES, APPS, SHOP, STOCKS, ECONOMY } from '../data/phone.js';
+import { PHONES, APPS, SHOP, ECONOMY } from '../data/phone.js';
+import { TRADE } from '../data/trade.js';
 import { ITEMS } from '../data/items.js';
 import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { rng } from '../systems/rng.js';
-import { createMarket, payout, changeLabel, money } from '../systems/stonks.js';
+import { money, pct } from '../systems/market.js';
+import trade from '../minigames/trade.js';
 import { VERSION } from '../version.js';
 import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
-import { pixelIcon, ICON_SIZE } from '../ui/phoneIcons.js';
+import { pixelIcon } from '../ui/phoneIcons.js';
 import { label, body, fitWidth } from '../ui/text.js';
+import { PHONE_ART } from '../data/assets.js';
 
-// Flip phone: a silver clamshell, opened. The LCD is drawn on a 4 px grid.
+// Flip phone: a silver clamshell, opened (assets/phone/flip_body.png, PixelLab art
+// drawn at 2×; tools/phone-art/build.py). Every rect below was measured from the art,
+// and the drawn stand-in uses the same ones, so the LCD and keys line up either way.
 const FLIP = {
-  lid: { x: 170, y: 110, w: 380, h: 540 },
-  lcd: { x: 212, y: 166, w: 296, h: 404 },
-  base: { x: 170, y: 668, w: 380, h: 520 },
-  content: { x: 224, y: 206, w: 272, h: 324 }, // inside the LCD, between status and soft-key rows
-  softKeys: { y: 718, w: 104, h: 40, left: 226, right: 390 },
+  body: { x: 168, y: 40, w: 384, h: 1200 },
+  lcd: { x: 234, y: 168, w: 252, h: 336 }, // the glass
+  content: { x: 242, y: 196, w: 236, h: 282 }, // inside the LCD, between status and soft-key rows
+  backKey: { x: 422, y: 690, w: 90, h: 56 }, // right soft key
+  endKey: { x: 414, y: 810, w: 86, h: 64 }, // red key
   colors: { lcd: 0xb6c6a2, ink: '#1d2b1a', mid: '#5f7a55', light: '#b6c6a2', inkHex: 0x1d2b1a, midHex: 0x5f7a55 },
 };
-// Smartphone: black slab, edge-to-edge screen.
+// Smartphone: PixelLab's gold-framed slab (assets/phone/smart_body.png), with
+// the wallpaper already in its glass. `screen` is that glass, measured from the
+// art (tools/phone-art/build.py prints it).
 const SMART = {
-  body: { x: 126, y: 84, w: 468, h: 1112 },
-  screen: { x: 142, y: 100, w: 436, h: 1080 },
-  content: { x: 162, y: 168, w: 396, h: 960 },
-  homeBar: { y: 1162, w: 150 },
+  body: { x: 108, y: 84, w: 504, h: 1112 },
+  screen: { x: 148, y: 110, w: 422, h: 1054 },
+  content: { x: 168, y: 168, w: 384, h: 960 },
+  homeBar: { y: 1146, w: 150 },
 };
 // Text sizes per model: flip = px per font pixel; smart = Press Start / VT323 px.
-const FLIP_PX = { s: 2, m: 3, l: 4, xl: 6 };
+const FLIP_PX = { s: 2, m: 3, l: 4, xl: 5 };
 const SMART_LABEL = { s: 12, m: 16, l: 22, xl: 34 };
 const SMART_BODY = { s: 24, m: 30, l: 36, xl: 48 };
-const STOCK_MOOD = { HODL: 'SAFE', APE: 'SPICY', MOON: 'DEGEN' };
 
 export default class PhoneScene extends Phaser.Scene {
   constructor() {
@@ -57,8 +65,7 @@ export default class PhoneScene extends Phaser.Scene {
     this.targets = [];
     this.chrome = [];
     this.page = 'home';
-    this.market = null;
-    this.marketTimer = null;
+    this.trading = false;
     this.root = null;
     this.closing = false;
     this.resetArmed = false;
@@ -79,7 +86,7 @@ export default class PhoneScene extends Phaser.Scene {
   }
 
   inBody(x, y) {
-    const r = this.flip ? { x: FLIP.lid.x, y: FLIP.lid.y, w: FLIP.lid.w, h: FLIP.base.y + FLIP.base.h - FLIP.lid.y } : SMART.body;
+    const r = this.flip ? FLIP.body : SMART.body;
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
@@ -92,6 +99,10 @@ export default class PhoneScene extends Phaser.Scene {
     else this.drawSmart();
     this.pageLayer = this.add.container(0, 0);
     this.root.add(this.pageLayer);
+    // The glass's glare sits over whatever the LCD shows.
+    if (this.flip && this.textures.exists('phone_flip_glare')) {
+      this.root.add(this.add.image(FLIP.body.x, FLIP.body.y, 'phone_flip_glare').setOrigin(0).setAlpha(0.3));
+    }
     this.home();
     if (slideIn) {
       this.root.y = GAME_H;
@@ -103,7 +114,6 @@ export default class PhoneScene extends Phaser.Scene {
   close() {
     if (this.closing) return;
     this.closing = true;
-    this.stopMarket();
     this.tweens.add({
       targets: this.root, y: GAME_H, duration: 200, ease: 'Quad.easeIn',
       onComplete: () => {
@@ -115,60 +125,78 @@ export default class PhoneScene extends Phaser.Scene {
 
   // ---- Bodies ----------------------------------------------------------------------
 
+  preload() {
+    for (const { key, path } of PHONE_ART) if (path && !this.textures.exists(key)) this.load.image(key, path);
+  }
+
   drawFlip() {
-    const { lid, lcd, base, softKeys, colors } = FLIP;
-    const g = this.add.graphics();
-    this.root.add(g);
-    const shell = (r) => {
-      g.fillStyle(0x4a4e58, 1).fillRoundedRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 44);
-      g.fillStyle(0xb9bdc7, 1).fillRoundedRect(r.x, r.y, r.w, r.h, 40);
-      g.fillStyle(0xd7dae2, 1).fillRoundedRect(r.x + 10, r.y + 8, r.w - 20, 18, 9); // highlight
-    };
-    shell(lid);
-    shell(base);
-    // Hinge.
-    g.fillStyle(0x6e737e, 1).fillRoundedRect(lid.x + 40, lid.y + lid.h - 4, lid.w - 80, base.y - lid.y - lid.h + 8, 10);
-    // Bezel and LCD.
-    g.fillStyle(0x23262d, 1).fillRoundedRect(lcd.x - 14, lcd.y - 18, lcd.w + 28, lcd.h + 36, 16);
-    g.fillStyle(colors.lcd, 1).fillRect(lcd.x, lcd.y, lcd.w, lcd.h);
-    // Earpiece.
-    g.fillStyle(0x4a4e58, 1).fillRoundedRect(lid.x + lid.w / 2 - 40, lid.y + 30, 80, 8, 4);
-
-    // Soft keys, d-pad, call and end keys, keypad.
-    const key = (x, y, w, h, fill = 0xe6e8ee) => {
-      g.fillStyle(0x6e737e, 1).fillRoundedRect(x - 2, y - 2, w + 4, h + 4, 12);
-      g.fillStyle(fill, 1).fillRoundedRect(x, y, w, h, 10);
-    };
-    key(softKeys.left, softKeys.y, softKeys.w, softKeys.h);
-    key(softKeys.right, softKeys.y, softKeys.w, softKeys.h);
-    g.fillStyle(0x6e737e, 1).fillCircle(GAME_W / 2, softKeys.y + 50, 38);
-    g.fillStyle(0xe6e8ee, 1).fillCircle(GAME_W / 2, softKeys.y + 50, 34);
-    g.fillStyle(0x9aa0ab, 1).fillCircle(GAME_W / 2, softKeys.y + 50, 14);
-    key(softKeys.left, softKeys.y + 60, softKeys.w, softKeys.h, 0x7ccf6a); // call
-    key(softKeys.right, softKeys.y + 60, softKeys.w, softKeys.h, 0xe2574c); // end
-    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
-    keys.forEach((k, i) => {
-      const x = 222 + (i % 3) * 96;
-      const y = 848 + Math.floor(i / 3) * 76;
-      key(x, y, 84, 60);
-      this.root.add(pixelText(this, Math.round(x + 42 - pixelTextWidth(k, 4) / 2), y + 20, k, { px: 4, color: '#3a3e48' }));
-    });
-
+    const { body, lcd, backKey, endKey, colors } = FLIP;
+    if (this.textures.exists('phone_flip')) {
+      this.root.add(this.add.image(body.x, body.y, 'phone_flip').setOrigin(0));
+    } else {
+      this.drawFlipStandIn();
+    }
+    // The LCD itself: the game's screen goes over the art's glass.
+    this.root.add(this.add.rectangle(lcd.x, lcd.y, lcd.w, lcd.h, colors.lcd).setOrigin(0));
     // Working keys: right soft key = back, red key = hang up. Their labels sit on the LCD's bottom row.
-    this.chromeTap(softKeys.right, softKeys.y, softKeys.w, softKeys.h, 'BACK', () => this.back());
-    this.chromeTap(softKeys.right, softKeys.y + 60, softKeys.w, softKeys.h, 'END', () => this.close());
+    this.chromeTap(backKey.x, backKey.y, backKey.w, backKey.h, 'BACK', () => this.back());
+    this.chromeTap(endKey.x, endKey.y, endKey.w, endKey.h, 'END', () => this.close());
     this.statusRow = this.add.container(0, 0);
     this.root.add(this.statusRow);
     this.refreshStatus();
   }
 
+  /** A drawn flip phone in the art's layout, in case assets/phone/flip_body.png is missing. */
+  drawFlipStandIn() {
+    const { body, lcd, backKey, endKey } = FLIP;
+    const g = this.add.graphics();
+    this.root.add(g);
+    const lidH = lcd.y + lcd.h + 80 - body.y;
+    const shell = (y, h) => {
+      g.fillStyle(0x4a4e58, 1).fillRoundedRect(body.x, y, body.w, h, 44);
+      g.fillStyle(0xb9bdc7, 1).fillRoundedRect(body.x + 4, y + 4, body.w - 8, h - 8, 40);
+    };
+    shell(body.y, lidH);
+    shell(body.y + lidH + 24, body.h - lidH - 24);
+    g.fillStyle(0x23262d, 1).fillRoundedRect(lcd.x - 16, lcd.y - 16, lcd.w + 32, lcd.h + 32, 14);
+    const key = (r, fill = 0xe6e8ee) => {
+      g.fillStyle(0x6e737e, 1).fillRoundedRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 12);
+      g.fillStyle(fill, 1).fillRoundedRect(r.x, r.y, r.w, r.h, 10);
+    };
+    const mirror = (r) => ({ ...r, x: body.x + body.w - (r.x - body.x) - r.w });
+    key(backKey);
+    key(mirror(backKey));
+    key(endKey, 0xe2574c);
+    key(mirror(endKey), 0x7ccf6a);
+    g.fillStyle(0xe6e8ee, 1).fillCircle(GAME_W / 2, backKey.y + 60, 34);
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].forEach((k, i) => {
+      const r = { x: 222 + (i % 3) * 96, y: 904 + Math.floor(i / 3) * 76, w: 84, h: 58 };
+      key(r);
+      this.root.add(pixelText(this, Math.round(r.x + 42 - pixelTextWidth(k, 4) / 2), r.y + 19, k, { px: 4, color: '#3a3e48' }));
+    });
+  }
+
   drawSmart() {
-    const { body: b, screen: s, homeBar } = SMART;
+    const { body: b, homeBar } = SMART;
+    if (this.textures.exists('phone_smart')) this.root.add(this.add.image(b.x, b.y, 'phone_smart').setOrigin(0));
+    else this.drawSmartStandIn();
+    const g = this.add.graphics();
+    this.root.add(g);
+    // Home bar: in an app it goes home; on the home screen it puts the phone away.
+    g.fillStyle(0xffffff, 0.75).fillRoundedRect(GAME_W / 2 - homeBar.w / 2, homeBar.y, homeBar.w, 8, 4);
+    this.chromeTap(GAME_W / 2 - 120, homeBar.y - 22, 240, 44, 'HOME', () => (this.page === 'home' ? this.close() : this.home()));
+    this.statusRow = this.add.container(0, 0);
+    this.root.add(this.statusRow);
+    this.refreshStatus();
+  }
+
+  /** A drawn smartphone, for when its art is missing: a slab with a sunset in bands. */
+  drawSmartStandIn() {
+    const { body: b, screen: s } = SMART;
     const g = this.add.graphics();
     this.root.add(g);
     g.fillStyle(0x2b2b36, 1).fillRoundedRect(b.x - 4, b.y - 4, b.w + 8, b.h + 8, 64);
     g.fillStyle(0x0c0c12, 1).fillRoundedRect(b.x, b.y, b.w, b.h, 60);
-    // Wallpaper: a purple-to-pink sunset in bands.
     const bands = 24;
     const top = Phaser.Display.Color.ValueToColor(0x1d0f3a);
     const bottom = Phaser.Display.Color.ValueToColor(0x8a2a5c);
@@ -181,13 +209,7 @@ export default class PhoneScene extends Phaser.Scene {
     // Round the screen's corners by painting the body color back over them.
     g.lineStyle(28, 0x0c0c12, 1).strokeRoundedRect(s.x - 12, s.y - 12, s.w + 24, s.h + 24, 56);
     // The camera pill.
-    g.fillStyle(0x000000, 1).fillRoundedRect(GAME_W / 2 - 60, s.y + 14, 120, 32, 16);
-    // Home bar: in an app it goes home; on the home screen it puts the phone away.
-    g.fillStyle(0xffffff, 0.75).fillRoundedRect(GAME_W / 2 - homeBar.w / 2, homeBar.y, homeBar.w, 8, 4);
-    this.chromeTap(GAME_W / 2 - 120, homeBar.y - 22, 240, 44, 'HOME', () => (this.page === 'home' ? this.close() : this.home()));
-    this.statusRow = this.add.container(0, 0);
-    this.root.add(this.statusRow);
-    this.refreshStatus();
+    g.fillStyle(0x000000, 1).fillRoundedRect(GAME_W / 2 - 50, s.y + 10, 100, 28, 14);
   }
 
   /** The status row: cash on both models, plus a clock and battery on the smartphone. */
@@ -196,15 +218,15 @@ export default class PhoneScene extends Phaser.Scene {
     if (this.flip) {
       const { lcd, colors } = FLIP;
       const cash = money(Save.cash);
-      this.statusRow.add(pixelText(this, lcd.x + 10, lcd.y + 10, cash, { px: 3, color: colors.ink }));
+      this.statusRow.add(pixelText(this, lcd.x + 8, lcd.y + 6, cash, { px: 2, color: colors.ink }));
       // Signal bars.
       const g = this.add.graphics().fillStyle(colors.inkHex, 1);
-      for (let i = 0; i < 4; i++) g.fillRect(lcd.x + lcd.w - 46 + i * 9, lcd.y + 24 - i * 4, 6, 4 + i * 4);
-      g.fillRect(lcd.x + 6, lcd.y + 30, lcd.w - 12, 2);
-      g.fillRect(lcd.x + 6, lcd.y + lcd.h - 38, lcd.w - 12, 2);
+      for (let i = 0; i < 4; i++) g.fillRect(lcd.x + lcd.w - 36 + i * 7, lcd.y + 14 - i * 3, 4, 3 + i * 3);
+      g.fillRect(lcd.x + 4, lcd.y + 22, lcd.w - 8, 2);
+      g.fillRect(lcd.x + 4, lcd.y + lcd.h - 24, lcd.w - 8, 2);
       this.statusRow.add(g);
       const backLabel = this.page === 'home' ? 'EXIT' : 'BACK';
-      this.statusRow.add(pixelText(this, lcd.x + lcd.w - 10 - pixelTextWidth(backLabel, 3), lcd.y + lcd.h - 26, backLabel, { px: 3, color: colors.ink }));
+      this.statusRow.add(pixelText(this, lcd.x + lcd.w - 8 - pixelTextWidth(backLabel, 2), lcd.y + lcd.h - 16, backLabel, { px: 2, color: colors.ink }));
     } else {
       const s = SMART.screen;
       this.statusRow.add(label(this, s.x + 34, s.y + 22, '9:41', 14, { strokeThickness: 0 }));
@@ -228,7 +250,6 @@ export default class PhoneScene extends Phaser.Scene {
   // ---- Page helpers ------------------------------------------------------------------
 
   clearPage(page) {
-    this.stopMarket();
     if (page !== 'settings') this.resetArmed = false;
     this.page = page;
     this.pageLayer.removeAll(true);
@@ -267,9 +288,9 @@ export default class PhoneScene extends Phaser.Scene {
     }
     this.pageLayer.add(g);
     const color = this.flip ? (enabled ? FLIP.colors.ink : FLIP.colors.mid) : enabled ? '#ffffff' : '#8f88a8';
-    const ty = sub ? y + h / 2 - (this.flip ? 17 : 16) : y + h / 2 - (this.flip ? 7 : 8);
+    const ty = sub ? y + h / 2 - (this.flip ? 16 : 16) : y + h / 2 - (this.flip ? 7 : 8);
     this.text(x + w / 2, ty, str, { size: 'm', color, align: 'center', maxW: w - 16 });
-    if (sub) this.text(x + w / 2, y + h / 2 + (this.flip ? 6 : 4), sub, { size: 's', color, align: 'center', font: 'body', maxW: w - 16 });
+    if (sub) this.text(x + w / 2, y + h / 2 + (this.flip ? 5 : 4), sub, { size: 's', color, align: 'center', font: 'body', maxW: w - 16 });
     const zone = this.add.zone(x, y, w, h).setOrigin(0).setInteractive();
     zone.on('pointerdown', () => {
       if (!enabled) return;
@@ -304,8 +325,7 @@ export default class PhoneScene extends Phaser.Scene {
 
   back() {
     if (this.page === 'home') return this.close();
-    if (this.page === 'stonks-live') return this.sell('SOLD');
-    if (this.page === 'stonks-stake' || this.page === 'stonks-result') return this.stonks();
+    if (this.page === 'stonks-result') return this.stonks();
     this.home();
   }
 
@@ -318,13 +338,17 @@ export default class PhoneScene extends Phaser.Scene {
       const c = FLIP.content;
       this.text(c.x + c.w / 2, c.y, 'MENU', { size: 'l', align: 'center' });
       const cols = PHONES.flip.cols;
-      const cell = { w: c.w / cols, h: 140 };
+      const cell = { w: c.w / cols, h: 124 };
       apps.forEach((app, i) => {
         const cx = c.x + (i % cols) * cell.w + cell.w / 2;
-        const top = c.y + 44 + Math.floor(i / cols) * cell.h;
-        const px = 6;
-        this.pageLayer.add(pixelIcon(this, Math.round(cx - (ICON_SIZE * px) / 2), top + 10, app.icon, { px, color: FLIP.colors.ink }));
-        this.text(cx, top + 10 + ICON_SIZE * px + 14, app.name, { size: 'm', align: 'center', maxW: cell.w - 8 });
+        const top = c.y + 30 + Math.floor(i / cols) * cell.h;
+        const icon = `phone_icon_flip_${app.id}`;
+        if (this.textures.exists(icon)) {
+          this.pageLayer.add(this.add.image(Math.round(cx - 24), top + 8, icon).setOrigin(0));
+        } else {
+          this.pageLayer.add(pixelIcon(this, Math.round(cx - 22), top + 10, app.icon, { px: 5, color: FLIP.colors.ink }));
+        }
+        this.text(cx, top + 66, app.name, { size: 'm', align: 'center', maxW: cell.w - 8 });
         this.appTap(app, cx - cell.w / 2 + 4, top, cell.w - 8, cell.h - 6);
       });
     } else {
@@ -337,17 +361,20 @@ export default class PhoneScene extends Phaser.Scene {
       this.text(c.x + 26, c.y + 104, `STONKS TRADES LEFT ${Save.trades}/${ECONOMY.tradesPerFight}`, { size: 's', color: '#e2d9ff' });
       const cols = PHONES.smart.cols;
       const pitch = c.w / cols;
-      const tile = 84;
+      const tile = 64; // the PixelLab tiles are 32 art px at 2×
       apps.forEach((app, i) => {
         const cx = c.x + (i % cols) * pitch + pitch / 2;
-        const top = c.y + 190 + Math.floor(i / cols) * 150;
-        const t = this.add.graphics();
-        t.fillStyle(0x000000, 0.35).fillRoundedRect(cx - tile / 2 + 3, top + 5, tile, tile, 22);
-        t.fillStyle(app.color, 1).fillRoundedRect(cx - tile / 2, top, tile, tile, 22);
-        t.fillStyle(0xffffff, 0.18).fillRoundedRect(cx - tile / 2, top, tile, tile / 2, { tl: 22, tr: 22, bl: 0, br: 0 });
-        this.pageLayer.add(t);
-        const px = 5;
-        this.pageLayer.add(pixelIcon(this, Math.round(cx - (ICON_SIZE * px) / 2), Math.round(top + tile / 2 - (ICON_SIZE * px) / 2), app.icon, { px, color: '#ffffff' }));
+        const top = c.y + 190 + Math.floor(i / cols) * 130;
+        const icon = `phone_icon_smart_${app.id}`;
+        if (this.textures.exists(icon)) {
+          this.pageLayer.add(this.add.image(Math.round(cx - tile / 2), top, icon).setOrigin(0));
+        } else {
+          const t = this.add.graphics();
+          t.fillStyle(0x000000, 0.35).fillRoundedRect(cx - tile / 2 + 3, top + 5, tile, tile, 18);
+          t.fillStyle(app.color, 1).fillRoundedRect(cx - tile / 2, top, tile, tile, 18);
+          this.pageLayer.add(t);
+          this.pageLayer.add(pixelIcon(this, Math.round(cx - 18), Math.round(top + tile / 2 - 18), app.icon, { px: 4, color: '#ffffff' }));
+        }
         this.text(cx, top + tile + 10, app.name, { size: 's', align: 'center', font: 'body' });
         this.appTap(app, cx - pitch / 2 + 6, top - 6, pitch - 12, tile + 44);
       });
@@ -375,19 +402,20 @@ export default class PhoneScene extends Phaser.Scene {
   /** From a region, head out to the overworld map; on the map already, just put the phone away. */
   openMap() {
     if (this.from !== 'Region') return this.close();
-    this.stopMarket();
     this.scene.stop('Region');
     this.scene.start('Overworld');
   }
 
   // ---- STONKS ---------------------------------------------------------------------------
+  // Stake some cash on $cott's day trade (minigames/trade.js). The phone steps
+  // aside while it plays, then shows what came back.
 
   stonks() {
     this.clearPage('stonks');
     const c = this.flip ? FLIP.content : SMART.content;
     const accent = APPS.find((a) => a.id === 'stonks').color;
     this.header('STONKS', accent);
-    const top = c.y + (this.flip ? 40 : 90);
+    const top = c.y + (this.flip ? 28 : 90);
     this.text(c.x + c.w / 2, top, `TRADES LEFT ${Save.trades}/${ECONOMY.tradesPerFight}`, { size: 's', align: 'center', font: 'body' });
     if (Save.trades <= 0) {
       this.text(c.x + c.w / 2, top + 50, 'MARKET CLOSED', { size: 'm', align: 'center' });
@@ -398,126 +426,63 @@ export default class PhoneScene extends Phaser.Scene {
       this.text(c.x + c.w / 2, top + 50, 'TOO BROKE TO TRADE', { size: 'm', align: 'center', maxW: c.w });
       return;
     }
-    this.text(c.x + c.w / 2, top + (this.flip ? 26 : 50), 'PICK A TICKER', { size: 'm', align: 'center' });
-    const rowH = this.flip ? 68 : 120;
-    STOCKS.forEach((stock, i) => {
-      const y = top + (this.flip ? 56 : 100) + i * (rowH + (this.flip ? 6 : 16));
-      this.button(c.x, y, c.w, rowH, `$${stock.id}`, () => this.pickStake(stock), { accent, sub: `${stock.name} - ${STOCK_MOOD[stock.id] ?? ''}` });
-    });
-  }
-
-  pickStake(stock) {
-    this.clearPage('stonks-stake');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'stonks').color;
-    this.header(`$${stock.id}`, accent);
-    const top = c.y + (this.flip ? 44 : 100);
-    this.text(c.x + c.w / 2, top, 'HOW MUCH?', { size: 'm', align: 'center' });
-    const rowH = this.flip ? 66 : 110;
+    this.text(c.x + c.w / 2, top + (this.flip ? 16 : 50), this.flip ? 'STAKE?' : 'HOW MUCH GOES IN?', { size: 'm', align: 'center' });
+    const rowH = this.flip ? 58 : 110;
+    const first = top + (this.flip ? 38 : 100);
     ECONOMY.stakes.forEach((stake, i) => {
-      const y = top + (this.flip ? 30 : 60) + i * (rowH + (this.flip ? 6 : 16));
-      this.button(c.x, y, c.w, rowH, money(stake), () => this.trade(stock, stake), { enabled: Save.cash >= stake, accent });
+      const y = first + i * (rowH + (this.flip ? 6 : 16));
+      this.button(c.x, y, c.w, rowH, money(stake), () => this.trade(stake), { enabled: Save.cash >= stake, accent });
     });
+    if (!this.flip) {
+      const y = first + ECONOMY.stakes.length * (rowH + 16) + 20;
+      ['BUY goes all in. SELL cashes out.', `${TRADE.seconds} seconds to the closing bell.`, 'Whatever the trade is worth then is yours.'].forEach((line, i) => {
+        this.text(c.x + c.w / 2, y + i * 34, line, { size: 's', align: 'center', font: 'body', color: '#e2d9ff', maxW: c.w });
+      });
+    }
   }
 
-  trade(stock, stake) {
-    if (Save.trades <= 0 || Save.cash < stake) return this.stonks();
+  async trade(stake) {
+    if (this.trading || Save.trades <= 0 || Save.cash < stake) return;
     Save.useTrade();
     Save.spend(stake);
-    this.clearPage('stonks-live');
-    this.market = createMarket(stock, rng);
-    this.stake = stake;
-    this.ticks = 0;
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'stonks').color;
-    this.header(`$${stock.id}`, accent);
-    this.liveTop = c.y + (this.flip ? 44 : 100);
-    this.liveLayer = this.add.container(0, 0);
-    this.pageLayer.add(this.liveLayer);
-    const btnH = this.flip ? 70 : 120;
-    this.button(c.x, c.y + c.h - btnH - (this.flip ? 0 : 60), c.w, btnH, 'SELL', () => this.sell('SOLD'), { accent: 0x2ea043 });
-    this.drawLive();
-    this.marketTimer = this.time.addEvent({
-      delay: ECONOMY.tickMs,
-      loop: true,
-      callback: () => {
-        this.market.tick();
-        this.ticks += 1;
-        if (this.market.rugged) return this.sell('RUGGED!');
-        if (this.ticks >= ECONOMY.maxTicks) return this.sell('MARKET CLOSED');
-        this.drawLive();
-      },
-    });
-  }
-
-  /** The live ticker: the flip phone shows numbers and an arrow; the smartphone adds a chart. */
-  drawLive() {
-    const { market, stake } = this;
-    const c = this.flip ? FLIP.content : SMART.content;
-    const up = market.price >= 1;
-    this.liveLayer.removeAll(true);
-    const add = (o) => {
-      this.pageLayer.remove(o);
-      this.liveLayer.add(o);
-      return o;
-    };
-    const good = this.flip ? FLIP.colors.ink : '#3ddc84';
-    const bad = this.flip ? FLIP.colors.ink : '#ff5c8a';
-    const left = Math.max(0, Math.ceil(((ECONOMY.maxTicks - this.ticks) * ECONOMY.tickMs) / 1000));
-    add(this.text(c.x + c.w / 2, this.liveTop, `CLOSES IN ${left}S`, { size: 's', align: 'center', font: 'body' }));
-    add(this.text(c.x + c.w / 2, this.liveTop + (this.flip ? 30 : 50), money(payout(stake, market.price)), { size: 'xl', align: 'center', color: up ? good : bad }));
-    add(this.text(c.x + c.w / 2, this.liveTop + (this.flip ? 74 : 110), changeLabel(market.price), { size: 'm', align: 'center', color: up ? good : bad }));
-    if (this.flip) {
-      const px = 5;
-      add(pixelIcon(this, Math.round(c.x + c.w / 2 - (ICON_SIZE * px) / 2), this.liveTop + 106, up ? 'up' : 'down', { px, color: FLIP.colors.ink }));
-      return;
-    }
-    // The chart: the whole run so far, scaled to fit, with the buy-in as a dashed line.
-    const box = { x: c.x, y: this.liveTop + 160, w: c.w, h: 420 };
-    const g = add(this.add.graphics());
-    g.fillStyle(0x000000, 0.35).fillRoundedRect(box.x, box.y, box.w, box.h, 18);
-    const h = market.history;
-    const lo = Math.min(0.8, ...h);
-    const hi = Math.max(1.2, ...h);
-    const px = (i) => box.x + 14 + (i / Math.max(ECONOMY.maxTicks, h.length - 1)) * (box.w - 28);
-    const py = (v) => box.y + box.h - 14 - ((v - lo) / (hi - lo)) * (box.h - 28);
-    g.lineStyle(2, 0xffffff, 0.3);
-    for (let x = box.x + 14; x < box.x + box.w - 14; x += 18) g.lineBetween(x, py(1), x + 9, py(1));
-    g.lineStyle(4, up ? 0x3ddc84 : 0xff5c8a, 1).beginPath();
-    h.forEach((v, i) => (i ? g.lineTo(px(i), py(v)) : g.moveTo(px(i), py(v))));
-    g.strokePath();
-  }
-
-  sell(reason) {
-    if (!this.market) return;
-    const value = payout(this.stake, this.market.price);
-    const profit = value - this.stake;
-    this.stopMarket();
+    this.trading = true;
+    this.page = 'stonks-trade';
+    // The day trade takes the whole screen; the phone comes back for the result.
+    this.root.setVisible(false);
+    const ticker = rng.pick(ECONOMY.tickers);
+    const { grade, value } = await trade.run(this, { context: { title: 'STONKS', ticker, cash: stake } });
     Save.earn(value);
-    Audio.sfx(profit >= 0 ? 'good' : 'bad');
+    this.trading = false;
+    this.root.setVisible(true);
+    this.result(stake, value, grade);
+  }
+
+  result(stake, value, gradeId) {
+    const profit = value - stake;
     this.clearPage('stonks-result');
     const c = this.flip ? FLIP.content : SMART.content;
     const accent = APPS.find((a) => a.id === 'stonks').color;
-    this.header(reason, accent);
-    const top = c.y + (this.flip ? 50 : 120);
-    const good = this.flip ? FLIP.colors.ink : '#3ddc84';
-    const bad = this.flip ? FLIP.colors.ink : '#ff5c8a';
-    this.text(c.x + c.w / 2, top, `${profit >= 0 ? '+' : '-'}${money(Math.abs(profit))}`, { size: 'xl', align: 'center', color: profit >= 0 ? good : bad });
+    // The trade's grades are measured against Brad's 25% goal; here any profit is a win.
+    const grade = TRADE.grades.find((g) => g.id === gradeId);
     const quips = this.flip
       ? ['PROFIT HANDS.', 'BROKE EVEN.', 'NOT ADVICE.']
       : ['Diamond hands? Paper hands. PROFIT hands.', 'Broke even. Peak efficiency.', 'Not financial advice. Clearly.'];
-    const quip = quips[profit > 0 ? 0 : profit === 0 ? 1 : 2];
-    this.text(c.x + c.w / 2, top + (this.flip ? 44 : 80), quip, { size: 's', align: 'center', font: 'body', maxW: c.w });
-    const btnH = this.flip ? 64 : 110;
+    const quip = gradeId !== 'fail' && grade ? grade.label : quips[profit > 0 ? 0 : profit === 0 ? 1 : 2];
+    this.header(profit >= 0 ? 'PROFIT' : 'LOSS', accent);
+    const top = c.y + (this.flip ? 34 : 120);
+    const good = this.flip ? FLIP.colors.ink : '#3ddc84';
+    const bad = this.flip ? FLIP.colors.ink : '#ff5c8a';
+    this.text(c.x + c.w / 2, top, `${profit >= 0 ? '+' : '-'}${money(Math.abs(profit))}`, { size: 'xl', align: 'center', color: profit >= 0 ? good : bad });
+    if (this.flip) {
+      this.text(c.x + c.w / 2, top + 34, `${pct(value / stake - 1)}  ${quip}`, { size: 's', align: 'center', font: 'body', maxW: c.w });
+    } else {
+      this.text(c.x + c.w / 2, top + 80, pct(value / stake - 1), { size: 'm', align: 'center', color: profit >= 0 ? good : bad });
+      this.text(c.x + c.w / 2, top + 130, quip, { size: 's', align: 'center', font: 'body', color: '#e2d9ff', maxW: c.w });
+    }
+    const btnH = this.flip ? 56 : 110;
     const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
     this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.stonks(), { enabled: Save.trades > 0 && Save.cash >= ECONOMY.stakes[0], accent });
     this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
-  }
-
-  stopMarket() {
-    this.marketTimer?.remove();
-    this.marketTimer = null;
-    this.market = null;
   }
 
   // ---- SHOP -----------------------------------------------------------------------------
@@ -527,8 +492,8 @@ export default class PhoneScene extends Phaser.Scene {
     const c = this.flip ? FLIP.content : SMART.content;
     const accent = APPS.find((a) => a.id === 'shop').color;
     this.header('SHOP', accent);
-    const top = c.y + (this.flip ? 40 : 100);
-    const rowH = this.flip ? 88 : 150;
+    const top = c.y + (this.flip ? 28 : 100);
+    const rowH = this.flip ? 80 : 150;
     SHOP.forEach((entry, i) => {
       const y = top + i * (rowH + (this.flip ? 4 : 18));
       const item = ITEMS[entry.id];
@@ -570,8 +535,8 @@ export default class PhoneScene extends Phaser.Scene {
     const c = this.flip ? FLIP.content : SMART.content;
     const accent = APPS.find((a) => a.id === 'settings').color;
     this.header('SETTINGS', accent);
-    const top = c.y + (this.flip ? 40 : 100);
-    const rowH = this.flip ? 62 : 110;
+    const top = c.y + (this.flip ? 28 : 100);
+    const rowH = this.flip ? 56 : 110;
     const gap = this.flip ? 6 : 16;
     this.button(c.x, top, c.w, rowH, Audio.muted ? 'SOUND: OFF' : 'SOUND: ON', () => {
       Audio.toggleMute();
@@ -583,13 +548,29 @@ export default class PhoneScene extends Phaser.Scene {
         return this.settings();
       }
       Save.reset();
-      this.stopMarket();
       if (this.from) this.scene.stop(this.from);
       this.scene.start('Title');
     }, { accent: 0xb3261e });
-    const info = top + (rowH + gap) * 2 + (this.flip ? 6 : 20);
+    // Work in progress: swap between the two phones without buying the upgrade.
+    const other = this.flip ? 'smart' : 'flip';
+    this.button(c.x, top + (rowH + gap) * 2, c.w, rowH, this.flip ? 'TRY SMARTPHONE' : 'TRY FLIP PHONE', () => this.swapPhone(other), {
+      accent: 0x3a3550, sub: this.flip ? 'TEST TOGGLE' : 'Test toggle while the phone is in progress.',
+    });
+    const info = top + (rowH + gap) * 3 + (this.flip ? 6 : 20);
     this.text(c.x + c.w / 2, info, PHONES[this.model].name, { size: 's', align: 'center', font: 'body' });
-    this.text(c.x + c.w / 2, info + (this.flip ? 20 : 36), `V${VERSION}`, { size: 's', align: 'center', font: 'body' });
+    this.text(c.x + c.w / 2, info + (this.flip ? 16 : 36), `V${VERSION}`, { size: 's', align: 'center', font: 'body' });
+  }
+
+  /** Switch models and reopen on SETTINGS (the toggle lives there). */
+  swapPhone(id) {
+    Save.setPhone(id);
+    this.tweens.add({
+      targets: this.root, y: GAME_H, duration: 200, ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.build(true);
+        this.settings();
+      },
+    });
   }
 
   /** Read by the debug hook / smoke test. Points are canvas coordinates. */
@@ -599,8 +580,8 @@ export default class PhoneScene extends Phaser.Scene {
       page: this.page,
       cash: Save.cash,
       trades: Save.trades,
-      market: this.market ? { price: this.market.price, ticks: this.ticks } : null,
-      targets: [...this.chrome, ...this.targets].map(({ text, x, y, enabled }) => ({ text, x, y, enabled })),
+      // While the day trade is up, its own buttons are the ones to press.
+      targets: this.trading ? undefined : [...this.chrome, ...this.targets].map(({ text, x, y, enabled }) => ({ text, x, y, enabled })),
     };
   }
 }
