@@ -14,6 +14,9 @@
 // scene over the caller and resolves with { grade, score, value, won } when
 // it's done. `score` is final net worth as a multiple of the starting cash,
 // `value` the net worth, `won` the month the trophy was bought (or null).
+// Inside, the clock runs in ticks (REALTY.perMonth a month, so prices move
+// twice a month); `this.month` and the session count ticks, and only what's
+// shown to the player is converted back to months.
 // `difficulty` speeds the clock up. `context.city` picks the city (an id from
 // data/realty.js); otherwise it's random. Session math lives in
 // systems/realty.js. Art: PixelLab sprites from tools/realty-art/ (built into
@@ -88,7 +91,7 @@ export class RealtyScene extends Phaser.Scene {
   init({ parent, difficulty = 1, context = {}, done }) {
     this.cfg = REALTY;
     this.city = CITIES.find((c) => c.id === context.city) ?? rng.pick(CITIES);
-    this.monthMs = REALTY.monthMs / (difficulty * DEBUG.speed);
+    this.monthMs = REALTY.monthMs / (REALTY.perMonth ?? 1) / (difficulty * DEBUG.speed); // per tick
     this.parentKey = parent;
     this.done = done;
   }
@@ -111,7 +114,8 @@ export class RealtyScene extends Phaser.Scene {
     this.session = generateSession(rng, city, cfg);
     this.acct = createAccount(this.session.startCash);
     this.phase = 'ready'; // ready | open | closed
-    this.month = 0; // the calendar month: the clock, rounded down
+    this.perMonth = this.session.perMonth;
+    this.month = 0; // the current tick: the clock, rounded down
     this.t = 0; // the clock, in months
     this.selected = null; // a lot index
     this.result = null;
@@ -216,7 +220,17 @@ export class RealtyScene extends Phaser.Scene {
     });
   }
 
-  /** The month a lot is showing: the clock, less the lot's day of the month. */
+  /** A tick as a calendar month (null stays null). */
+  monthOf(tick) {
+    return tick === null ? null : Math.floor(tick / this.perMonth);
+  }
+
+  /** Whole months (at least 1) from tick `now` until tick `at`. */
+  monthsUntil(at, now) {
+    return Math.max(1, Math.ceil((at - now) / this.perMonth));
+  }
+
+  /** The tick a lot is showing: the clock, less the lot's own moment in the tick. */
   lotMonth(k) {
     return Math.max(0, Math.min(this.session.months, Math.floor(this.t - this.lotOffset[k])));
   }
@@ -516,7 +530,7 @@ export class RealtyScene extends Phaser.Scene {
     const grade = gradeFor(acct, session.months, cfg.grades);
     const worth = this.worth();
     this.result = {
-      grade: grade.id, score: Math.round((worth / acct.start) * 100) / 100, value: worth, won: acct.won, city: this.city.id,
+      grade: grade.id, score: Math.round((worth / acct.start) * 100) / 100, value: worth, won: this.monthOf(acct.won), city: this.city.id,
     };
     if (acct.won !== null) this.selected = session.units[session.trophy].lot;
 
@@ -529,7 +543,7 @@ export class RealtyScene extends Phaser.Scene {
       .setOrigin(0.5).setScrollFactor(0).setDepth(9e5 + 1));
     fitWidth(big, 500);
     const sub = acct.won !== null
-      ? `${session.units[session.trophy].name}\nbought in month ${acct.won}`
+      ? `${session.units[session.trophy].name}\nbought in month ${this.monthOf(acct.won)}`
       : `Net worth ${price(worth)}. The ${session.units[session.trophy].name} got away.`;
     this.world(body(this, GAME_W / 2, midY + 30, sub, 30, { color: '#e2d9ff', align: 'center', wordWrap: { width: 500 } })
       .setOrigin(0.5, 0).setScrollFactor(0).setDepth(9e5 + 1));
@@ -626,7 +640,7 @@ export class RealtyScene extends Phaser.Scene {
   refreshHeader() {
     const { acct, session } = this;
     const trophyPrice = session.prices[session.trophy][this.unitMonth(session.trophy)];
-    this.monthText.setText(`MONTH ${this.month}/${session.months}`);
+    this.monthText.setText(`MONTH ${this.monthOf(this.month)}/${session.months / this.perMonth}`);
     this.cashText.setText(`CASH ${price(acct.cash)}`);
     this.worthText.setText(`NET WORTH ${price(this.worth())}`);
     this.goal.set(Math.max(0, Math.min(100, Math.round((this.liquid() / trophyPrice) * 100))), 100, false);
@@ -769,7 +783,7 @@ export class RealtyScene extends Phaser.Scene {
       const site = session.dev.find((e) => e.type === 'build' && e.lot === this.selected && m >= e.announce && m < e.at);
       if (site) {
         const u = session.units[site.unit];
-        set('CONSTRUCTION SITE', `${cfg.zones[lot.zone]}`, [`Opens in month ${site.at} as ${u.name}.`, 'New builds list the day they open.']);
+        set('CONSTRUCTION SITE', `${cfg.zones[lot.zone]}`, [`Opens in month ${Math.ceil(site.at / this.perMonth)} as ${u.name}.`, 'New builds list the day they open.']);
       } else if (st.rubble) set('RUBBLE', `${cfg.zones[lot.zone]}`, ['The wrecking ball came through.', 'Cleared for a new build.']);
       else set('EMPTY LOT', `${cfg.zones[lot.zone]}`, ['Nothing here yet.', 'Watch for cranes.']);
       return;
@@ -785,8 +799,8 @@ export class RealtyScene extends Phaser.Scene {
     const booking = session.dev.find((e) => e.unit === u && e.type !== 'build' && m >= e.announce && m < e.at);
     const note = booking
       ? booking.type === 'demolish'
-        ? `WRECKING BALL IN ${booking.at - m} MO. (buyout at market)`
-        : `GLOW-UP IN ${booking.at - m} MO. (worth ${Math.round((cfg.dev.reno - 1) * 100)}% more)`
+        ? `WRECKING BALL IN ${this.monthsUntil(booking.at, m)} MO. (buyout at market)`
+        : `GLOW-UP IN ${this.monthsUntil(booking.at, m)} MO. (worth ${Math.round((cfg.dev.reno - 1) * 100)}% more)`
       : null;
     let lines;
     if (own) {

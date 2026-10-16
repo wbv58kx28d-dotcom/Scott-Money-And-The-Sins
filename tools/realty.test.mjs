@@ -9,8 +9,11 @@ import { REALTY, CITIES, TIERS } from '../src/data/realty.js';
 import { createRng } from '../src/systems/rng.js';
 import {
   generateSession, isFair, holderWins, playReader, createAccount, canBuy, buyUnit, sellUnit, saleProceeds,
-  downPayment, netWorth, gradeFor, readerMoves, price, mapLots, lotState, settle, standingAt, variantAt, trendAt,
+  downPayment, netWorth, gradeFor, readerMoves, price, mapLots, lotState, settle, standingAt, variantAt, trendAt, inTicks,
 } from '../src/systems/realty.js';
+
+// The config in ticks, as sessions use it (prices move REALTY.perMonth times a month).
+const TICKED = inTicks(REALTY);
 
 test('every city deals fair sessions: the news reader wins, buy-and-hold never does', () => {
   for (const city of CITIES) {
@@ -19,8 +22,8 @@ test('every city deals fair sessions: the news reader wins, buy-and-hold never d
       const s = generateSession(rng, city);
       assert.ok(isFair(s), `${city.id} #${i} is fair`);
       const won = playReader(s);
-      assert.ok(won !== null && won <= REALTY.months * REALTY.fair.readerBy, `${city.id} #${i}: reader won at ${won}`);
-      assert.ok(playReader(s, REALTY, { delay: REALTY.fair.lateDelay }) !== null, `${city.id} #${i}: a slower reader still wins`);
+      assert.ok(won !== null && won <= s.months * REALTY.fair.readerBy, `${city.id} #${i}: reader won at ${won}`);
+      assert.ok(playReader(s, REALTY, { delay: TICKED.fair.lateDelay }) !== null, `${city.id} #${i}: a slower reader still wins`);
       assert.equal(holderWins(s), false);
     }
   }
@@ -34,7 +37,8 @@ test('a session has every tier, a cash-only trophy on top, and a starter home $c
   const opening = s.prices.map((p) => p[0]);
   assert.equal(Math.max(...opening), opening[s.trophy], 'the trophy is the priciest unit');
   assert.ok(Math.min(...opening) <= s.startCash, 'he can buy the cheapest home outright');
-  assert.equal(s.prices[0].length, REALTY.months + 1);
+  assert.equal(s.months, REALTY.months * REALTY.perMonth, 'the session runs in ticks');
+  assert.equal(s.prices[0].length, s.months + 1);
 });
 
 test('listings: the trophy is always up, and every tier always has something listed', () => {
@@ -188,7 +192,8 @@ test('trends: each leg moves its tier the way its chip says, the chip flips a mo
         const ti = e.tier;
         const move = Math.log(1 + e.fx[ti]);
         // The chip shows this leg from `lead` months before it starts.
-        if (e.start >= REALTY.trend.lead) assert.equal(trendAt(s, ti, e.start - REALTY.trend.lead).leg, e, `${city.id}: chip flips early`);
+        const lead = TICKED.trend.lead;
+        if (e.start >= lead) assert.equal(trendAt(s, ti, e.start - lead).leg, e, `${city.id}: chip flips early`);
         if (e.headline) assert.equal(Math.sign(pool.get(e.headline)[ti]), Math.sign(move), `${e.headline} points the leg's way`);
         if (Math.abs(move) < 0.15 || e.end - e.start < 2) continue;
         // Prices of the tier's units (standing through it, no glow-ups) move the leg's way.
@@ -202,4 +207,28 @@ test('trends: each leg moves its tier the way its chip says, the chip flips a mo
       for (let m = 0; m < s.months; m++) TIERS.forEach((_, ti) => assert.ok(trendAt(s, ti, m).leg, `tier ${ti} month ${m}`));
     }
   }
+});
+
+test('prices move every tick, and a trend shows from its first tick (front-loaded)', () => {
+  assert.equal(TICKED.trend.lead, 1, 'the chip flips one tick (half a month) ahead');
+  const rng = createRng(16);
+  let checked = 0;
+  for (let n = 0; n < 10; n++) {
+    const s = generateSession(rng, CITIES[n % 3]);
+    for (const e of s.events) {
+      const ti = e.tier;
+      const move = Math.log(1 + e.fx[ti]);
+      if (Math.abs(move) < 0.2 || e.end - e.start < 4) continue;
+      const ids = s.units.filter((u) => TIERS.indexOf(u.tier) === ti && standingAt(s, u.id, e.start) && standingAt(s, u.id, e.end)
+        && !u.renos.some((r) => r.month > e.start && r.month <= e.end)).map((u) => u.id);
+      if (ids.length < 2) continue;
+      const avg = (a, b) => ids.reduce((sum, u) => sum + Math.log(s.prices[u][b] / s.prices[u][a]), 0) / ids.length;
+      const first = avg(e.start, e.start + 1);
+      // The first tick of a leg moves the way the chip said, and carries more of it than the last.
+      assert.equal(Math.sign(first), Math.sign(move), `first tick of a ${move.toFixed(2)} leg moved ${first.toFixed(3)}`);
+      assert.ok(Math.abs(first) > Math.abs(avg(e.end - 1, e.end)), 'front-loaded');
+      checked += 1;
+    }
+  }
+  assert.ok(checked > 20, `checked ${checked} legs`);
 });
