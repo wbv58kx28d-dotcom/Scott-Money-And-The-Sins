@@ -16,22 +16,29 @@ export const TIERS = ['low', 'mid', 'high'];
 export const REALTY = {
   months: 36, // one session
   monthMs: 3500, // ~2 minutes
+  // Prices move this many times a month (each lot on its own day). Everything
+  // below is in months; systems/realty.js converts it to these ticks.
+  perMonth: 2,
   fee: 0.06, // the realtor's cut of every sale
   down: 0.4, // the bank lends the rest (60%) of any price but the trophy's (cash only)
   startCash: 1.1, // × the cheapest home's price
   trophy: 1.05, // the trophy is priced this × the top of the high tier
 
-  // Every unit wobbles a little each month around a slow drift.
+  // Every unit wobbles a little each month around a slow drift (small, so the
+  // trends show through).
   drift: 0.004,
-  noise: 0.02, // per unit
-  tierNoise: 0.012, // shared by a tier
+  noise: 0.012, // per unit
+  tierNoise: 0.008, // shared by a tier
 
-  // Trends: each tier's prices move in legs `legs` months long, up (by a
+  // Trends: each tier's prices move in legs `legs` months long (front-loaded:
+  // the biggest moves come first, so a chip flip shows on the map right
+  // away), up (by a
   // fraction in `up`) or down (`down`), or now and then flat (`flat` chance).
   // Legs alternate, and lean back toward where the tier started, so holding
-  // pays nothing. The tier's chip flips `lead` months before a leg starts; a
+  // pays nothing. The tier's chip flips `lead` months (half a month: one
+  // tick) before a leg starts; a
   // leg of `strong` or more shows double arrows.
-  trend: { legs: [4, 6], up: [0.25, 0.5], down: [0.18, 0.36], flat: 0.1, lead: 1, strong: 0.33, drift: 0.2 },
+  trend: { legs: [4, 6], up: [0.25, 0.5], down: [0.18, 0.36], flat: 0.1, lead: 0.5, strong: 0.33, drift: 0.2 },
   // What the chips say, by direction and strength.
   outlook: {
     up2: { label: 'HOT', color: '#7cf29c' },
@@ -79,10 +86,10 @@ export const REALTY = {
   // Every session is checked before it's played (tools/realty.test.mjs): a
   // player who follows the trend chips can reach the trophy with time to
   // spare, while one who buys a starter home and holds it never can. By
-  // simulation, a reader acting a month after each chip flips wins around
-  // month 20 of 36 (12 at best); one acting `lateDelay` months late must still
-  // win (around month 25).
-  fair: { readerBy: 0.8, lateDelay: 2, floor: 0.45, tries: 300 },
+  // simulation, a reader acting half a month after each chip flips wins
+  // around month 19 of 36 (11 at best); one acting `lateDelay` months late
+  // must still win (around month 25).
+  fair: { readerBy: 0.8, lateDelay: 1, floor: 0.45, tries: 300 },
 
   // Grades follow the minigame contract (CLAUDE.md §6.3), by how early the
   // trophy was bought (fraction of the session used).

@@ -27,6 +27,7 @@ import { REALTY, TIERS } from '../data/realty.js';
  *           renovate: booked at `announce`, happen at `at`
  */
 export function generateSession(rng, city, cfg = REALTY) {
+  cfg = inTicks(cfg);
   let session = null;
   for (let i = 0; i < cfg.fair.tries; i++) {
     session = buildSession(rng, city, cfg);
@@ -34,6 +35,36 @@ export function generateSession(rng, city, cfg = REALTY) {
   }
   return session; // practically never reached (tools/realty.test.mjs)
 }
+
+/**
+ * The config in ticks (cfg.perMonth a month) rather than months: the clock,
+ * trend and development timings, and per-tick noise and listing changes.
+ * Sessions are generated and played in ticks; `session.perMonth` says how many
+ * make a month for display. Safe to call twice.
+ */
+export function inTicks(cfg) {
+  const k = cfg.perMonth ?? 1;
+  if (k === 1 || cfg.ticked) return cfg;
+  const range = (r) => r.map((v) => Math.round(v * k));
+  return {
+    ...cfg,
+    ticked: true,
+    months: cfg.months * k,
+    drift: cfg.drift / k,
+    noise: cfg.noise / Math.sqrt(k),
+    tierNoise: cfg.tierNoise / Math.sqrt(k),
+    trend: { ...cfg.trend, legs: range(cfg.trend.legs), lead: Math.round(cfg.trend.lead * k) },
+    dev: {
+      ...cfg.dev, every: range(cfg.dev.every), first: range(cfg.dev.first), build: range(cfg.dev.build),
+      notice: Math.round(cfg.dev.notice * k), minAge: Math.round(cfg.dev.minAge * k),
+    },
+    listings: { ...cfg.listings, flip: 1 - (1 - cfg.listings.flip) ** (1 / k), fresh: Math.round(cfg.listings.fresh * k) },
+    fair: { ...cfg.fair, lateDelay: Math.round(cfg.fair.lateDelay * k) },
+  };
+}
+
+/** How far through a leg its move has got by step s (0..1): front-loaded, the biggest moves first. */
+const legShape = (s) => 1 - (1 - Math.min(1, Math.max(0, s))) ** 2;
 
 /** Every buildable lot: the grid minus the roads, zoned by block. */
 export function mapLots(cfg = REALTY) {
@@ -191,7 +222,7 @@ function buildSession(rng, city, cfg) {
     const len = e.end - e.start;
     TIERS.forEach((_, ti) => {
       const move = Math.log(1 + e.fx[ti]);
-      for (let m = e.start + 1; m <= months; m++) level[ti][m] += (move * Math.min(m - e.start, len)) / len;
+      for (let m = e.start + 1; m <= months; m++) level[ti][m] += move * legShape((m - e.start) / len);
     });
   }
 
@@ -232,7 +263,8 @@ function buildSession(rng, city, cfg) {
 
   const cheapest = Math.min(...units.filter((u) => u.born === 0).map((u) => base[u.id]));
   return {
-    city: city.id, lots, units, prices, listed, events, dev, trophy, months, startCash: roundPrice(cheapest * cfg.startCash),
+    city: city.id, lots, units, prices, listed, events, dev, trophy, months, perMonth: cfg.perMonth ?? 1,
+    startCash: roundPrice(cheapest * cfg.startCash),
   };
 }
 
@@ -278,6 +310,7 @@ export function variantAt(unit, m) {
  * one still gets there), and buying a starter home and holding it never does.
  */
 export function isFair(session, cfg = REALTY) {
+  cfg = inTicks(cfg);
   const { prices, months } = session;
   for (const path of prices) {
     const alive = path.filter((p) => p !== null);
@@ -351,7 +384,8 @@ function knownStep(session, ti, k, seen) {
   let step = 0;
   for (const e of session.events) {
     if (e.announce > seen || k <= e.start || k > e.end) continue;
-    step += Math.log(1 + e.fx[ti]) / (e.end - e.start);
+    const len = e.end - e.start;
+    step += Math.log(1 + e.fx[ti]) * (legShape((k - e.start) / len) - legShape((k - 1 - e.start) / len));
   }
   return step;
 }
