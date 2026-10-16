@@ -25,7 +25,7 @@ export const HIT_TEXT = {
 export const HOW_TO = {
   title: 'HOW TO DISS',
   body:
-    'Clout is your health. Flow pays for bars. Pick a diss type, then a target, then tap as the marker crosses the gold zone.\n\n' +
+    'Ego is your health. Flow pays for bars. Pick a diss type, then a target, then tap as the marker crosses the gold zone.\n\n' +
     'Rivals are weak to some types (2x) and resist others (half). Each rival also has soft spots: targets that hurt more.\n' +
     '- Resisted type + soft spot: resistance ignored\n' +
     '- Neutral type + soft spot: 1.5x\n' +

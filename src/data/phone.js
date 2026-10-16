@@ -13,6 +13,7 @@ export const PHONES = {
 // `color` is the smartphone tile (the flip phone's LCD is one color).
 export const APPS = [
   { id: 'map', name: 'MAP', icon: 'map', color: 0x3a9d5d },
+  { id: 'social', name: 'Y', icon: 'y', color: 0xe0245e }, // $cott's social app (scenes/SocialScene.js)
   { id: 'stonks', name: 'STONKS', icon: 'chart', color: 0x1f6feb },
   { id: 'realty', name: 'REALTY', icon: 'house', color: 0xd94f70 },
   { id: 'shop', name: 'SHOP', icon: 'bag', color: 0xff8c42 },

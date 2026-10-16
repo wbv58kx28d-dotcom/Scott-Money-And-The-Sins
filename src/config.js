@@ -20,10 +20,10 @@ export const COLORS = {
   textCool: '#9fdcff',
   outline: '#120d1c',
 
-  // Clout bars go green → yellow → red (above 50%, above 25%, below).
-  cloutHigh: 0x3ddc84,
-  cloutMid: 0xffd166,
-  cloutLow: 0xff5c5c,
+  // Ego bars go green → yellow → red (above 50%, above 25%, below).
+  egoHigh: 0x3ddc84,
+  egoMid: 0xffd166,
+  egoLow: 0xff5c5c,
   flow: 0x4cc9f0,
   crowd: 0xff5c8a,
   crowdFull: 0xffd166,
@@ -32,8 +32,8 @@ export const COLORS = {
   glow: 0x9fdcff, // active-turn highlight (CLAUDE.md §8.1)
 };
 
-/** Clout bar color for a fill ratio (from the prototype). */
-export const cloutColor = (ratio) => (ratio > 0.5 ? COLORS.cloutHigh : ratio > 0.25 ? COLORS.cloutMid : COLORS.cloutLow);
+/** Ego bar color for a fill ratio (from the prototype). */
+export const egoColor = (ratio) => (ratio > 0.5 ? COLORS.egoHigh : ratio > 0.25 ? COLORS.egoMid : COLORS.egoLow);
 
 // Battle layout for the 720×1280 portrait canvas (CLAUDE.md §8.2).
 // Characters use feet origins: x, y is where the feet touch the ground.

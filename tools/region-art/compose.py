@@ -4,7 +4,8 @@
 
 Reads the region's shapes from `src/data/maps/<region>.js` (the same `placeholder`
 block the procedural stand-in paints from, so every position in the map data
-stays valid) and the sources in `tools/region-art/<region>/`:
+stays valid; `islands` are dry land inside pools, and a `calm` pool keeps its shape,
+for a moat around a velvet-rope area) and the sources in `tools/region-art/<region>/`:
 
     tiles/<pair>.png + .json   PixelLab top-down tilesets (sheet + metadata), one per
                                terrain pair: water_grass, dirt_grass, grass_reeds
@@ -98,9 +99,18 @@ def main(region):
 
     # ---- Terrain at each vertex, from the placeholder shapes. ----
     # A few random waves around each pool's rim, so pools aren't plain ellipses.
-    waves = [[(rand.uniform(0.1, 0.22), rand.randint(2, 5), rand.uniform(0, math.tau)) for _ in range(2)] for _ in ph['pools']]
+    # A `calm` pool keeps a third of the waves (its shape matters, like a moat),
+    # drawn from its own random stream so adding one doesn't reshuffle the rest of the map.
+    def wave(r, calm):
+        return (r.uniform(0.1, 0.22) * (0.33 if calm else 1), r.randint(2, 5), r.uniform(0, math.tau))
+
+    waves = [[wave(random.Random(ph['seed'] * 31 + k) if p.get('calm') else rand, p.get('calm')) for _ in range(2)]
+             for k, p in enumerate(ph['pools'])]
+    islands = ph.get('islands', [])
 
     def in_pool(x, y):
+        if any(((x - i['x']) / i['rx']) ** 2 + ((y - i['y']) / i['ry']) ** 2 <= 1 for i in islands):
+            return False
         for p, wv in zip(ph['pools'], waves):
             dx, dy = (x - p['x']) / p['rx'], (y - p['y']) / p['ry']
             ang = math.atan2(dy, dx)

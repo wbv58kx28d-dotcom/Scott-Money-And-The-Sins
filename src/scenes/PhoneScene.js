@@ -1,7 +1,8 @@
 // $cott's phone: the in-game menu (CLAUDE.md §6.7). It opens over a region or
 // the overworld map, which pause underneath, and holds the apps in
-// data/phone.js: MAP, STONKS (stake cash on $cott's day trade,
-// minigames/trade.js), SHOP (spend it), SETTINGS.
+// data/phone.js: MAP, Y ($cott's social app, scenes/SocialScene.js), STONKS
+// (stake cash on $cott's day trade, minigames/trade.js), REALTY, SHOP (spend
+// it), SETTINGS. A big Stonks or Realty win posts itself to Y for Clout.
 //
 // $cott starts on a flip phone: a green LCD with chunky pixel lettering
 // (ui/pixelFont.js), a 2×2 icon grid, and a keypad whose right soft key goes
@@ -21,6 +22,10 @@ import { rng } from '../systems/rng.js';
 import { money, pct } from '../systems/market.js';
 import trade from '../minigames/trade.js';
 import realty from '../minigames/realty.js';
+import social from './SocialScene.js';
+import { formatClout, fillIn } from '../systems/social.js';
+import { SOCIAL, MOMENTS } from '../data/social.js';
+import { socialNews } from '../ui/badge.js';
 import { REALTY, CITIES } from '../data/realty.js';
 import { price } from '../systems/realty.js';
 import { VERSION } from '../version.js';
@@ -358,6 +363,7 @@ export default class PhoneScene extends Phaser.Scene {
           this.pageLayer.add(pixelIcon(this, Math.round(cx - 22), top + pad + 2, app.icon, { px: 5, color: FLIP.colors.ink }));
         }
         this.text(cx, top + pad + 56, app.name, { size: 'm', align: 'center', maxW: cell.w - 8 });
+        if (app.id === 'social') this.newsDot(cx + 26, top + pad + 2);
         this.appTap(app, cx - cell.w / 2 + 4, top, cell.w - 8, cell.h - 6);
       });
     } else {
@@ -368,6 +374,8 @@ export default class PhoneScene extends Phaser.Scene {
       this.text(c.x + 26, c.y + 22, "$COTT'S BAG", { size: 's', color: '#e2d9ff' });
       this.text(c.x + 26, c.y + 52, money(Save.cash), { size: 'xl', color: '#ffd166' });
       this.text(c.x + 26, c.y + 104, `STONKS TRADES LEFT ${Save.trades}/${ECONOMY.tradesPerFight}`, { size: 's', color: '#e2d9ff' });
+      this.text(c.x + c.w - 26, c.y + 22, 'CLOUT', { size: 's', color: '#e2d9ff', align: 'right' });
+      this.text(c.x + c.w - 26, c.y + 52, formatClout(Save.clout), { size: 'l', color: '#ff8ad8', align: 'right' });
       const cols = PHONES.smart.cols;
       const pitch = c.w / cols;
       const tile = 64; // the PixelLab tiles are 32 art px at 2×
@@ -385,9 +393,23 @@ export default class PhoneScene extends Phaser.Scene {
           this.pageLayer.add(pixelIcon(this, Math.round(cx - 18), Math.round(top + tile / 2 - 18), app.icon, { px: 4, color: '#ffffff' }));
         }
         this.text(cx, top + tile + 10, app.name, { size: 's', align: 'center', font: 'body' });
+        if (app.id === 'social') this.newsDot(cx + tile / 2 - 4, top + 4);
         this.appTap(app, cx - pitch / 2 + 6, top - 6, pitch - 12, tile + 44);
       });
     }
+  }
+
+  /** What's new in the social app, as a count on its icon. */
+  newsDot(x, y) {
+    const n = socialNews();
+    if (!n) return;
+    const g = this.add.graphics();
+    if (this.flip) g.fillStyle(FLIP.colors.inkHex, 1).fillCircle(x, y, 13);
+    else g.fillStyle(0x0d0820, 1).fillCircle(x, y, 17).fillStyle(0xe0245e, 1).fillCircle(x, y, 14);
+    this.pageLayer.add(g);
+    const str = n > 9 ? '9+' : String(n);
+    if (this.flip) this.pageLayer.add(pixelText(this, Math.round(x - pixelTextWidth(str, 2) / 2), y - 5, str, { px: 2, color: FLIP.colors.light }));
+    else this.pageLayer.add(label(this, Math.round(x), Math.round(y + 1), str, 12, { strokeThickness: 0 }).setOrigin(0.5));
   }
 
   appTap(app, x, y, w, h) {
@@ -401,6 +423,7 @@ export default class PhoneScene extends Phaser.Scene {
 
   openApp(id) {
     if (id === 'map') return this.openMap();
+    if (id === 'social') return this.openSocial();
     if (id === 'stonks') return this.stonks();
     if (id === 'realty') return this.realty();
     if (id === 'shop') return this.shop();
@@ -414,6 +437,30 @@ export default class PhoneScene extends Phaser.Scene {
     if (this.from !== 'Region') return this.close();
     this.scene.stop('Region');
     this.scene.start('Overworld');
+  }
+
+  // ---- Y (the social app) -----------------------------------------------------------------
+  // It takes the whole screen (scenes/SocialScene.js); the phone comes back on its home screen.
+
+  async openSocial() {
+    if (this.trading) return;
+    this.trading = true;
+    this.page = 'social';
+    this.root.setVisible(false);
+    await social.run(this);
+    this.trading = false;
+    this.root.setVisible(true);
+    this.home();
+  }
+
+  /** A big moment posts itself: $cott's own post in the feed, and the Clout it earned. */
+  brag(text, gain, tag) {
+    if (!gain) return;
+    Save.addClout(gain);
+    const likes = gain * rng.int(18, 30);
+    Save.addMine({
+      text, tag, gain, label: 'BIG MOMENT', likes, reposts: Math.round(likes * 0.2), replies: Math.round(likes * 0.05), reactions: [],
+    });
   }
 
   // ---- STONKS ---------------------------------------------------------------------------
@@ -462,12 +509,15 @@ export default class PhoneScene extends Phaser.Scene {
     const ticker = rng.pick(ECONOMY.tickers);
     const { grade, value } = await trade.run(this, { context: { title: 'STONKS', ticker, cash: stake } });
     Save.earn(value);
+    // A big win posts itself.
+    const clout = SOCIAL.moments.stonks[grade] ?? 0;
+    this.brag(fillIn(MOMENTS.stonks, { pct: pct(value / stake - 1), ticker }), clout, 'STONKS');
     this.trading = false;
     this.root.setVisible(true);
-    this.result(stake, value, grade);
+    this.result(stake, value, grade, clout);
   }
 
-  result(stake, value, gradeId) {
+  result(stake, value, gradeId, clout = 0) {
     const profit = value - stake;
     this.clearPage('stonks-result');
     const c = this.flip ? FLIP.content : SMART.content;
@@ -491,6 +541,7 @@ export default class PhoneScene extends Phaser.Scene {
     }
     const btnH = this.flip ? 56 : 110;
     const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
+    if (clout) this.text(c.x + c.w / 2, y - (this.flip ? 18 : 56), `POSTED IT. +${formatClout(clout)} CLOUT`, { size: 's', align: 'center', color: this.flip ? FLIP.colors.ink : '#ff8ad8', maxW: c.w });
     this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.stonks(), { enabled: Save.trades > 0 && Save.cash >= ECONOMY.stakes[0], accent });
     this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
   }
@@ -527,12 +578,18 @@ export default class PhoneScene extends Phaser.Scene {
     this.page = 'realty-play';
     this.root.setVisible(false);
     const result = await realty.run(this, { context: { city } });
+    // Climbing to a trophy posts itself, once per city and grade.
+    let clout = 0;
+    if (result.won !== null && Save.brag(`realty:${city}:${result.grade}`)) {
+      clout = SOCIAL.moments.realty[result.grade] ?? 0;
+      this.brag(fillIn(MOMENTS.realty, { city: CITIES.find((c) => c.id === city)?.name ?? city }), clout, 'REALESTATE');
+    }
     this.trading = false;
     this.root.setVisible(true);
-    this.realtyResult(result);
+    this.realtyResult(result, clout);
   }
 
-  realtyResult({ won, value, grade }) {
+  realtyResult({ won, value, grade }, clout = 0) {
     this.clearPage('realty-result');
     const c = this.flip ? FLIP.content : SMART.content;
     const accent = APPS.find((a) => a.id === 'realty').color;
@@ -550,6 +607,7 @@ export default class PhoneScene extends Phaser.Scene {
     }
     const btnH = this.flip ? 56 : 110;
     const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
+    if (clout) this.text(c.x + c.w / 2, y - (this.flip ? 18 : 56), `POSTED IT. +${formatClout(clout)} CLOUT`, { size: 's', align: 'center', color: this.flip ? FLIP.colors.ink : '#ff8ad8', maxW: c.w });
     this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.realty(), { accent });
     this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
   }
@@ -648,6 +706,7 @@ export default class PhoneScene extends Phaser.Scene {
       phone: this.model,
       page: this.page,
       cash: Save.cash,
+      clout: Save.clout,
       trades: Save.trades,
       // While the day trade is up, its own buttons are the ones to press.
       targets: this.trading ? undefined : [...this.chrome, ...this.targets].map(({ text, x, y, enabled }) => ({ text, x, y, enabled })),

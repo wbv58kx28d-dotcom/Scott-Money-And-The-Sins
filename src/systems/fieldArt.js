@@ -320,6 +320,12 @@ export function bakeRegionPlaceholder(scene, map) {
     blob(m, rand, cx, cy, rx * 0.96, ry * 0.94, '#000000', 0);
   }
 
+  // Islands: dry land back inside a pool (walkable).
+  for (const i of ph.islands ?? []) {
+    blob(g, rand, a(i.x), a(i.y), a(i.rx), a(i.ry), grass[0], 0.06);
+    blob(m, rand, a(i.x), a(i.y), a(i.rx), a(i.ry), '#ffffff', 0);
+  }
+
   // Boardwalks over the water.
   for (const b of ph.boardwalks) {
     const [x, y, bw, bh] = [a(b.x), a(b.y), a(b.w), a(b.h)].map(Math.round);

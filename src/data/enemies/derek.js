@@ -11,7 +11,7 @@ export default {
   name: 'DIAMOND HANDS DEREK',
   short: 'DEREK',
   type: 'HYPE',
-  maxClout: 150,
+  maxEgo: 150,
   texture: 'derek',
   background: 'bg_tokyo', // the Subreddit Swamps background doesn't exist yet
   stage: 'THE SUBREDDIT SWAMPS',
@@ -25,11 +25,11 @@ export default {
   ],
   resistMsg: { ROAST: 'Derek has no shame left to lose.\nNot very effective.' },
 
-  // Fires when Clout drops to `atCloutPct` of max or below (§4, §5.7).
+  // Fires when Ego drops to `atEgoPct` of max or below (§4, §5.7).
   statusTriggers: [
     {
       status: 'shortSqueezed',
-      atCloutPct: 0.4,
+      atEgoPct: 0.4,
       msg: "Derek is getting SHORT SQUEEZED!\nHe has never felt more alive. Derek's damage is UP!",
     },
   ],
@@ -125,19 +125,21 @@ export default {
     defeat: [{ text: "$COTT MONEY got RATIO'D.\nHis Clout is now worth less than a meme coin." }],
   },
 
-  // Cash for a win (data/phone.js economy): the first clear pays `cash`, rematches `rematch`.
-  reward: { cash: 1000, rematch: 150 },
+  // A win's payout (data/phone.js economy): the first clear pays `cash`, rematches `rematch`.
+  // Social Clout too (data/social.js): `clout` for the first clear (which $cott posts
+  // about), `cloutRematch` after that.
+  reward: { cash: 1000, rematch: 150, clout: 250, cloutRematch: 25 },
 
   // End-of-fight screen. {soft} = soft spots found, {softTotal} = how many
-  // exist, {cash} = what the win paid.
+  // exist, {cash} = what the win paid, {clout} = the Clout it earned.
   endScreen: {
     victory: {
       title: 'DELISTED!',
-      body: "+250 Clout\n+{cash} cash\n+1 Derek's gaming chair (useless)\nSoft spots found: {soft}/{softTotal}\n\n$cott's first step back to the top.\nNext stop: the overworld map.",
+      body: "+{clout} Clout\n+{cash} cash\n+1 Derek's gaming chair (useless)\nSoft spots found: {soft}/{softTotal}\n\n$cott's first step back to the top.\nNext stop: the overworld map.",
     },
     defeat: {
       title: "RATIO'D",
-      body: "$cott's Clout hit zero.\n\nDerek is weak to FLEX, and some targets hurt him way more than others. Experiment.",
+      body: "$cott's Ego hit zero.\n\nDerek is weak to FLEX, and some targets hurt him way more than others. Experiment.",
     },
   },
 

@@ -7,7 +7,7 @@ export default {
   name: '$COTT MONEY',
   short: '$COTT',
   texture: 'scott',
-  maxClout: 100,
+  maxEgo: 100,
   maxFlow: 60,
 
   // The rules apply both ways (§5.3).

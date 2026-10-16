@@ -60,7 +60,7 @@ test('timing ratings', () => {
 
 test("$cott's stats, weaknesses, soft spots, and moves", () => {
   const S = legacy.SCOTT;
-  assert.equal(SCOTT.maxClout, S.maxClout);
+  assert.equal(SCOTT.maxEgo, S.maxClout);
   assert.equal(SCOTT.maxFlow, S.maxFlow);
   assert.deepEqual(SCOTT.weak, S.weak);
   assert.deepEqual(SCOTT.resist, S.resist);
@@ -92,7 +92,7 @@ test("Derek's stats, soft spots, messages, moves, and bars", () => {
   assert.equal(derek.name, E.name);
   assert.equal(derek.short, E.short);
   assert.equal(derek.type, E.type);
-  assert.equal(derek.maxClout, E.maxClout);
+  assert.equal(derek.maxEgo, E.maxClout);
   assert.deepEqual(derek.weak, E.weak);
   assert.deepEqual(derek.resist, E.resist);
   const legacySpots = Object.entries(E.soft).flatMap(([type, targets]) => targets.map((target) => `${type}>${target}`));
