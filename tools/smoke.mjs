@@ -357,7 +357,7 @@ async function main() {
           over: '08-victory.png',
         },
       });
-      console.log(`perfect run: ${result.result} in ${result.round} rounds (${result.actions} taps), renderer ${renderer}, $cott ${result.scott.clout} Clout, Derek ${result.enemy.clout}`);
+      console.log(`perfect run: ${result.result} in ${result.round} rounds (${result.actions} taps), renderer ${renderer}, $cott ${result.scott.ego} Ego, Derek ${result.enemy.ego}`);
       if (result.result !== 'victory') failures.push(`perfect run: expected victory, got ${result.result}`);
 
       // Restart from the end screen.
@@ -543,6 +543,104 @@ async function main() {
       await page.waitForFunction(() => window.__smm.state().scene === 'Overworld', null, { timeout: 5000 }).catch(() => failures.push('phone: HOME on the home screen should put the phone away'));
       console.log(`phone: traded $100 -> $${afterTrade - 2900}, made ${history.length} property deals, toggled models, bought a Cold Brew and the smartphone, MAP app reached the overworld`);
       failures.push(...errors.map((e) => `phone: ${e}`));
+      await page.context().close();
+    }
+
+    // 5b. Y, $cott's social app, and the velvet rope it opens: the bouncer turns him away,
+    // he replies and posts his way to the Clout, then the rope opens onto the Yacht Club.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&canvas=1&region=start&fast=1&seed=7&perfect=1&speed=2`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
+      await sleep(600);
+      const until = (fn, arg = null, ms = 5000) => page.waitForFunction(fn, arg, { timeout: ms, polling: 100 }).then(() => true, () => false);
+      const press = async (text) => {
+        const s = await state(page);
+        const t = [...(s.targets ?? []), ...s.buttons].find((b) => b.text === text && b.enabled !== false);
+        if (!t) throw new Error(`social: no "${text}" to press (have ${JSON.stringify([...(s.targets ?? []), ...s.buttons].map((b) => b.text))})`);
+        await tapGame(page, t.x, t.y);
+        await sleep(350);
+      };
+      // Walk up to an NPC and tap through whatever they say.
+      const talkTo = async (id) => {
+        const started = Date.now();
+        let s = await state(page);
+        while (s.mode === 'explore') {
+          if (Date.now() - started > 30_000) throw new Error(`social: never reached ${id}`);
+          const npc = s.npcs.find((n) => n.id === id);
+          if (!s.walking) await tapGame(page, Math.min(Math.max(npc.tap.x, 10), GAME_W - 10), Math.min(Math.max(npc.tap.y, 140), 1270));
+          await sleep(250);
+          s = await state(page);
+        }
+        for (let i = 0; i < 30 && s.mode !== 'explore'; i++) {
+          await tapGame(page, GAME_W / 2, 1170);
+          await sleep(250);
+          s = await state(page);
+        }
+        return s;
+      };
+      let s = await talkTo('vinny');
+      if (s.gates[0].open) failures.push('social: the velvet rope should stay up with no Clout');
+      await page.screenshot({ path: path.join(SHOTS, '18-rope.png') });
+
+      await press('PHONE');
+      await until(() => window.__smm.state().scene === 'Phone');
+      await press('Y');
+      if (!(await until(() => !!window.__smm.state().social))) throw new Error('social: the Y app never opened');
+      await sleep(500);
+      await page.screenshot({ path: path.join(SHOTS, '18b-social-feed.png') });
+      // Reply to every post that takes one (the right reply each time), then post three times.
+      let replies = 0;
+      for (s = await state(page); s.social.replies.length && replies < 6; s = await state(page)) {
+        const r = s.social.replies[0];
+        await tapGame(page, r.x, r.y);
+        await until(() => !!window.__smm.state().socialAnswer);
+        const a = (await state(page)).socialAnswer;
+        await tapGame(page, a.x, a.y);
+        await until(() => window.__smm.state().buttons.some((b) => b.text === 'DONE'));
+        await press('DONE');
+        await sleep(300);
+        replies += 1;
+      }
+      const afterReplies = (await state(page)).social.clout;
+      if (afterReplies !== replies * 60) failures.push(`social: ${replies} right replies should earn ${replies * 60} Clout, got ${afterReplies}`);
+      for (let i = 0; i < 3; i++) {
+        await press('NEW POST');
+        await until(() => window.__smm.state().postAnswer?.text === 'DRAFT');
+        const d = (await state(page)).postAnswer;
+        await tapGame(page, d.x, d.y);
+        await until(() => window.__smm.state().post?.phase === 'time');
+        if (i === 0) await page.screenshot({ path: path.join(SHOTS, '18c-social-post.png') });
+        await press('POST');
+        await until(() => window.__smm.state().postAnswer?.text === 'CONTINUE');
+        if (i === 0) {
+          await sleep(1400);
+          await page.screenshot({ path: path.join(SHOTS, '18d-social-posted.png') });
+        }
+        await press('CONTINUE');
+        await until(() => !!window.__smm.state().social && !window.__smm.state().post);
+      }
+      s = await state(page);
+      if (s.social.posts !== 0) failures.push(`social: three posts should use all three (${s.social.posts} left)`);
+      if (s.social.clout < 500) failures.push(`social: replies and three viral posts should pass the 500-Clout rope (got ${s.social.clout})`);
+      if (s.buttons.find((b) => b.text === 'NEW POST')?.enabled) failures.push('social: NEW POST should be disabled with no posts left');
+      await page.screenshot({ path: path.join(SHOTS, '18e-social-after.png') });
+      const clout = s.social.clout;
+      await press('BACK');
+      await until(() => window.__smm.state().scene === 'Phone' && !window.__smm.state().social);
+      await press('END');
+      await until(() => window.__smm.state().scene === 'Region');
+      await sleep(400);
+
+      s = await talkTo('vinny');
+      if (!s.gates[0].open) failures.push(`social: with ${clout} Clout the bouncer should open the rope`);
+      const cashBefore = s.cash;
+      s = await talkTo('wendy');
+      await page.screenshot({ path: path.join(SHOTS, '18f-yacht-club.png') });
+      if (s.cash !== cashBefore + 750) failures.push(`social: Wendy's gift should pay $750 (${cashBefore} -> ${s.cash})`);
+      console.log(`social: turned away at the rope, ${replies} right repl${replies === 1 ? 'y' : 'ies'} + 3 posts -> ${clout} Clout, rope opened, Wendy's gift paid $${s.cash - cashBefore}`);
+      failures.push(...errors.map((e) => `social: ${e}`));
       await page.context().close();
     }
 

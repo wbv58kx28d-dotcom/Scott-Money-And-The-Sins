@@ -37,7 +37,7 @@ test('the save tracks cash, the stash, trades, and the phone', () => {
 
 test('phone data hangs together', () => {
   assert.ok(PHONES.flip && PHONES.smart);
-  assert.deepEqual(APPS.map((a) => a.id).sort(), ['map', 'realty', 'settings', 'shop', 'stonks']);
+  assert.deepEqual(APPS.map((a) => a.id).sort(), ['map', 'realty', 'settings', 'shop', 'social', 'stonks']);
   for (const entry of SHOP) {
     if (entry.kind === 'item') {
       assert.ok(ITEMS[entry.id], `${entry.id} is a real item`);

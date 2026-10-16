@@ -23,6 +23,7 @@ import {
 import { chooseEnemyMove } from '../systems/ai.js';
 import { seedDiscovered, scoutingLine } from '../systems/intel.js';
 import { money } from '../systems/market.js';
+import { MOMENTS } from '../data/social.js';
 import { Crowd } from '../systems/crowd.js';
 import { rng } from '../systems/rng.js';
 import { Audio } from '../systems/audio.js';
@@ -214,9 +215,9 @@ export default class BattleScene extends Phaser.Scene {
 
     for (this.round = 1; ; this.round += 1) {
       await this.scottTurn(this.round === 1);
-      if (this.enemy.clout <= 0) return this.finish('victory');
+      if (this.enemy.ego <= 0) return this.finish('victory');
       await this.enemyTurn();
-      if (this.scott.clout <= 0) return this.finish('defeat');
+      if (this.scott.ego <= 0) return this.finish('defeat');
       await this.endOfRound();
     }
   }
@@ -269,7 +270,7 @@ export default class BattleScene extends Phaser.Scene {
     if (msg) await this.say(msg);
     else await wait(this, 500);
 
-    if (move.applyStatus && !scott.statuses.has(move.applyStatus) && scott.clout > 0) {
+    if (move.applyStatus && !scott.statuses.has(move.applyStatus) && scott.ego > 0) {
       const status = scott.statuses.apply(move.applyStatus);
       this.scottHud.refresh();
       await this.say(status.applyMsg);
@@ -327,9 +328,9 @@ export default class BattleScene extends Phaser.Scene {
     const msg = isMic ? null : this.hitMessage(HIT_TEXT.onEnemy, def, move.type, target, hit);
     if (msg) await this.say(msg);
     else await wait(this, 550);
-    if (isMic && enemy.clout > 0) await this.say(SCOTT.lines.micDropped);
+    if (isMic && enemy.ego > 0) await this.say(SCOTT.lines.micDropped);
 
-    if (enemy.clout > 0) {
+    if (enemy.ego > 0) {
       for (const trigger of checkStatusTriggers(enemy)) {
         reTint(this.enemyChar, enemy);
         this.cameras.main.flash(250, 255, 80, 80);
@@ -511,6 +512,16 @@ export default class BattleScene extends Phaser.Scene {
     const reward = this.def.reward ?? {};
     this.cashWon = won ? (this.firstClear ? reward.cash : reward.rematch) ?? 0 : 0;
     if (this.cashWon) Save.earn(this.cashWon);
+    // ...and Clout: a first clear is a big moment, so $cott posts about it (data/social.js).
+    this.cloutWon = won ? (this.firstClear ? reward.clout : reward.cloutRematch) ?? 0 : 0;
+    if (this.cloutWon) Save.addClout(this.cloutWon);
+    if (won && this.firstClear && this.cloutWon) {
+      const likes = this.cloutWon * 24;
+      Save.addMine({
+        text: fill(MOMENTS.fight, { enemy: this.def.name }), tag: null, gain: this.cloutWon, label: 'BIG MOMENT',
+        likes, reposts: Math.round(likes * 0.2), replies: Math.round(likes * 0.05), reactions: [{ handle: '@apestrong', text: 'he is SO back' }],
+      });
+    }
     Save.refillTrades();
     this.showEndScreen(won);
   }
@@ -523,7 +534,9 @@ export default class BattleScene extends Phaser.Scene {
       color: won ? '#ffd166' : '#ff5c8a',
       strokeThickness: 12,
     }).setOrigin(0.5).setDepth(51);
-    const text = fill(screen.body, { soft: this.enemy.discovered.softSpots.size, softTotal: this.def.softSpots.length, cash: money(this.cashWon) });
+    const text = fill(screen.body, {
+      soft: this.enemy.discovered.softSpots.size, softTotal: this.def.softSpots.length, cash: money(this.cashWon), clout: this.cloutWon,
+    });
     body(this, GAME_W / 2, 444, text, 44, { color: '#f2eaff', align: 'center', wordWrap: { width: 632 } })
       .setOrigin(0.5, 0)
       .setDepth(51);
@@ -548,10 +561,10 @@ export default class BattleScene extends Phaser.Scene {
       overlay: this.overlayOpen,
       bubble: this.bubbleSpeaker,
       crowd: this.crowd.value,
-      scott: { clout: this.scott.clout, flow: this.scott.flow, statuses: this.scott.statuses.list().map((s) => s.id) },
+      scott: { ego: this.scott.ego, flow: this.scott.flow, statuses: this.scott.statuses.list().map((s) => s.id) },
       enemy: {
         id: this.enemy.id,
-        clout: this.enemy.clout,
+        ego: this.enemy.ego,
         statuses: this.enemy.statuses.list().map((s) => s.id),
         intel: Object.fromEntries(Object.entries(this.enemy.discovered).map(([k, v]) => [k, [...v]])),
       },

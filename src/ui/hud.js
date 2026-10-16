@@ -3,7 +3,7 @@
 // the enemy's ??? intel as tags at the enemy's feet. Each one redraws from
 // battler state via refresh().
 
-import { COLORS, LAYOUT, cloutColor } from '../config.js';
+import { COLORS, LAYOUT, egoColor } from '../config.js';
 import { DISS_TYPES } from '../data/types.js';
 import { ITEMS } from '../data/items.js';
 import { StatBar } from './bars.js';
@@ -43,14 +43,14 @@ class StatusTags {
 }
 
 // Shared card layout, so the enemy's and $cott's cards line up row for row:
-// name, a subtitle row (type and/or status tags), then the Clout bar.
-const ROW = { name: 16, sub: 60, clout: 106, flow: 154, items: 190 };
+// name, a subtitle row (type and/or status tags), then the Ego bar.
+const ROW = { name: 16, sub: 60, ego: 106, flow: 154, items: 190 };
 const BAR = { left: 20, right: 24, h: 20 };
 
-function cloutBar(scene, r, battler) {
+function egoBar(scene, r, battler) {
   return new StatBar(scene, {
-    x: r.x + BAR.left, y: r.y + ROW.clout, w: r.w - BAR.left - BAR.right, h: BAR.h,
-    color: cloutColor, title: 'CLOUT', value: battler.clout, max: battler.maxClout,
+    x: r.x + BAR.left, y: r.y + ROW.ego, w: r.w - BAR.left - BAR.right, h: BAR.h,
+    color: egoColor, title: 'EGO', value: battler.ego, max: battler.maxEgo,
   });
 }
 
@@ -65,14 +65,14 @@ export class EnemyHud {
     // Status tags (SHORT SQUEEZED) follow the type.
     const tagX = typeText.x + typeText.width + 20;
     this.tags = new StatusTags(scene, tagX, r.y + ROW.sub, { maxWidth: r.x + r.w - 12 - tagX, size: 24 });
-    this.clout = cloutBar(scene, r, enemy);
+    this.ego = egoBar(scene, r, enemy);
     this.intel = new EnemyIntel(scene, enemy, LAYOUT.enemySlots[0]);
     this.refresh(false);
   }
 
   refresh(animate = true) {
     const { enemy } = this;
-    this.clout.set(enemy.clout, enemy.maxClout, animate);
+    this.ego.set(enemy.ego, enemy.maxEgo, animate);
     this.tags.refresh(enemy.statuses);
     this.intel.refresh(animate);
   }
@@ -136,7 +136,7 @@ export class ScottHud {
     drawCard(scene.add.graphics(), r, RIBBON_GOLD);
     fitWidth(label(scene, r.x + CARD_INSET, r.y + ROW.name, scott.def.name, 18, { color: COLORS.textGold }), r.w - CARD_INSET - 12);
     this.tags = new StatusTags(scene, r.x + CARD_INSET, r.y + ROW.sub, { maxWidth: r.w - CARD_INSET - 12, size: 24 });
-    this.clout = cloutBar(scene, r, scott);
+    this.ego = egoBar(scene, r, scott);
     this.flow = new StatBar(scene, {
       x: r.x + BAR.left, y: r.y + ROW.flow, w: r.w - BAR.left - BAR.right, h: BAR.h,
       color: COLORS.flow, title: 'FLOW', value: scott.flow, max: scott.maxFlow,
@@ -147,7 +147,7 @@ export class ScottHud {
 
   refresh(animate = true) {
     const { scott } = this;
-    this.clout.set(scott.clout, scott.maxClout, animate);
+    this.ego.set(scott.ego, scott.maxEgo, animate);
     this.flow.set(scott.flow, scott.maxFlow, animate);
     this.tags.refresh(scott.statuses);
     const items = Object.entries(scott.items).map(([id, n]) => `${ITEMS[id].short} x${n}`);

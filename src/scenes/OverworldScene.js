@@ -15,6 +15,7 @@ import { allStatuses, frontierTier, newlyOpened } from '../systems/progress.js';
 import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { Button } from '../ui/button.js';
+import { PhoneBadge } from '../ui/badge.js';
 import { drawRibbonPanel } from '../ui/ribbon.js';
 import { label, body, fitWidth } from '../ui/text.js';
 
@@ -96,6 +97,9 @@ export default class OverworldScene extends Phaser.Scene {
         this.scene.pause();
       },
     });
+    const pb = MAP.phoneButton;
+    this.badge = new PhoneBadge(this, pb.x + pb.w / 2 - 4, pb.y - pb.h / 2 + 2, 31);
+    this.events.on('resume', () => this.badge.refresh());
 
     this.input.on('pointerup', (pointer, over) => this.onTap(pointer, over));
     this.cameras.main.fadeIn(250, 0, 0, 0);

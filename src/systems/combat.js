@@ -17,8 +17,8 @@ export function createBattler(def) {
     id: def.id,
     name: def.name,
     short: def.short,
-    clout: def.maxClout,
-    maxClout: def.maxClout,
+    ego: def.maxEgo,
+    maxEgo: def.maxEgo,
     flow: def.maxFlow ?? 0,
     maxFlow: def.maxFlow ?? 0,
     statuses: new StatusSet(),
@@ -74,20 +74,20 @@ export function discover(defender, type, hit) {
   return found.weak.size + found.resist.size + found.softSpots.size > before;
 }
 
-/** Apply damage. Returns the Clout actually lost. */
+/** Apply damage. Returns the Ego actually lost. */
 export function applyDamage(battler, amount) {
-  const before = battler.clout;
-  battler.clout = Math.max(0, battler.clout - amount);
-  return before - battler.clout;
+  const before = battler.ego;
+  battler.ego = Math.max(0, battler.ego - amount);
+  return before - battler.ego;
 }
 
-/** Restore Clout and/or Flow, capped at max. Returns what was actually gained. */
-export function restore(battler, { clout = 0, flow = 0 }) {
-  const c0 = battler.clout;
+/** Restore Ego and/or Flow, capped at max. Returns what was actually gained. */
+export function restore(battler, { ego = 0, flow = 0 }) {
+  const c0 = battler.ego;
   const f0 = battler.flow;
-  battler.clout = Math.min(battler.maxClout, battler.clout + clout);
+  battler.ego = Math.min(battler.maxEgo, battler.ego + ego);
   battler.flow = Math.min(battler.maxFlow, battler.flow + flow);
-  return { clout: battler.clout - c0, flow: battler.flow - f0 };
+  return { ego: battler.ego - c0, flow: battler.flow - f0 };
 }
 
 /**
@@ -107,12 +107,12 @@ export function startOfTurnFlow(battler, isFirstTurn) {
   return { kind: 'regen', amount: flow, drained, expired };
 }
 
-/** Status triggers like Short Squeezed at 40% Clout. Returns the ones that just fired. */
+/** Status triggers like Short Squeezed at 40% Ego. Returns the ones that just fired. */
 export function checkStatusTriggers(battler) {
   const fired = [];
   for (const trigger of battler.def.statusTriggers ?? []) {
     if (battler.statuses.has(trigger.status)) continue;
-    if (battler.clout > 0 && battler.clout <= battler.maxClout * trigger.atCloutPct) {
+    if (battler.ego > 0 && battler.ego <= battler.maxEgo * trigger.atEgoPct) {
       battler.statuses.apply(trigger.status);
       fired.push(trigger);
     }

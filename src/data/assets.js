@@ -34,6 +34,8 @@ export const FIELD_SHEETS = [
   { key: 'field_brad', path: 'assets/field/field_brad.png' },
   { key: 'field_morgan', path: 'assets/field/field_morgan.png' },
   { key: 'field_chad', path: 'assets/field/field_chad.png' },
+  { key: 'field_vinny', path: 'assets/field/field_vinny.png' },
+  { key: 'field_wendy', path: 'assets/field/field_wendy.png' },
 ];
 
 // Scenery props, drawn with their feet (bottom center) on the ground.
@@ -45,6 +47,10 @@ export const PROP_IMAGES = [
   { key: 'prop_sign', path: 'assets/props/prop_sign.png' },
   { key: 'prop_setup', path: 'assets/props/prop_setup.png' },
   { key: 'prop_tent', path: 'assets/props/prop_tent.png' },
+  { key: 'prop_lounge', path: 'assets/props/prop_lounge.png' },
+  // A velvet rope (map `gates`), closed and unhooked.
+  { key: 'prop_rope', path: 'assets/props/prop_rope.png' },
+  { key: 'prop_rope_open', path: 'assets/props/prop_rope_open.png' },
 ];
 
 // $cott's phone (scenes/PhoneScene.js): PixelLab art built by tools/phone-art/build.py.

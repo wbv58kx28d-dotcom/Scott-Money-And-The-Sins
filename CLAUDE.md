@@ -2,7 +2,7 @@
 
 Shared context for every chat and for Claude Code. In the repo this file is `CLAUDE.md`. In claude.ai, keep it in Project knowledge.
 
-_Last updated: Oct 14, 2026. Replaces `SCOTT_MONEY_RPG.md`._
+_Last updated: Oct 16, 2026. Replaces `SCOTT_MONEY_RPG.md`._
 
 **Who does what**
 - **claude.ai chats** handle art, lore, writing, and design decisions.
@@ -35,7 +35,7 @@ $cott is **framed** and loses his status, fortune, and fame. To win them back, h
 Region names come from the overworld map pack (`assets/map/`).
 
 - Both regions in a tier must be cleared before the next tier opens. That gives players a choice while difficulty only steps up four times.
-- Whichever region in a tier is played second will be a bit easier, because $cott has one more Sin. That's intended: the order is a strategic choice. If it feels too easy, villains can gain a small amount of Clout for each Sin already recruited.
+- Whichever region in a tier is played second will be a bit easier, because $cott has one more Sin. That's intended: the order is a strategic choice. If it feels too easy, villains can gain a small amount of Ego for each Sin already recruited.
 - Each region has its own villain, a Sin to recruit, and optional side quests.
 
 ## 3. The crew
@@ -58,9 +58,9 @@ Keezus's gluttony is **financial**: FOMO, excessive borrowing, scheming, and ris
 ## 4. Villains
 
 **Built: Diamond Hands Derek** (prologue), a meme-stock trader on the Subreddit Swamps stage.
-- HYPE type, 150 Clout. Weak to FLEX, resists ROAST.
+- HYPE type, 150 Ego. Weak to FLEX, resists ROAST.
 - Soft spots: FLEX→WEALTH (crit), ROAST→INTELLECT (bypass), WORDPLAY→CAREER (nerve).
-- Status: becomes *Short Squeezed* at 40% Clout or below.
+- Status: becomes *Short Squeezed* at 40% Ego or below.
 
 **Planned archetypes** (sprites already in `assets/sprites/enemies/`, named by file; no battle data yet):
 - A thrift-shop rapper (`vince.png`).
@@ -74,7 +74,7 @@ Keezus's gluttony is **financial**: FOMO, excessive borrowing, scheming, and ris
 The legacy prototype (`legacy/scott-money-battle.html`) is the **source of truth for every number** below.
 
 ### 5.1 Stats and turn flow
-- **Clout** is HP. $cott has 100.
+- **Ego** is HP. $cott has 100. (It was called Clout until the social app (§6.10) took that name for its meter.)
 - **Flow** is MP and pays for disses. $cott has 60 max and regains 5 at the start of each of his turns after the first.
 - Turn order: $cott acts, Derek acts, then end-of-round status ticks.
 - Diss flow: pick a diss, pick a target, play the timing minigame, deliver the bars, then damage resolves.
@@ -132,12 +132,12 @@ A marker sweeps across a bar, bouncing end to end from a random starting side, a
 ### 5.7 Status effects
 - **Mooning** ($cott, 3 turns): he deals 1.5× damage and takes 1.25×. It counts down at the end of every round, including the one it's used in, so it boosts his next 2 attacks.
 - **Rug Pulled** ($cott, 2 turns): he loses 8 Flow at the start of each of his next 2 turns, with no regen. It counts down as it drains.
-- **Short Squeezed** (enemy, at 40% Clout or below): the enemy deals 1.3× damage for the rest of the fight.
+- **Short Squeezed** (enemy, at 40% Ego or below): the enemy deals 1.3× damage for the rest of the fight.
 - Ideas not built yet: *Ratio'd*, *Cancelled*.
 
 ### 5.8 Items
 - **Cold Brew** (2 per fight): restores 30 Flow.
-- **Hype Man Voicemail** (1 per fight): restores 35 Clout.
+- **Hype Man Voicemail** (1 per fight): restores 35 Ego.
 - **Shop extras:** items bought in the phone's shop (§6.7) wait in a saved stash and add to the per-fight counts; the free ones are used first.
 - Using an item takes the turn. **Run** doesn't consume a turn ("$cott doesn't run. He pivots.").
 - **STALL:** if $cott can't afford any diss, has no items left, and the mic isn't ready, RUN becomes STALL, which skips his turn so Flow can regen. This fixes a prototype soft-lock.
@@ -172,7 +172,7 @@ A marker sweeps across a bar, bouncing end to end from a random starting side, a
 - Before each fight there's a short RPG-style conversation with the villain, with **1 to 3 choices**.
 - Each choice is a recruited Sin's approach, and it's resolved by **that Sin's minigame**. There are no dice.
 - Results:
-  - **Good results:** reveal a soft spot early, the enemy starts *Rattled* (lower Clout), or $cott starts with crowd hype.
+  - **Good results:** reveal a soft spot early, the enemy starts *Rattled* (lower Ego), or $cott starts with crowd hype.
   - **Bad results:** the enemy starts buffed, or $cott starts shaken.
   - **Legendary or Fail:** something absurd happens.
 - Each villain's parley lives in that villain's data file. This is a natural place for the lore writer to contribute.
@@ -226,16 +226,19 @@ Content these need: question banks for the cat quiz and lore quiz, and pickup li
 - Data: `src/data/maps/<region>.js` holds the map size, spawn, exits, NPCs (sprite, position, facing, lines, who they fight), and props (texture, feet position, footprint).
 - **Scouting challenges (built):** minor characters in a region can hold a `challenge`. Win it and they spill intel on the region's villain: a weakness, a resistance, or soft spots (§5.3). Intel is saved, and in the fight those tags start filled in instead of "???", with an opening line saying so. Three kinds so far: **beat** (taps on the battle's timing bar, each at a set rating or better), **quiz** (multiple choice; the first listed answer is right, shown shuffled), and **trade** ($cott's day trade, §6.8). Losing costs nothing; try again. Data lives on the NPC in `src/data/maps/<region>.js`; logic is in `systems/intel.js`.
 - **Subreddit Swamps locals:** **Bagholder Brad** (day trade, "teach Brad to sell"; reveals WEAK FLEX), **Mod Morgan** (rules quiz; reveals RESISTS ROAST and ROAST→INTELLECT), and **Chad**, Derek's wife's boyfriend (two harder beats; reveals FLEX→WEALTH and WORDPLAY→CAREER). Together they reveal all of Derek. Their lines are placeholders for the writing chat.
-- Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the three locals, the ground, and the props.
+- **Velvet ropes (built), like *Super Mario 64*'s star doors:** a region's map can hold `gates`, a rope with a Clout price lettered over it (social Clout, §6.10). Its footprint blocks the way until $cott talks to the rope's bouncer with enough Clout; then it unhooks and stays open for good (saved). Clout only goes up, so a rope never closes again. The Subreddit Swamps has the first: **Velvet Vinny** guards the **Swamp Yacht Club**, an island in a lagoon reached by a boardwalk, for **500 Clout**. Inside, **Whale Wendy** gives a one-time gift ($750 and a Hype Man Voicemail) and unlocks a classic post. A first run can reach it before beating Derek.
+- **Talking unlocks posts:** an NPC with `unlocks` hands $cott one of his classic posts (§6.10) after their first talk. Brad, Morgan, Chad and Wendy each have one. An NPC's `talkAgain` lines replace `talk` once he's met them, and `gift` is given once.
+- Built for the Subreddit Swamps, with PixelLab art (§8.4): $cott, Derek, the three locals, Vinny and Wendy, the ground, and the props (including the rope, open and closed, and Wendy's lounge chair).
 
 ### 6.7 $cott's phone (built)
 - A **PHONE** button (top-right in regions, top-left on the overworld map) opens $cott's phone over the game, which pauses underneath. It's the in-game menu: it replaced the region's MAP button and the map's SND button.
-- **Apps** (`src/data/phone.js`): **MAP** (out to the overworld), **STONKS** (stake cash on the day trade), **REALTY** (the property ladder, §6.9), **SHOP** (spend it), **SETTINGS** (sound, reset progress, version, and for now a **phone toggle**: TRY SMARTPHONE / TRY FLIP PHONE swaps models for free while the phone is a work in progress; take it out before release). More apps go in the same list.
+- **Apps** (`src/data/phone.js`): **MAP** (out to the overworld), **Y** ($cott's social app, §6.10), **STONKS** (stake cash on the day trade), **REALTY** (the property ladder, §6.9), **SHOP** (spend it), **SETTINGS** (sound, reset progress, version, and for now a **phone toggle**: TRY SMARTPHONE / TRY FLIP PHONE swaps models for free while the phone is a work in progress; take it out before release). More apps go in the same list.
 - **Two models.** $cott starts on a **flip phone**: a green LCD with pixel-font lettering, a 2×2 icon grid, and a keypad whose right soft key is BACK and red key hangs up. The shop sells the **smartphone** ($2,500): wallpaper, status bar, a cash widget, a 4-column grid of app tiles, and a home bar.
 - **Money:** $cott starts with $500. Winning a fight pays the villain's `reward` (Derek: $1,000 on the first clear, $150 for a rematch). **Stonks:** stake $100/$250/$500 on **$cott's day trade** (§6.8) under a random parody ticker. The trade opens with the stake as its cash, and whatever it's worth at the closing bell comes back. The phone steps aside while the trade plays full-screen, then shows the profit or loss. Each fight refills **3 trades**, so the market can't be farmed forever.
 - **Shop:** Cold Brew $150, Hype Man Voicemail $300 (they stack in the stash, §5.8), and the smartphone.
 - Saved with the rest of the progress: cash, phone model, stash, trades left. Debug flags: `&cash=5000`, `&phone=smart`.
 - **Art (PixelLab):** both phone bodies come from `create_ui_asset` with a layout template of the screen and keys, so the art lands where the code expects it. Also from PixelLab: the flip phone's 2-tone LCD icons (palette-locked to the LCD), the smartphone's app tiles, and its synthwave wallpaper. Sources live in `tools/phone-art/src/`; `tools/phone-art/build.py` crops and scales them into `assets/phone/` (bodies at 2×, LCD icons at 3×, tiles at 2×), lifts the flip phone's glass glare into an overlay drawn over the LCD, and lays the wallpaper into the smartphone's glass (a gold-framed slab). The screen and key rects in `PhoneScene.js` were measured from the art; if art is missing, a drawn stand-in uses the same rects.
+- A red count on the PHONE button (and on the Y icon) shows what's new in the social app: unseen posts plus classic posts waiting to go out (`ui/badge.js`). The smartphone's home widget shows his Clout beside his cash.
 - Code: `scenes/PhoneScene.js` (both bodies, the home screens, the apps),  `ui/phoneIcons.js` (fallback pixel icons).
 
 ### 6.8 $cott's day trade (built)
@@ -261,6 +264,17 @@ $cott's own minigame, played from the phone's REALTY app (§6.7). Play money for
 - **Fairness:** every session is checked before it's played: a player who acts half a month after each chip flips wins (around month 19 of 36 by simulation), one acting a month late still wins (around month 25), and buying a home and holding it never does.
 - **Art:** Tokyo's buildings are PixelLab isometric sprites (64 px wide, each on its own little plot): three variants per tier, the gold-spire trophy, and a construction site. Sources, prompts, and job ids are in `tools/realty-art/` (README); `tools/realty-art/build.py` trims and scales them 2× into `assets/realty/<city>/` and draws the ground tiles (grass, roads, rubble) on an exact 2:1 grid. Los Angeles and Seattle use drawn isometric stand-ins (`src/ui/buildings.js`) until their art is made the same way.
 - Tuning, cities, headlines, and development: `src/data/realty.js`. Sessions, development, and account math: `src/systems/realty.js` (pure, unit-tested in `tools/realty.test.mjs`). Debug: `&speed=4` runs minigame clocks faster.
+
+### 6.10 Y, $cott's social app (built)
+A parody of the bird site ("Y, the everything app (formerly Chirper)"), opened from his phone; it takes the whole screen on either model. NPCs talk to $cott through it, and posting there wins back his **Clout**: the meter that opens velvet ropes around the world (§6.6), the way stars open doors in *Super Mario 64*. Battle HP was renamed **Ego** so the two don't collide (§5.1).
+- **Clout only goes up.** He starts at 0. A bad post earns a little, never a loss, and an opened rope stays open.
+- **The feed:** NPC posts, newest first, mixed with his own. Each feed post can wait on the story (`when`: a region cleared, a challenge won, an NPC met, a rope opened, or a Clout level), so new posts land as he plays: Derek taunts him from the start, Chad posts once $cott has met him, Lil' Turnt and Babarbara post once the swamp is cleared (teasing Tier 1), and so on. Posts new since his last look get a pink edge. Drag to scroll (the feed is its own camera, no mask). Avatars are the head of each character's field sprite; accounts without one get an initial.
+- **Replies:** some posts take a REPLY: pick one of three. The right one (the first in the data, shown shuffled) earns **60 Clout** and a good answer from the poster; the others earn 5 and a cold one. One reply per post.
+- **Posting** (`src/minigames/post.js`, the §6.3 contract): **3 posts per fight**, refilled after every fight like Stonks trades. (1) **Write:** three hashtags are trending; pick one of three drafts. A draft on a trending hashtag reaches **2×**; a **classic** (below) always does. (2) **Time it:** a day's "followers online" curve, with a marker sweeping back and forth (2.2 s a pass); tap POST at **prime time**. The share of the peak sets the rating: PRIME TIME (≥90%) 2×, GOOD HOUR (≥70%) 1.5×, SLOW HOUR (≥45%) 1×, EVERYONE WAS ASLEEP 0.25×. A smaller second bump is a decoy that never reaches GOOD HOUR. Clout = the draft's base (35–50) × reach × timing; 4× or more is WENT VIRAL. Then the likes roll in, with a reply or two from fans. NOT NOW backs out without using the post. Drafts he posted lately sit out.
+- **Classic posts:** talking to certain NPCs unlocks one of $cott's classic posts (base 150–200, always 2× reach). It waits at the top of his drafts until he posts it, once. **The four in the game are placeholders**, to be replaced with real posts from the account Zach made for $cott.
+- **Big moments post themselves:** a first clear (Derek: +250 Clout, rematches +25), a Stonks trade graded great (+40) or legendary (+80), and a REALTY climb the first time per city and grade (+50 / +100 / +200).
+- **The numbers** are set so the swamp's 500-Clout rope opens on a first run: the pre-fight replies plus three decent posts (or two and a classic) get there; three flops don't (unit-tested).
+- Data (accounts, feed, drafts, classics, trends, tuning): `src/data/social.js`. Feed rules and scoring: `src/systems/social.js` (pure, unit-tested in `tools/social.test.mjs`). The app: `scenes/SocialScene.js`. Saved: Clout, posts left, unlocked and posted classics, NPCs met, replies, his own posts, the order the feed arrived in, ropes opened, and the big moments already bragged about. Debug: `&clout=600`.
 
 ## 7. Tech stack
 
@@ -298,7 +312,7 @@ From the art chat's portrait mockup:
 - The mockup's party positions were (345, 905), (585, 860), and (540, 1050). With only $cott on screen, he takes a single lower-right spot, feet at (500, 1040).
 - Depth: $cott is in the foreground, so he's drawn about 30% bigger than the enemies (about 420 px vs. about 330 px).
 - Sin cut-ins slide in from the right edge.
-- HUD, in the lyric ribbons' style (dark slanted strips, accent edge in the owner's color): the enemy's card is top-left and $cott's is lower-left, matching row for row (name, type or status row, Clout; $cott adds Flow and items). The crowd meter is top-right under the ? and SND buttons. The enemy's WEAK / RESISTS / SOFT SPOTS intel sits as small tags under its feet, not in its card.
+- HUD, in the lyric ribbons' style (dark slanted strips, accent edge in the owner's color): the enemy's card is top-left and $cott's is lower-left, matching row for row (name, type or status row, Ego; $cott adds Flow and items). The crowd meter is top-right under the ? and SND buttons. The enemy's WEAK / RESISTS / SOFT SPOTS intel sits as small tags under its feet, not in its card.
 - The menu panel and buttons use the same ribbon style, with text left-aligned.
 - The lean only suits short strips: any card, panel, or button taller than 140 px (`TALL` in `src/ui/ribbon.js`) stands upright, with a vertical accent edge.
 
@@ -318,7 +332,7 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - A sheet of **96×144 px frames, 5 columns × 3 rows.** Rows face down, up, and left. Columns are idle, then a 4-frame walk (contact, passing, other contact, passing). Right-facing is the left row mirrored in-engine; add a 4th row only if the character is lopsided (a bag on one shoulder, say).
 - The character stands about **120–130 px tall**, feet at the bottom center of each frame, on a transparent background.
 - True pixel grid and a dark outline, like the battle sprites. Density: **2 screen px per art pixel**, so each frame is **48×72 art pixels**, drawn at 2×, and the character is about 62 art pixels tall. At 3 px (32×48 art pixels) every generator drew him chibi, under 3 heads tall; 2 px leaves room for about 4 heads. The outline is 2 px, not 3.
-- **Built: $cott and Derek** (`assets/field/field_scott.png`, `field_derek.png`), made in PixelLab from their battle art, plus the swamp locals (`field_brad.png`, `field_morgan.png`, `field_chad.png`), made from text with $cott and Derek as the style reference. The recipe is in `docs/field-art-prompts.md`; `tools/region-art/walker.py` turns a PixelLab character into a sheet.
+- **Built: $cott and Derek** (`assets/field/field_scott.png`, `field_derek.png`), made in PixelLab from their battle art, plus the swamp locals (`field_brad.png`, `field_morgan.png`, `field_chad.png`), made from text with $cott and Derek as the style reference. Velvet Vinny and Whale Wendy (`field_vinny.png`, `field_wendy.png`, idle only) were made the same way for the Swamp Yacht Club. The recipe is in `docs/field-art-prompts.md`; `tools/region-art/walker.py` turns a PixelLab character into a sheet.
 - NPCs who only stand still need just the idle column (the down row, plus left if they turn to face $cott).
 
 **Region maps** (one per region):
@@ -347,7 +361,7 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - Which region the Tokyo background belongs to.
 - Final Sin-to-target mapping, summon effects, and cooldown lengths. These should check against the lore writer's material.
 - Prologue parley: skip it, or a $cott-only tutorial version?
-- Parley outcome sizes: how much Clout *Rattled* removes, how much crowd hype a good result gives, and so on.
+- Parley outcome sizes: how much Ego *Rattled* removes, how much crowd hype a good result gives, and so on.
 - Question banks for the cat quiz and lore quiz.
 
 ## 11. Decision log
@@ -377,6 +391,7 @@ For the walkable regions (§6.6). Placeholders are in the game now; finished fil
 - **$cott's phone is the in-game menu** (§6.7): MAP, STONKS, SHOP, and SETTINGS apps. He starts on a flip phone and buys the smartphone upgrade in the shop. Cash comes from fight rewards and Stonks trades (3 per fight) and buys battle items.
 - **Stonks plays the day trade** (§6.8) with real cash at stake, replacing the placeholder ticker bet. While the phone is in progress, SETTINGS has a toggle to swap models (§6.7).
 - **The title screen asks CONTINUE or START FRESH** when there's a save (§6.5).
+- **$cott has a social app, Y, and Clout is its meter** (§6.10): NPCs post and @ him there, and posting, replying, and big wins earn Clout. Clout only goes up and opens **velvet ropes** in the regions, like *Super Mario 64*'s star doors (§6.6). Battle HP is now **Ego**, since Clout took the name. Talking to people in the world unlocks $cott's classic posts (placeholders until the real ones from his account are in).
 - **$cott's property ladder** (§6.9): flip homes in a city neighborhood, reading a news ticker, up to a cash-only trophy property. The bank lends half on everything else; without that, the climb was out of reach in a session. Play money for now.
 - **Property ladder prices move twice a month, and trends hit right away** (§6.9): chips flip half a month ahead and trends are front-loaded, so a chip flip shows on the map within a couple of seconds.
 - **Property ladder trends are shown, not read** (§6.9): a chip per kind of property says where it's heading a month ahead, headlines are flavor, the clock is slower (36 months of 3.5 s), and lots update one at a time. Headlines as the only signal came faster than anyone could read them, and the whole map changing at once was jarring.

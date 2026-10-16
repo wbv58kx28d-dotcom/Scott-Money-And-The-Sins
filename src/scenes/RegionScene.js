@@ -9,6 +9,10 @@
 // quiz, or a day trade); winning it reveals intel on the villain that shows in the fight
 // (systems/intel.js). Walking into an exit leaves for the overworld map.
 //
+// Talking to someone can unlock one of $cott's classic posts for his social
+// app (data/social.js), and a velvet rope (map `gates`) blocks a side area
+// until he has the Clout; its bouncer lets him through, and it stays open.
+//
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
 // everything in the world sits below the UI's ordinary depths. UI is created
 // inside ui(), which pins it to the screen.
@@ -24,6 +28,10 @@ import { Audio } from '../systems/audio.js';
 import { DEBUG } from '../systems/debug.js';
 import { WalkGrid } from '../systems/walkGrid.js';
 import { revealLines } from '../systems/intel.js';
+import { formatClout, fillIn } from '../systems/social.js';
+import { money } from '../systems/market.js';
+import { ITEMS } from '../data/items.js';
+import { PhoneBadge } from '../ui/badge.js';
 import { rng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
 import {
@@ -44,6 +52,7 @@ const WORLD_DEPTH = 100000;
 const GOLD = 0xffd166;
 const INTEL = 0x9fdcff; // challenges and the intel they reveal
 const INTEL_CSS = '#9fdcff';
+const SOCIAL_CSS = '#ff8ad8'; // social app news (unlocked posts, Clout)
 // The quiz question's card, above the menu's prompt tag.
 const QUESTION_CARD = { x: 16, y: 930, w: 688, h: 116 };
 // An NPC's own footprint, and the tap area around its body.
@@ -117,19 +126,10 @@ export default class RegionScene extends Phaser.Scene {
     }
 
     this.add.image(0, 0, `${map.id}_base`).setOrigin(0).setDepth(-WORLD_DEPTH * 2);
-
-    // The walk grid: the mask, minus every prop's and NPC's footprint, eroded
-    // so feet keep a little distance from walls.
-    const sample = maskSampler(this, `${map.id}_walk`);
-    const { cell } = FIELD;
-    const cols = Math.ceil(map.size.w / cell);
-    const rows = Math.ceil(map.size.h / cell);
-    this.grid = new WalkGrid(cols, rows, cell, (c, r) => sample(((c + 0.5) * cell) / map.size.w, ((r + 0.5) * cell) / map.size.h));
-    const footprint = (x, y, b) => ({ x: x - b.w / 2, y: y - b.h / 2, w: b.w, h: b.h });
+    this.sampleWalk = maskSampler(this, `${map.id}_walk`);
 
     for (const p of map.props) {
       const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
-      if (p.block) this.grid.block(footprint(p.x, p.y, p.block));
       if (p.label) {
         // Painted on the sign's board, centered ~59% up from the feet, in the pixel
         // font on the sign's own 2 px art grid so it doesn't shimmer when the camera moves.
@@ -146,7 +146,6 @@ export default class RegionScene extends Phaser.Scene {
     this.npcs = map.npcs.map((n) => {
       const sprite = this.add.sprite(n.x, n.y, n.sprite).setOrigin(0.5, 1).setDepth(worldDepth(n.y));
       this.face(sprite, n.facing);
-      this.grid.block(footprint(n.x, n.y, NPC_BLOCK));
       // A bouncing "!" over a villain you haven't beaten, "?" over a challenge you haven't won.
       const mark = n.fight && !cleared ? ['!', '#ffd166'] : n.challenge && !Save.hasWon(this.challengeId(n)) ? ['?', INTEL_CSS] : null;
       let alert = null;
@@ -157,7 +156,17 @@ export default class RegionScene extends Phaser.Scene {
       }
       return { ...n, sprite, alert };
     });
-    this.grid.erode(FIELD.clearance);
+
+    // Velvet ropes, each with its Clout price lettered above it.
+    this.gates = (map.gates ?? []).map((g) => {
+      const open = Save.gateOpen(this.gateId(g));
+      const rope = this.add.image(g.x, g.y, open ? 'prop_rope_open' : 'prop_rope').setOrigin(0.5, 1).setDepth(worldDepth(g.y));
+      const text = `${formatClout(g.clout)} CLOUT`;
+      const sign = pixelText(this, Math.round(g.x - pixelTextWidth(text, 2) / 2), Math.round(g.y - rope.height - 22), text, { px: 2, color: '#ffd166' })
+        .setDepth(worldDepth(g.y) + 0.5).setVisible(!open);
+      return { ...g, open, rope, sign };
+    });
+    this.buildGrid();
 
     const { spawn } = map;
     this.player = this.add.sprite(spawn.x, spawn.y, 'field_scott').setOrigin(0.5, 1).setDepth(worldDepth(spawn.y));
@@ -170,6 +179,28 @@ export default class RegionScene extends Phaser.Scene {
     cam.setBounds(0, 0, map.size.w, map.size.h);
     cam.startFollow(this.player, true, FIELD.cameraLerp, FIELD.cameraLerp);
     cam.setFollowOffset(0, FIELD.frame.h / 2);
+  }
+
+  /**
+   * The walk grid: the mask, minus every prop's, NPC's and closed rope's
+   * footprint, eroded so feet keep a little distance from walls. Rebuilt when a rope opens.
+   */
+  buildGrid() {
+    const { map } = this;
+    const { cell } = FIELD;
+    const cols = Math.ceil(map.size.w / cell);
+    const rows = Math.ceil(map.size.h / cell);
+    const sample = this.sampleWalk;
+    this.grid = new WalkGrid(cols, rows, cell, (c, r) => sample(((c + 0.5) * cell) / map.size.w, ((r + 0.5) * cell) / map.size.h));
+    const footprint = (x, y, b) => ({ x: x - b.w / 2, y: y - b.h / 2, w: b.w, h: b.h });
+    for (const p of map.props) if (p.block) this.grid.block(footprint(p.x, p.y, p.block));
+    for (const n of map.npcs) this.grid.block(footprint(n.x, n.y, NPC_BLOCK));
+    for (const g of this.gates) if (!g.open) this.grid.block(footprint(g.x, g.y, g.block));
+    this.grid.erode(FIELD.clearance);
+  }
+
+  gateId(gate) {
+    return `${this.region.id}:${gate.id}`;
   }
 
   /** Show a walker's idle frame for a facing (right mirrors left). */
@@ -197,6 +228,9 @@ export default class RegionScene extends Phaser.Scene {
         x: b.right - phoneW / 2, y: b.y, w: phoneW, h: b.h, text: 'PHONE', size: 16, accent: GOLD, system: true, depth: 30,
         onPress: () => this.openPhone(),
       });
+      // New posts in the social app.
+      this.badge = new PhoneBadge(this, b.right - 6, b.y - b.h / 2 + 4, 31);
+      this.events.on('resume', () => this.badge.refresh());
 
       // The bottom panel only shows while someone's talking.
       this.panel = drawRibbonPanel(this, LAYOUT.panel).setVisible(false);
@@ -402,7 +436,15 @@ export default class RegionScene extends Phaser.Scene {
     this.panel.setVisible(true);
     const cleared = Save.cleared.has(this.region.id);
     const won = npc.challenge && Save.hasWon(this.challengeId(npc));
-    await this.sayAll((won && npc.talkWon) || (cleared && npc.talkCleared) || npc.talk);
+    const metBefore = Save.socialState.met.has(this.challengeId(npc));
+    const gate = this.gates.find((g) => g.bouncer === npc.id);
+    if (!(gate?.open)) {
+      await this.sayAll((won && npc.talkWon) || (cleared && npc.talkCleared) || (metBefore && npc.talkAgain) || npc.talk);
+    }
+    Save.meet(this.challengeId(npc));
+    this.badge.refresh();
+    if (gate) await this.atTheRope(gate);
+    await this.afterTalk(npc);
     this.dialog.hide();
     if (npc.challenge && !won) await this.offerChallenge(npc);
 
@@ -421,8 +463,49 @@ export default class RegionScene extends Phaser.Scene {
     this.mode = 'explore';
   }
 
-  sayAll(lines = []) {
-    return lines.reduce((p, line) => p.then(() => this.dialog.say(line.text, line.speaker ?? null)), Promise.resolve());
+  sayAll(lines = [], vars = null) {
+    return lines.reduce((p, line) => p.then(() => this.dialog.say(vars ? fillIn(line.text, vars) : line.text, line.speaker ?? null)), Promise.resolve());
+  }
+
+  // ---- The social app's side of talking: classic posts, gifts, velvet ropes ---------
+
+  /** A first talk can unlock a classic post and hand over a gift. */
+  async afterTalk(npc) {
+    if (npc.unlocks && Save.unlockClassic(npc.unlocks)) {
+      Audio.sfx('good');
+      await this.dialog.say('NEW DRAFT: that conversation gave $cott an idea for a classic post.\nIt\'s waiting in his phone, in Y.', null, { color: SOCIAL_CSS });
+    }
+    if (npc.gift && Save.brag(`gift:${this.challengeId(npc)}`)) {
+      const { cash = 0, items = {} } = npc.gift;
+      if (cash) Save.earn(cash);
+      for (const [id, n] of Object.entries(items)) Save.addStash(id, n);
+      const got = [cash ? `+${money(cash)}` : null, ...Object.entries(items).map(([id, n]) => `+${n} ${ITEMS[id]?.name ?? id}`)].filter(Boolean);
+      Audio.sfx('heal');
+      await this.dialog.say(got.join('\n'), null, { color: '#ffd166' });
+    }
+  }
+
+  /** A bouncer checks $cott's Clout against the list, and opens the rope once he has it. */
+  async atTheRope(gate) {
+    const vars = { clout: formatClout(Save.clout), need: formatClout(gate.clout) };
+    if (gate.open) return this.sayAll(gate.open, vars);
+    if (Save.clout < gate.clout) {
+      Audio.sfx('bad');
+      return this.sayAll(gate.deny, vars);
+    }
+    await this.sayAll(gate.allow, vars);
+    this.openGate(gate);
+  }
+
+  openGate(gate) {
+    Save.openGate(this.gateId(gate));
+    gate.open = true;
+    gate.rope.setTexture('prop_rope_open');
+    gate.sign.setVisible(false);
+    Audio.sfx('crit');
+    this.cameras.main.flash(160, 255, 209, 102);
+    this.buildGrid();
+    this.badge.refresh();
   }
 
   challengeId(npc) {
@@ -552,6 +635,9 @@ export default class RegionScene extends Phaser.Scene {
         id: n.id, tap: screen(n.x, n.y - 60), challenge: !!n.challenge, won: !!n.challenge && Save.hasWon(this.challengeId(n)),
       })),
       quizAnswer: this.quizAnswer ?? null,
+      clout: Save.clout,
+      cash: Save.cash,
+      gates: this.gates.map((g) => ({ id: g.id, open: g.open, clout: g.clout, tap: screen(g.x, g.y - 20) })),
     };
   }
 }

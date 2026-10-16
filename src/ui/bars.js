@@ -1,4 +1,4 @@
-// Stat bar (Clout, Flow, crowd): a slanted ribbon-style bar (ui/ribbon.js).
+// Stat bar (Ego, Flow, crowd): a slanted ribbon-style bar (ui/ribbon.js).
 //
 // HANDOFF quirk, kept on purpose: the bar tweens a display copy of the value,
 // so the real stat changes instantly and the bar catches up.

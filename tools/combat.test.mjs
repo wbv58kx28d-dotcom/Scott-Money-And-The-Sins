@@ -159,9 +159,9 @@ test('Short Squeezed is permanent', () => {
 test('items and restores cap at max', () => {
   const s = createBattler(SCOTT);
   assert.deepEqual(s.items, { coldBrew: 2, voicemail: 1 });
-  s.clout = 80;
-  assert.deepEqual(restore(s, { clout: 35 }), { clout: 20, flow: 0 });
-  assert.equal(s.clout, 100);
+  s.ego = 80;
+  assert.deepEqual(restore(s, { ego: 35 }), { ego: 20, flow: 0 });
+  assert.equal(s.ego, 100);
 });
 
 test('crowd meter clamps, unlocks at 100, and locks until the mic drops (§5.5)', () => {
@@ -184,11 +184,11 @@ test('crowd meter clamps, unlocks at 100, and locks until the mic drops (§5.5)'
   assert.equal(prototype.value, 96, "the prototype's behavior");
 });
 
-test('Short Squeezed triggers at 40% Clout or below (§4)', () => {
+test('Short Squeezed triggers at 40% Ego or below (§4)', () => {
   const d = createBattler(derek);
-  d.clout = 61;
+  d.ego = 61;
   assert.equal(checkStatusTriggers(d).length, 0);
-  d.clout = 60;
+  d.ego = 60;
   assert.deepEqual(checkStatusTriggers(d).map((t) => t.status), ['shortSqueezed']);
   assert.equal(checkStatusTriggers(d).length, 0, 'only fires once');
   assert.equal(d.statuses.dealMult(), 1.3);

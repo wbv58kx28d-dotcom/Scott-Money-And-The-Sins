@@ -46,6 +46,7 @@ export default {
       x: 660,
       y: 1560,
       facing: 'left',
+      unlocks: 'c_colorblind', // a classic post for $cott's social app (data/social.js), after his first talk
       talk: [
         { speaker: 'BRAD', text: '"Been holding these bags since 2021. My arms went numb in 2022."' },
         { speaker: 'BRAD', text: '"Derek says selling is for paper hands. But you look like you\'ve seen... profit."' },
@@ -74,6 +75,7 @@ export default {
       x: 340,
       y: 1250,
       facing: 'right',
+      unlocks: 'c_rules',
       talk: [
         { speaker: 'MORGAN', text: '"Halt. I moderate this swamp."' },
         { speaker: 'MORGAN', text: '"Nobody gets the inside scoop on Derek without passing the rules quiz."' },
@@ -119,6 +121,7 @@ export default {
       x: 420,
       y: 560,
       facing: 'right',
+      unlocks: 'c_lambo',
       talk: [
         { speaker: 'CHAD', text: '"Sup. I\'m Derek\'s wife\'s boyfriend. I also run his 401(k)."' },
         { speaker: 'CHAD', text: '"Out-flex me and I\'ll tell you where it really hurts him."' },
@@ -141,21 +144,75 @@ export default {
         reveal: { enemy: 'derek', softSpots: ['FLEX>WEALTH', 'WORDPLAY>CAREER'] },
       },
     },
+
+    // The Swamp Yacht Club: an island behind a velvet rope (`gates` below).
+    // Vinny holds the rope; Wendy is the party inside.
+    {
+      id: 'vinny',
+      name: 'VELVET VINNY',
+      sprite: 'field_vinny',
+      x: 770,
+      y: 1196,
+      facing: 'right',
+      talk: [
+        { speaker: 'VINNY', text: '"Swamp Yacht Club. Members and the extremely online only."' },
+      ],
+    },
+    {
+      id: 'wendy',
+      name: 'WHALE WENDY',
+      sprite: 'field_wendy',
+      x: 915,
+      y: 965,
+      facing: 'down',
+      unlocks: 'c_yacht',
+      talk: [
+        { speaker: 'WENDY', text: '"Oh good, someone with Clout. Everyone else here is a frog."' },
+        { speaker: 'WENDY', text: '"Welcome to the club, darling. The yacht is a pool float. Don\'t tell anyone. Here, for the road."' },
+      ],
+      talkAgain: [{ speaker: 'WENDY', text: '"Champagne? It\'s swamp water. Vintage."' }],
+      gift: { cash: 750, items: { voicemail: 1 } }, // given once, after her first talk
+    },
+  ],
+
+  // Velvet ropes: $cott needs `clout` (social Clout, data/social.js) to get
+  // past. The rope's footprint blocks the way until the bouncer lets him
+  // through, then it stays open for good. `bouncer` is the NPC who says so.
+  gates: [
+    {
+      id: 'vip',
+      name: 'SWAMP YACHT CLUB',
+      clout: 500,
+      bouncer: 'vinny',
+      x: 860,
+      y: 1150,
+      block: { w: 150, h: 50 },
+      deny: [
+        { speaker: 'VINNY', text: '"{clout} Clout? Cute. The list says {need}."' },
+        { speaker: 'VINNY', text: '"Go post something. Get famous. Then we\'ll talk."' },
+      ],
+      allow: [
+        { speaker: 'VINNY', text: '"Wait. THE $cott Money? {clout} Clout?"' },
+        { speaker: 'VINNY', text: '"My apologies, sir. Right this way."' },
+      ],
+      open: [{ speaker: 'VINNY', text: '"Enjoy the club, sir."' }],
+    },
   ],
 
   // y-sorted scenery. `block` is the footprint (centered on the feet) that $cott can't walk through.
   props: [
     { texture: 'prop_setup', x: 690, y: 400, block: { w: 170, h: 50 } },
     { texture: 'prop_tent', x: 360, y: 400, block: { w: 160, h: 60 } },
+    { texture: 'prop_lounge', x: 815, y: 950, block: { w: 100, h: 30 } },
     { texture: 'prop_sign', x: 650, y: 1700, block: { w: 90, h: 16 }, label: 'r/APES' },
     { texture: 'prop_sign', x: 370, y: 760, block: { w: 90, h: 16 }, label: 'HODL ZONE' },
     { texture: 'prop_sign', x: 610, y: 610, block: { w: 90, h: 16 }, label: 'NO SELLING' },
     // Cypress trees and dead snags around the edges and between the pools.
     ...[
-      [110, 260], [960, 250], [150, 700], [920, 980], [90, 1210], [990, 1560],
-      [130, 1700], [870, 1820], [700, 1240], [330, 640], [820, 560], [250, 1350],
+      [110, 260], [960, 250], [150, 700], [955, 905], [90, 1210], [990, 1560],
+      [130, 1700], [870, 1820], [330, 640], [820, 560], [250, 1350],
     ].map(([x, y], i) => ({ texture: i % 2 ? 'prop_cypress_b' : 'prop_cypress', x, y, block: { w: 64, h: 24 } })),
-    ...[[420, 1600], [760, 1450], [190, 1020], [880, 360], [740, 690], [330, 1880]].map(([x, y], i) => ({
+    ...[[420, 1600], [790, 1530], [190, 1020], [880, 360], [740, 690], [330, 1880]].map(([x, y], i) => ({
       texture: i % 2 ? 'prop_snag_b' : 'prop_snag', x, y, block: { w: 40, h: 18 },
     })),
   ],
@@ -169,12 +226,15 @@ export default {
     pools: [
       { x: 470, y: 1110, rx: 300, ry: 80 }, // the boardwalk crosses this one
       { x: 230, y: 1540, rx: 150, ry: 90 },
-      { x: 830, y: 1330, rx: 190, ry: 110 },
+      { x: 830, y: 1390, rx: 180, ry: 95 },
       { x: 220, y: 900, rx: 150, ry: 110 },
       { x: 860, y: 760, rx: 150, ry: 90 },
       { x: 860, y: 1700, rx: 110, ry: 60 },
+      { x: 870, y: 975, rx: 250, ry: 165, calm: true }, // the lagoon around the Yacht Club
     ],
-    boardwalks: [{ x: 420, y: 1000, w: 100, h: 220 }],
+    // Dry land inside pools.
+    islands: [{ x: 860, y: 950, rx: 100, ry: 70 }],
+    boardwalks: [{ x: 420, y: 1000, w: 100, h: 220 }, { x: 815, y: 1000, w: 90, h: 160 }],
     border: 44, // dense reeds at the edges (not walkable, except the exit)
   },
 };

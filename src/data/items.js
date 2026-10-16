@@ -19,9 +19,9 @@ export const ITEMS = {
     short: 'VOICEMAIL',
     color: '#3ddc84',
     perFight: 1,
-    restore: { clout: 35 },
-    desc: '+35 Clout. "Bro. You\'re HIM."',
-    line: '$cott replays a voicemail from his hype man:\n"Bro. You\'re HIM. You\'re literally HIM."\n+35 Clout',
+    restore: { ego: 35 },
+    desc: '+35 Ego. "Bro. You\'re HIM."',
+    line: '$cott replays a voicemail from his hype man:\n"Bro. You\'re HIM. You\'re literally HIM."\n+35 Ego',
     emptyMsg: 'No voicemails left. The hype man is busy.',
   },
 };
