@@ -1,0 +1,27 @@
+{
+  "terrains": {
+    "f": {
+      "name": "floor",
+      "label": "MARBLE"
+    },
+    "x": {
+      "name": "wall",
+      "label": "WALL",
+      "blocks": true
+    },
+    "u": {
+      "name": "carpet",
+      "label": "CARPET"
+    }
+  },
+  "base": "f",
+  "pairs": [
+    "floor_wall",
+    "floor_carpet"
+  ],
+  "grade": {
+    "saturation": 1.0,
+    "brightness": 1.0
+  },
+  "scatter": []
+}

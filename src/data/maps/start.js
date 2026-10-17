@@ -108,6 +108,41 @@ export default {
 
     // The Swamp Yacht Club: an island behind a velvet rope (`gates` below).
     // Vinny holds the rope; Wendy is the party inside.
+    // The rest of the hot-tub crew: the subreddit's lower ranks. Nobody's seen
+    // where Derek actually lives; they point $cott at the pros in the tower.
+    floyd: {
+      name: 'FLOATIE FLOYD',
+      talk: [
+        { speaker: 'FLOYD', text: '"Hot tub\'s 104 degrees and 30% energy drink. Get in, bro."' },
+        { speaker: 'FLOYD', text: '"Derek? He streams every night, but nobody knows where from. Dude\'s a ghost with a ring light."' },
+      ],
+      talkAgain: [{ speaker: 'FLOYD', text: '"The pros in the glass tower track EVERYTHING. Even Wi-Fi, probably."' }],
+    },
+    lola: {
+      name: 'LOSS PORN LOLA',
+      talk: [
+        { speaker: 'LOLA', text: '"Down 87% today. New personal best."' },
+        { speaker: 'LOLA', text: '"Derek always brags his router\'s \'military grade.\' His Wi-Fi\'s the only thing he owns that\'s up."' },
+      ],
+      talkAgain: [{ speaker: 'LOLA', text: '"Screenshot my losses. I want to be famous."' }],
+    },
+    bob: {
+      name: 'BOT ACCOUNT BOB',
+      talk: [
+        { speaker: 'BOB', text: '"Beep boop. I mean. Hello, fellow human investor."' },
+        { speaker: 'BOB', text: '"The tower people won\'t even look at you without Clout. Post more. I\'ll like it. 4,000 times."' },
+      ],
+      talkAgain: [{ speaker: 'BOB', text: '"I have liked your post 4,000 times. You are welcome, human."' }],
+    },
+
+    // The doorman at the trading firm's rope (gates.office).
+    doorman: {
+      name: 'THE DOORMAN',
+      talk: [
+        { speaker: 'DOORMAN', text: '"Velocity Capital. Professionals only."' },
+      ],
+    },
+
     vinny: {
       name: 'VELVET VINNY',
       talk: [
@@ -143,6 +178,36 @@ export default {
         { speaker: 'VINNY', text: '"My apologies, sir. Right this way."' },
       ],
       open: [{ speaker: 'VINNY', text: '"Enjoy the club, sir."' }],
+    },
+    // The trading firm on the island (upper right). Required to find Derek, so a
+    // first run must be able to afford it before the fight (tools/social.test.mjs).
+    office: {
+      name: 'VELOCITY CAPITAL',
+      clout: 400,
+      deny: [
+        { speaker: 'DOORMAN', text: '"{clout} Clout. Hm. The guest list starts at {need}."' },
+        { speaker: 'DOORMAN', text: '"Our traders only take meetings with people the timeline takes seriously."' },
+      ],
+      allow: [
+        { speaker: 'DOORMAN', text: '"{clout} Clout. You\'re on the list, Mr. Money."' },
+        { speaker: 'DOORMAN', text: '"Trading floor\'s straight ahead. Don\'t touch the espresso machine."' },
+      ],
+      open: [{ speaker: 'DOORMAN', text: '"Welcome back, Mr. Money."' }],
+    },
+  },
+
+  // Hidden things (systems/secrets.js). The layout tags what each one hides
+  // (`secret`) or covers (`cover`); here's what it is and how it's found.
+  secrets: {
+    // Derek's cellar door, under a tarp by his house in the woods (upper left).
+    // The WIFI app (the day traders' gift) traces his router to it.
+    derek_wifi: {
+      ssid: 'DIAMONDHANDS-5G',
+      app: 'wifi',
+      found: [
+        { text: 'The tarp blows back. Under it: a cellar door, humming, glowing pink.' },
+        { text: 'DIAMONDHANDS-5G: SIGNAL EXCELLENT.\nDerek\'s basement. Found you.' },
+      ],
     },
   },
 };

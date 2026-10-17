@@ -18,7 +18,7 @@ ART_PX = 2  # screen px per art pixel, like the walkers and the ground
 # Wall decor (posters, signs) hangs on an interior's back wall: its feet stay on
 # the floor at the wall's foot, so it sorts in front of the wall, and this many
 # art px of empty space under the art lift it up onto the wall face.
-HANG = {'prop_poster': 26, 'prop_apesign': 24}
+HANG = {'prop_poster': 26, 'prop_apesign': 24, 'prop_screen': 34}
 
 # Props generated standing on a ground plate that the canvas cut off flat (the
 # house): the bottom this many art px get rounded into an outlined mound.

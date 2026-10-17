@@ -18,7 +18,20 @@ export const APPS = [
   { id: 'realty', name: 'REALTY', icon: 'house', color: 0xd94f70 },
   { id: 'shop', name: 'SHOP', icon: 'bag', color: 0xff8c42 },
   { id: 'settings', name: 'SETTINGS', icon: 'gear', color: 0x6f6888 },
+  // Gifted apps show up only once someone gives them to $cott (Save.addApp).
+  { id: 'wifi', name: 'WIFI', icon: 'wifi', color: 0x2bb3a3, gift: true }, // the day traders' Wi-Fi sniffer (CLAUDE.md §6.6)
 ];
+
+// The WIFI app (systems/secrets.js): it lists the networks nearby. A hidden
+// one (a map's `secrets`) gets stronger as $cott walks toward it, with a
+// compass heading, and can be traced once he's right on top of it.
+export const WIFI = {
+  bars: [3600, 2200, 1200, 500], // world px: within each, one more bar (4 at the closest)
+  traceRange: 260, // close enough to TRACE
+  // Networks that are always around, to make the list feel lived in.
+  // (Letters, digits, spaces and hyphens: the flip phone's pixel font has no underscore.)
+  decoys: ['XFINITYWIFI', 'FBI-VAN-7', 'PRETTY FLY FOR A WIFI', 'MODS-ONLY', 'TELLMYWIFILOVEHER'],
+};
 
 // The shop. Items stack in $cott's stash and are used in battle after the
 // free per-fight ones (data/items.js). `phone` entries upgrade the phone.

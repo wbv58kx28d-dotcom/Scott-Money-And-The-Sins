@@ -45,6 +45,9 @@ test('every region challenge is well formed and reveals real intel', () => {
         assert.ok(c.questions.length > 0, `${where} has questions`);
         for (const q of c.questions) assert.ok(q.answers.length >= 2 && new Set(q.answers).size === q.answers.length, `${where} answers`);
       }
+      // A challenge reveals intel on a villain, gives something (Helena's WIFI app), or both.
+      assert.ok(c.reveal || c.gift, `${where} reveals or gives something`);
+      if (!c.reveal) continue;
       const enemy = ENEMIES[c.reveal.enemy];
       assert.ok(enemy, `${where} reveals a real enemy`);
       for (const t of c.reveal.weak ?? []) assert.ok(enemy.weak.includes(t), `${where} weak ${t}`);

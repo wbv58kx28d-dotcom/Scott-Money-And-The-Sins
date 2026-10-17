@@ -13,7 +13,7 @@
 // the phone is a work in progress, SETTINGS can swap models for testing.
 
 import { GAME_W, GAME_H } from '../config.js';
-import { PHONES, APPS, SHOP, ECONOMY } from '../data/phone.js';
+import { PHONES, APPS, SHOP, ECONOMY, WIFI } from '../data/phone.js';
 import { TRADE } from '../data/trade.js';
 import { ITEMS } from '../data/items.js';
 import { Save } from '../systems/save.js';
@@ -335,6 +335,7 @@ export default class PhoneScene extends Phaser.Scene {
     if (this.page === 'home') return this.close();
     if (this.page === 'stonks-result') return this.stonks();
     if (this.page === 'realty-result') return this.realty();
+    if (this.page === 'wifi-traced') return this.close();
     this.home();
   }
 
@@ -342,7 +343,7 @@ export default class PhoneScene extends Phaser.Scene {
 
   home() {
     this.clearPage('home');
-    const apps = APPS;
+    const apps = APPS.filter((a) => !a.gift || Save.hasApp(a.id)); // gifted apps once he has them
     if (this.flip) {
       const c = FLIP.content;
       this.text(c.x + c.w / 2, c.y, 'MENU', { size: 'l', align: 'center' });
@@ -428,6 +429,7 @@ export default class PhoneScene extends Phaser.Scene {
     if (id === 'realty') return this.realty();
     if (id === 'shop') return this.shop();
     if (id === 'settings') return this.settings();
+    if (id === 'wifi') return this.wifi();
   }
 
   // ---- MAP ------------------------------------------------------------------------------
@@ -610,6 +612,75 @@ export default class PhoneScene extends Phaser.Scene {
     if (clout) this.text(c.x + c.w / 2, y - (this.flip ? 18 : 56), `POSTED IT. +${formatClout(clout)} CLOUT`, { size: 's', align: 'center', color: this.flip ? FLIP.colors.ink : '#ff8ad8', maxW: c.w });
     this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.realty(), { accent });
     this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
+  }
+
+  // ---- WIFI -----------------------------------------------------------------------------
+  // The day traders' Wi-Fi sniffer (systems/secrets.js): the networks around
+  // $cott. A hidden one (Derek's) shows its signal and which way to walk; once
+  // he's right on top of it, TRACE finds it, and the region shows what was hidden.
+
+  wifi() {
+    this.clearPage('wifi');
+    const c = this.flip ? FLIP.content : SMART.content;
+    const accent = APPS.find((a) => a.id === 'wifi').color;
+    this.header('WIFI', accent);
+    const region = this.from === 'Region' ? this.scene.get('Region') : null;
+    const hidden = region?.wifiNetworks() ?? [];
+    let y = c.y + (this.flip ? 30 : 100);
+    const rowH = this.flip ? 30 : 64;
+    const row = (name, bars, { sub = null, color = null } = {}) => {
+      this.text(c.x, y, name, { size: 'm', color, maxW: c.w - (this.flip ? 46 : 90) });
+      this.bars(c.x + c.w - (this.flip ? 34 : 70), y + (this.flip ? 12 : 30), bars);
+      if (sub) this.text(c.x, y + (this.flip ? 14 : 34), sub, { size: 's', font: 'body', color: this.flip ? null : '#9fdcff', maxW: c.w });
+      y += rowH + (sub ? (this.flip ? 14 : 30) : 0);
+    };
+    for (const n of hidden) {
+      const sub = n.found ? 'TRACED. SOMETHING WAS HIDDEN HERE.' : n.trace ? "IT'S RIGHT HERE. TRACE IT." : n.bars ? `HEAD ${n.heading}` : `TOO WEAK. HEAD ${n.heading}`;
+      row(n.ssid, n.bars, { sub, color: this.flip ? null : '#ffd166' });
+      if (n.trace && !n.found) {
+        const h = this.flip ? 46 : 96;
+        this.button(c.x, y, c.w, h, 'TRACE', () => this.trace(region, n), { accent, sub: this.flip ? null : 'Pinpoint the router.' });
+        y += h + (this.flip ? 8 : 20);
+      }
+    }
+    if (!region) this.text(c.x + c.w / 2, y, this.flip ? 'GO OUTSIDE.' : 'No networks out here. Go walk around a region.', { size: 's', font: 'body', align: 'center', maxW: c.w });
+    else {
+      // Everyone else's networks fill out the list (fewer on the flip phone's little LCD).
+      const decoys = WIFI.decoys.slice(0, this.flip ? (hidden.length ? 2 : 4) : 5);
+      decoys.forEach((name, i) => row(name, 1 + ((i * 3 + name.length) % 4), { color: this.flip ? null : '#e2d9ff' }));
+    }
+  }
+
+  /** Signal bars, bottom-left at (x, y): `n` of 4 lit. */
+  bars(x, y, n) {
+    const g = this.add.graphics();
+    const w = this.flip ? 6 : 12;
+    const gap = this.flip ? 2 : 4;
+    for (let i = 0; i < 4; i++) {
+      const h = (this.flip ? 4 : 8) * (i + 1);
+      const on = i < n;
+      const color = this.flip ? (on ? FLIP.colors.inkHex : FLIP.colors.midHex) : on ? 0x7cf29c : 0x3a3550;
+      g.fillStyle(color, 1).fillRect(x + i * (w + gap), y - h, w, h);
+    }
+    this.pageLayer.add(g);
+  }
+
+  /** TRACE: the region finds the secret, and the phone says so before stepping aside. */
+  trace(region, network) {
+    region.traceSecret(network.id);
+    Audio.sfx('crit');
+    this.clearPage('wifi-traced');
+    const c = this.flip ? FLIP.content : SMART.content;
+    const accent = APPS.find((a) => a.id === 'wifi').color;
+    this.header('WIFI', accent);
+    const top = c.y + (this.flip ? 40 : 160);
+    this.text(c.x + c.w / 2, top, 'TRACED', { size: 'xl', align: 'center', color: this.flip ? null : '#7cf29c' });
+    this.text(c.x + c.w / 2, top + (this.flip ? 34 : 80), network.ssid, { size: 'm', align: 'center', maxW: c.w });
+    this.text(c.x + c.w / 2, top + (this.flip ? 56 : 130), this.flip ? 'THE ROUTER IS RIGHT HERE.' : "The router's right under $cott's feet. Put the phone away and look.", {
+      size: 's', align: 'center', font: 'body', maxW: c.w,
+    });
+    const h = this.flip ? 56 : 110;
+    this.button(c.x, c.y + c.h - h - (this.flip ? 6 : 80), c.w, h, 'LOOK', () => this.close(), { accent });
   }
 
   // ---- SHOP -----------------------------------------------------------------------------

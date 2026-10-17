@@ -117,6 +117,17 @@ test('a first run can open the Swamps velvet rope before beating Derek', () => {
   assert.ok(3 * scorePost(draft, [], 'MID').gain < gate.clout);
 });
 
+test("a first run can afford the trading firm's rope, the way to Derek", () => {
+  // Every pre-fight reply right, and two on-trend posts: the tower can't be a wall before the first fight.
+  const draft = { base: 45, tag: 'GYM' };
+  const posts = 2 * scorePost(draft, ['GYM'], 'FIRE').gain;
+  const met = ['chad', 'brad', 'morgan', 'floyd', 'lola', 'bob', 'doorman'].map((id) => `start:${id}`);
+  const replies = visibleFeed(state({ met, won: ['start:brad'] })).filter((p) => p.reply).length * SOCIAL.reply.right;
+  const gate = MAPS.start.gates.find((g) => g.id === 'office');
+  assert.ok(posts + replies >= gate.clout, `${posts} + ${replies} < ${gate.clout}`);
+  assert.ok(gate.clout < MAPS.start.gates.find((g) => g.id === 'vip').clout, 'cheaper than the optional Yacht Club');
+});
+
 test('number formats', () => {
   assert.equal(formatCount(950), '950');
   assert.equal(formatCount(1250), '1.2K');

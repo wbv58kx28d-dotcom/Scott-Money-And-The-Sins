@@ -13,6 +13,9 @@
 //   &region=start        walk around that region
 //   &cash=5000           preset $cott's cash (in memory only)
 //   &clout=600           preset $cott's social Clout (in memory only)
+//   &apps=wifi           preset gifted phone apps (in memory only)
+//   &found=start:derek_wifi
+//                        preset found secrets, like Derek's hidden cellar (in memory only)
 //   &phone=smart         preset the phone model: flip or smart (in memory only)
 //   &title=1             show the title screen anyway (to test CONTINUE / START FRESH)
 //   &speed=4             run minigame clocks (day trade, property ladder) 4× faster
@@ -51,6 +54,8 @@ export const DEBUG = Object.freeze({
   cash: enabled && /^\d+$/.test(params.get('cash') ?? '') ? Number(params.get('cash')) : null,
   phone: enabled ? params.get('phone') : null,
   clout: enabled && /^\d+$/.test(params.get('clout') ?? '') ? Number(params.get('clout')) : null,
+  apps: list('apps'),
+  found: list('found'),
   title: flag('title'),
   canvas: flag('canvas'),
   edit: enabled ? params.get('edit') : null,
