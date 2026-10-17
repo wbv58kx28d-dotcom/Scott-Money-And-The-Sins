@@ -908,6 +908,23 @@ async function main() {
       if (s.follower.jealousy !== 1) failures.push(`follow: talking to Brad should make her jealous (${s.follower.jealousy})`);
       if (!s.emote) failures.push('follow: she should pop an emote when he talks to someone else');
 
+      // Walking up to someone she has an opinion on, she barks (odds forced to always, so it's certain).
+      await page.evaluate(() => {
+        const scene = window.__smm.game.scene.getScene('Region');
+        Object.assign(scene.follower.barker, { chance: 1, nextAny: 0 });
+        scene.follower.barker.nextFor.clear();
+        scene.walkTo(scene.map.spawn.x, scene.map.spawn.y);
+      });
+      for (let i = 0; i < 400 && (await state(page)).walking; i++) await sleep(150);
+      await walkNear(page, 'morgan');
+      let bark = null;
+      for (let i = 0; i < 40 && !bark; i++) {
+        bark = (await state(page)).bark;
+        await sleep(100);
+      }
+      if (!bark) failures.push('follow: walking up to Mod Morgan should get a bark out of her');
+      else await page.screenshot({ path: path.join(SHOTS, '19i-follower-bark.png') });
+
       // Away from everyone, TALK talks to her, and that settles her down.
       await page.evaluate(() => {
         const scene = window.__smm.game.scene.getScene('Region');
@@ -931,7 +948,7 @@ async function main() {
       s = await state(page);
       if (!s.follower) failures.push('follow: she should come down to the basement with him');
       else if (Math.hypot(s.player.x - s.follower.x, s.player.y - s.follower.y) > gap + 6) failures.push('follow: she should arrive right behind him');
-      console.log(`follow: Lil' Turnt trailed him (max ${Math.round(farthest)} px, gap ${gap}), talked, got jealous of Brad, settled, followed him to ${s.map}`);
+      console.log(`follow: Lil' Turnt trailed him (max ${Math.round(farthest)} px, gap ${gap}), talked, got jealous of Brad, barked "${bark}", settled, followed him to ${s.map}`);
       failures.push(...errors.map((x) => `follow: ${x}`));
       await page.context().close();
     }

@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Trail, facingOf, moodOf, followerLines } from '../src/systems/follower.js';
+import { Trail, Barker, barkTargets, facingOf, moodOf, followerLines } from '../src/systems/follower.js';
+import { PROP_IMAGES } from '../src/data/assets.js';
 import { FOLLOWERS, MAX_JEALOUSY } from '../src/data/followers.js';
 import { EMOTES } from '../src/ui/emote.js';
 import { MAPS } from '../src/data/maps/index.js';
@@ -114,4 +115,103 @@ test('her map and nearby lines name real maps and NPCs', () => {
   for (const id of Object.keys(data.maps)) assert.ok(MAPS[id], `no map ${id}`);
   const npcs = new Set(Object.values(MAPS).flatMap((m) => m.npcs.map((n) => n.id)));
   for (const id of Object.keys(data.near)) assert.ok(npcs.has(id), `no NPC ${id}`);
+});
+
+// ---- Barks: one-liners over her head as $cott walks past things ----------------
+
+const target = (key, x, y, lines = ['a', 'b']) => ({ key, x, y, lines });
+const always = () => 0;
+const never = () => 0.99;
+const firstPick = () => 0;
+
+test('a bark comes when he walks up to something, not while he stays by it', () => {
+  const b = new Barker({ chance: 1, cooldownMs: 0, againMs: 0, range: 100 }, { now: 0, settleMs: 0 });
+  const t = [target('npc:brad', 500, 0)];
+  assert.equal(b.update(0, { x: 0, y: 0 }, t, always, firstPick), null); // far away
+  const bark = b.update(10, { x: 450, y: 0 }, t, always, firstPick);
+  assert.equal(bark?.key, 'npc:brad');
+  assert.equal(b.update(20, { x: 460, y: 0 }, t, always, firstPick), null, 'still standing there: no second bark');
+  b.update(30, { x: 0, y: 0 }, t, always, firstPick); // walks off
+  assert.equal(b.update(40, { x: 450, y: 0 }, t, always, firstPick)?.key, 'npc:brad', 'comes back: another');
+});
+
+test('barks are occasional: the chance roll, the cooldown, and once in a while per thing', () => {
+  const t = [target('npc:brad', 100, 0), target('prop:prop_hottub', 0, 100)];
+  const far = { x: 1000, y: 1000 };
+  // The roll says no.
+  let b = new Barker({ chance: 0.5, range: 50 }, { now: 0, settleMs: 0 });
+  b.update(0, far, t, never, firstPick);
+  assert.equal(b.update(1, { x: 100, y: 0 }, t, never, firstPick), null);
+  // The cooldown: a second thing right after the first stays quiet.
+  b = new Barker({ chance: 1, cooldownMs: 5000, againMs: 0, range: 50 }, { now: 0, settleMs: 0 });
+  b.update(0, far, t, always, firstPick);
+  assert.ok(b.update(1, { x: 100, y: 0 }, t, always, firstPick));
+  assert.equal(b.update(2, { x: 0, y: 100 }, t, always, firstPick), null);
+  // ...but not after it.
+  b.update(3, far, t, always, firstPick);
+  assert.ok(b.update(6000, { x: 0, y: 100 }, t, always, firstPick));
+  // Once in a while per thing: back to Brad too soon, nothing.
+  b = new Barker({ chance: 1, cooldownMs: 0, againMs: 60000, range: 50 }, { now: 0, settleMs: 0 });
+  b.update(0, far, t, always, firstPick);
+  assert.ok(b.update(1, { x: 100, y: 0 }, t, always, firstPick));
+  b.update(2, far, t, always, firstPick);
+  assert.equal(b.update(3, { x: 100, y: 0 }, t, always, firstPick), null);
+  b.update(4, far, t, always, firstPick);
+  assert.ok(b.update(70000, { x: 100, y: 0 }, t, always, firstPick));
+});
+
+test('nothing on arrival: what was already in range, or during the settle-in', () => {
+  const t = [target('npc:brad', 0, 0)];
+  let b = new Barker({ chance: 1, cooldownMs: 0, range: 100 }, { now: 0, settleMs: 0 });
+  assert.equal(b.update(0, { x: 10, y: 0 }, t, always, firstPick), null, 'already beside Brad when the map loads');
+  b = new Barker({ chance: 1, cooldownMs: 0, range: 100 }, { now: 0, settleMs: 2000 });
+  b.update(0, { x: 500, y: 0 }, t, always, firstPick);
+  assert.equal(b.update(500, { x: 10, y: 0 }, t, always, firstPick), null, 'settling in');
+});
+
+test('a different line from last time, and things sharing a key share a bark', () => {
+  const b = new Barker({ chance: 1, cooldownMs: 0, againMs: 0, range: 50 }, { now: 0, settleMs: 0 });
+  const t = [target('prop:prop_rack', 0, 0, ['one', 'two']), target('prop:prop_rack', 200, 0, ['one', 'two'])];
+  const far = { x: 100, y: 500 };
+  b.update(0, far, t, always, firstPick);
+  const said = [];
+  for (let i = 0; i < 4; i++) {
+    said.push(b.update(i * 2 + 1, { x: 0, y: 0 }, t, always, firstPick)?.text);
+    b.update(i * 2 + 2, far, t, always, firstPick);
+  }
+  assert.deepEqual(said, ['one', 'two', 'one', 'two']);
+  // Walking from one rack to the next (both in range of one or the other) is one visit.
+  b.update(100, { x: 0, y: 0 }, t, always, firstPick);
+  assert.equal(b.update(101, { x: 40, y: 0 }, t, always, firstPick), null);
+});
+
+test('bark targets come from the map: NPCs, props by texture, ropes, doors (not the way out)', () => {
+  const barks = { npcs: { brad: ['x'] }, props: { prop_hottub: { range: 300, lines: ['y'] } }, ropes: { vip: ['z'] }, doors: { start_lair: ['w'], map: ['never'] } };
+  const out = barkTargets(barks, {
+    npcs: [{ id: 'brad', x: 1, y: 2 }, { id: 'nobody', x: 0, y: 0 }],
+    props: [{ texture: 'prop_hottub', x: 3, y: 4 }, { texture: 'prop_cypress', x: 0, y: 0 }],
+    gates: [{ id: 'vip', x: 5, y: 6 }],
+    exits: [{ to: 'start_lair', x: 0, y: 0, w: 10, h: 20 }, { to: 'map', x: 0, y: 0, w: 1, h: 1 }],
+  });
+  assert.deepEqual(out.map((t) => t.key), ['npc:brad', 'prop:prop_hottub', 'rope:vip', 'door:start_lair']);
+  assert.equal(out[1].range, 300);
+  assert.deepEqual([out[3].x, out[3].y], [5, 10]);
+});
+
+test("Lil' Turnt's barks name real NPCs, props, ropes and maps, and fit the bubble", () => {
+  const { barks } = FOLLOWERS.lilturnt;
+  const npcs = new Set(Object.values(MAPS).flatMap((m) => m.npcs.map((n) => n.id)));
+  const ropes = new Set(Object.values(MAPS).flatMap((m) => m.gates.map((g) => g.id)));
+  const props = new Set(PROP_IMAGES.map((p) => p.key));
+  for (const id of Object.keys(barks.npcs)) assert.ok(npcs.has(id), `no NPC ${id}`);
+  for (const id of Object.keys(barks.props)) assert.ok(props.has(id), `no prop ${id}`);
+  for (const id of Object.keys(barks.ropes)) assert.ok(ropes.has(id), `no rope ${id}`);
+  for (const id of Object.keys(barks.doors)) assert.ok(MAPS[id], `no map ${id}`);
+  for (const group of ['npcs', 'props', 'ropes', 'doors']) {
+    for (const entry of Object.values(barks[group])) {
+      const lines = Array.isArray(entry) ? entry : entry.lines;
+      assert.ok(lines.length > 0);
+      for (const l of lines) assert.ok(l.length <= 44, `too long for the bubble: ${l}`);
+    }
+  }
 });
