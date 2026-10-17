@@ -95,6 +95,19 @@ async function tapGame(page, gx, gy) {
 const state = (page) => page.evaluate(() => window.__smm?.state() ?? null);
 
 /**
+ * The swamp is big (3200×5248): walk most of the way to an NPC with the
+ * scene's own pathing, so the taps that follow land on someone on screen.
+ */
+async function walkNear(page, id) {
+  await page.evaluate((npcId) => {
+    const scene = window.__smm.game.scene.getScene('Region');
+    const n = scene.npcs.find((x) => x.id === npcId);
+    scene.walkTo(n.x, n.y + 130);
+  }, id);
+  for (let i = 0; i < 400 && (await state(page)).walking; i++) await sleep(150);
+}
+
+/**
  * Go through a door (an exit to another map): walk most of the way with the
  * scene's own pathing, since the door can start far off screen, then tap the
  * door itself until $cott walks in and the next map is up.
@@ -103,16 +116,29 @@ async function goThroughDoor(page, to) {
   let s = await state(page);
   const exit = s.exits.find((e) => e.to === to);
   if (!exit) throw new Error(`region: no door to ${to} on ${s.map}`);
+  if (!exit.open) {
+    // A hidden door (Derek's cellar): find it the way the WIFI app's TRACE does (step 5d plays the app itself).
+    await page.evaluate((door) => {
+      const scene = window.__smm.game.scene.getScene('Region');
+      const e = scene.map.exits.find((x) => x.to === door);
+      scene.traceSecret(e.secret);
+      scene.revealSecret(e.secret);
+    }, to);
+  }
   await page.evaluate((to) => {
     const scene = window.__smm.game.scene.getScene('Region');
     const e = scene.map.exits.find((x) => x.to === to);
     scene.walkTo(e.x + e.w / 2, e.y + e.h + 90);
   }, to);
-  for (let i = 0; i < 120 && (await state(page)).walking; i++) await sleep(150);
+  for (let i = 0; i < 400 && ((await state(page)).walking || (await state(page)).mode === 'talk'); i++) {
+    if ((await state(page)).mode === 'talk') await tapGame(page, GAME_W / 2, 1170);
+    await sleep(150);
+  }
   const started = Date.now();
   for (s = await state(page); !(s.scene === 'Region' && s.map === to && s.mode === 'explore'); s = await state(page)) {
     if (Date.now() - started > 30_000) throw new Error(`region: never got through the door to ${to}`);
-    if (s.scene === 'Region' && s.mode === 'explore' && !s.walking) {
+    if (s.scene === 'Region' && s.mode === 'talk') await tapGame(page, GAME_W / 2, 1170);
+    else if (s.scene === 'Region' && s.mode === 'explore' && !s.walking) {
       const { tap } = s.exits.find((e) => e.to === to);
       await tapGame(page, tap.x, tap.y);
     }
@@ -186,6 +212,7 @@ async function touchDrag(page, from, to, holdMs) {
  * market is open.
  */
 async function winChallenge(page, id, accept, { onTrade } = {}) {
+  await walkNear(page, id);
   const started = Date.now();
   let looked = false;
   for (;;) {
@@ -439,6 +466,7 @@ async function main() {
       const locals = before.npcs.filter((n) => n.challenge).map((n) => n.id);
       // The TALK button: walk up beside Brad, check it lights up for him, press it, and he talks.
       {
+        await walkNear(page, 'brad');
         const brad = (await state(page)).npcs.find((n) => n.id === 'brad');
         await tapGame(page, brad.tap.x - 90, brad.tap.y + 60);
         for (let i = 0; i < 40 && (await state(page)).walking; i++) await sleep(150);
@@ -597,6 +625,7 @@ async function main() {
       };
       // Walk up to an NPC and tap through whatever they say.
       const talkTo = async (id) => {
+        await walkNear(page, id);
         const started = Date.now();
         let s = await state(page);
         while (s.mode === 'explore') {
@@ -692,7 +721,8 @@ async function main() {
         await sleep(300);
       };
       const before = await ed();
-      if (before.dirty || before.cols !== 34) failures.push(`editor: should open the saved swamp (${JSON.stringify({ dirty: before.dirty, cols: before.cols })})`);
+      const saved = (await import('../src/data/maps/start.layout.js')).default;
+      if (before.dirty || before.cols !== saved.cols) failures.push(`editor: should open the saved swamp (${JSON.stringify({ dirty: before.dirty, cols: before.cols })})`);
       await page.screenshot({ path: path.join(SHOTS, '19-editor.png') });
       // PAINT is the starting tool, with WATER picked: paint a stroke across the whole map, wall to wall.
       await touchDrag(page, { x: 120, y: 500 }, { x: 600, y: 520 }, 200);
@@ -707,15 +737,15 @@ async function main() {
       if ((await ed()).counts.npcs !== before.counts.npcs) failures.push('editor: UNDO should take the NPC back out');
       await press('CHECK');
       const notes = (await ed()).problems;
-      // The water stroke cut the north of the swamp off (Derek's cellar door, and Chad beside it): CHECK should say so.
-      if (!notes.some((n) => /^error: (The exit to start_lair|CHAD) can't be reached/.test(n))) failures.push(`editor: CHECK should catch the stroke cutting Derek's house off (${JSON.stringify(notes)})`);
+      // The water stroke cut the swamp in two, wall to wall: CHECK should say something's out of reach.
+      if (!notes.some((n) => /^error: .*can't be reached/.test(n))) failures.push(`editor: CHECK should catch the stroke cutting the swamp in two (${JSON.stringify(notes)})`);
       await page.screenshot({ path: path.join(SHOTS, '19b-editor-check.png') });
       await press('MAP');
       await press('+ RIGHT');
-      if ((await ed()).cols !== 38) failures.push('editor: + RIGHT should grow the map 4 cells');
+      if ((await ed()).cols !== saved.cols + 4) failures.push('editor: + RIGHT should grow the map 4 cells');
       await press('EXPORT');
       e = await ed();
-      if (!/^\/\/ Region 'start'[\s\S]*export default \{[\s\S]*cols: 38,/.test(e.export ?? '')) failures.push('editor: EXPORT should write the layout file');
+      if (!new RegExp(`^// Region 'start'[\\s\\S]*export default \\{[\\s\\S]*cols: ${saved.cols + 4},`).test(e.export ?? '')) failures.push('editor: EXPORT should write the layout file');
       await press('PLAYTEST');
       await page.waitForFunction(() => window.__smm.state().scene === 'Region', null, { timeout: 10_000 }).catch(() => failures.push('editor: PLAYTEST should open the region'));
       await sleep(600);
@@ -723,9 +753,83 @@ async function main() {
       await press('EDIT');
       await page.waitForFunction(() => window.__smm.state().scene === 'Editor', null, { timeout: 10_000 }).catch(() => failures.push('editor: EDIT should come back from the playtest'));
       e = await ed();
-      if (e && (e.cols !== 38 || !e.dirty)) failures.push('editor: the draft should survive a playtest');
+      if (e && (e.cols !== saved.cols + 4 || !e.dirty)) failures.push('editor: the draft should survive a playtest');
       console.log(`editor: painted, added and undid an NPC, CHECK listed ${notes.length} notes, grew to ${e?.cols} cols, exported, playtested, came back`);
       failures.push(...errors.map((x) => `editor: ${x}`));
+      await page.context().close();
+    }
+
+    // 5d. The tower and the WIFI app: Clout gets $cott past the doorman, Helena's trade wins
+    // him the app, and tracing DIAMONDHANDS-5G uncovers Derek's cellar in the woods.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&canvas=1&region=start&fast=1&seed=5&clout=600&phone=smart&speed=3`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 30_000 });
+      await sleep(600);
+      const talkThrough = async (id) => {
+        await walkNear(page, id);
+        let s = await state(page);
+        for (let i = 0; i < 60 && s.mode === 'explore'; i++) {
+          const npc = s.npcs.find((n) => n.id === id);
+          if (!s.walking) await tapGame(page, npc.tap.x, npc.tap.y);
+          await sleep(250);
+          s = await state(page);
+        }
+        for (let i = 0; i < 40 && s.mode !== 'explore'; i++) {
+          await tapGame(page, GAME_W / 2, 1170);
+          await sleep(250);
+          s = await state(page);
+        }
+        return s;
+      };
+      let s = await state(page);
+      if (s.exits.find((e) => e.to === 'start_lair').open) failures.push("wifi: Derek's cellar should start hidden");
+      s = await talkThrough('doorman');
+      if (!s.gates.find((g) => g.id === 'office').open) failures.push('wifi: 600 Clout should get past the doorman');
+      s = await goThroughDoor(page, 'start_office');
+      await page.screenshot({ path: path.join(SHOTS, '19d-office.png') });
+      await winChallenge(page, 'helena', 'WATCH THIS');
+      for (let i = 0; i < 40 && (await state(page)).mode !== 'explore'; i++) {
+        await tapGame(page, GAME_W / 2, 1170);
+        await sleep(250);
+      }
+      s = await state(page);
+      if (!s.apps.includes('wifi')) failures.push(`wifi: winning Helena's trade should install the WIFI app (${JSON.stringify(s.apps)})`);
+      s = await goThroughDoor(page, 'start');
+      // Walk to Derek's yard, then let the app find him.
+      await page.evaluate(() => {
+        const scene = window.__smm.game.scene.getScene('Region');
+        const e = scene.map.exits.find((x) => x.to === 'start_lair');
+        scene.walkTo(e.x + e.w / 2, e.y + e.h + 70);
+      });
+      for (let i = 0; i < 400 && (await state(page)).walking; i++) await sleep(150);
+      const phone = async (text) => {
+        const t = [...((await state(page)).targets ?? []), ...(await state(page)).buttons].find((x) => x.text === text && x.enabled !== false);
+        if (!t) throw new Error(`wifi: no "${text}" to press`);
+        await tapGame(page, t.x, t.y);
+        await sleep(500);
+      };
+      await phone('PHONE');
+      await phone('WIFI');
+      await page.screenshot({ path: path.join(SHOTS, '19e-wifi.png') });
+      await phone('TRACE');
+      await phone('LOOK');
+      for (let i = 0; i < 40 && (await state(page)).scene !== 'Region'; i++) await sleep(150);
+      await sleep(900);
+      await page.screenshot({ path: path.join(SHOTS, '19f-wifi-found.png') });
+      for (let i = 0; i < 30 && (await state(page)).mode !== 'explore'; i++) {
+        await tapGame(page, GAME_W / 2, 1170);
+        await sleep(250);
+      }
+      s = await state(page);
+      if (!s.exits.find((e) => e.to === 'start_lair').open) failures.push("wifi: TRACE should uncover Derek's cellar door");
+      else {
+        s = await goThroughDoor(page, 'start_lair');
+        if (s.map !== 'start_lair') failures.push('wifi: the cellar should lead down to the basement');
+      }
+      console.log(`wifi: doorman let him in, won Helena's trade, got ${s.apps.join(',')}, traced Derek's router, went down to ${s.map}`);
+      failures.push(...errors.map((x) => `wifi: ${x}`));
       await page.context().close();
     }
 

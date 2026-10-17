@@ -6,7 +6,8 @@
 // social app (data/social.js): Clout, posts left, the classic posts he's
 // unlocked and posted, who he's met, his replies, his own posts, the order
 // the feed's posts arrived in, the velvet ropes he's opened, and the big
-// moments he's already bragged about.
+// moments he's already bragged about; plus the phone apps people gave him
+// (the WIFI app) and the secrets he's found with them (Derek's hidden cellar).
 //
 // localStorage can be missing or throw (private browsing, blocked storage), so
 // every access is guarded and the game falls back to an in-memory save.
@@ -28,6 +29,7 @@ const fresh = () => ({
   cash: ECONOMY.startCash, phone: 'flip', stash: {}, trades: ECONOMY.tradesPerFight,
   clout: SOCIAL.startClout, posts: SOCIAL.postsPerFight, unlocked: [], posted: [], met: [], replied: {},
   seq: 0, feedSeq: {}, mine: [], gates: [], bragged: [],
+  apps: [], found: [],
 });
 const MINE_MAX = 40; // $cott's own posts kept in the feed
 
@@ -61,6 +63,7 @@ class SaveGame {
       }
     }
     const preset = DEBUG.cleared !== null || DEBUG.sins !== null || DEBUG.cash !== null || DEBUG.phone !== null || DEBUG.clout !== null
+      || DEBUG.apps !== null || DEBUG.found !== null
       || DEBUG.edit !== null; // playtesting a map in the editor never touches the real save
     this.persist = !preset;
     this.data = preset ? fresh() : read() ?? fresh();
@@ -70,6 +73,35 @@ class SaveGame {
     if (DEBUG.cash !== null) this.data.cash = DEBUG.cash;
     if (PHONES[DEBUG.phone]) this.data.phone = DEBUG.phone;
     if (DEBUG.clout !== null) this.data.clout = DEBUG.clout;
+    if (DEBUG.apps) this.data.apps = [...DEBUG.apps];
+    if (DEBUG.found) this.data.found = [...DEBUG.found];
+  }
+
+  // ---- Gifted apps and found secrets (the WIFI app, Derek's cellar) ----------------
+
+  hasApp(id) {
+    return this.data.apps.includes(id);
+  }
+
+  /** Install a gifted app. Returns whether it's new. */
+  addApp(id) {
+    if (this.hasApp(id)) return false;
+    this.data.apps.push(id);
+    this.flush();
+    return true;
+  }
+
+  /** A secret (`<region>:<secret>`) is found once traced, or for good once its region is cleared. */
+  isFound(id) {
+    return this.data.found.includes(id) || this.data.cleared.includes(id.split(':')[0]);
+  }
+
+  /** Returns whether it's new. */
+  find(id) {
+    if (this.data.found.includes(id)) return false;
+    this.data.found.push(id);
+    this.flush();
+    return true;
   }
 
   // ---- Money, phone, stash ------------------------------------------------------
@@ -261,7 +293,8 @@ class SaveGame {
     return d.cleared.length > 0 || d.won.length > 0 || d.quests.length > 0 || Object.keys(d.sins).length > 0
       || Object.values(d.stash).some((n) => n > 0) || d.at !== blank.at || d.cash !== blank.cash
       || d.phone !== blank.phone || d.trades !== blank.trades
-      || d.clout !== blank.clout || d.posts !== blank.posts || d.met.length > 0 || d.mine.length > 0;
+      || d.clout !== blank.clout || d.posts !== blank.posts || d.met.length > 0 || d.mine.length > 0
+      || d.apps.length > 0 || d.found.length > 0;
   }
 
   /** Start over (Settings → RESET, or START FRESH on the title). Debug presets stay in memory as before. */

@@ -11,8 +11,10 @@ apart join seamlessly; the `_pipe` one adds a pipe and cables to break the
 repeat. Colors match the wall-top tiles (assets/regions/basement).
 
 Drawn here rather than generated: a tiling wall needs exact edges. Output goes
-to tools/region-art/props/prop_wall*.png, which props.py exports like any prop,
-plus the basement tileset's floor grate (tools/region-art/basement/bridge.png).
+to tools/region-art/props/prop_wall*.png and prop_office_*.png (the trading
+floor's panelled wall, and one with a window onto the skyline), which props.py
+exports like any prop, plus the basement's and the office's floor grate
+(tools/region-art/<set>/bridge.png, which tileset.py needs).
 """
 
 import os
@@ -86,6 +88,66 @@ def with_pipe(im):
     return im
 
 
+PANEL = [(196, 190, 182), (204, 198, 190)]
+PANEL_LINE = (150, 144, 138)
+PANEL_LIGHT = (226, 221, 213)
+GOLD = (214, 172, 74)
+GOLD_DARK = (150, 112, 40)
+BASEBOARD = (58, 52, 58)
+SKY = [(40, 58, 96), (54, 78, 122), (82, 108, 150)]
+TOWERS = (24, 32, 52)
+LIT = (255, 214, 120)
+
+
+def office_wall():
+    """The trading floor's wall: warm grey panels, a gold rail, a dark baseboard. Tiles every 64 art px."""
+    im = Image.new('RGBA', (W, H), PANEL[0] + (255,))
+    px = im.load()
+    for y in range(H):
+        for x in range(W):
+            c = PANEL[(x // 32) % 2]
+            if x % 32 == 0:
+                c = PANEL_LINE
+            elif x % 32 == 1 or y == 0:
+                c = PANEL_LIGHT
+            px[x, y] = c + (255,)
+    for x in range(W):
+        px[x, 30] = GOLD + (255,)
+        px[x, 31] = GOLD_DARK + (255,)
+        for y in range(H - 6, H):
+            px[x, y] = BASEBOARD + (255,)
+    return im
+
+
+def office_window():
+    """The same wall with a window onto a night city skyline (lit windows), framed in gold."""
+    im = office_wall()
+    px = im.load()
+    rand = random.Random(7)
+    x0, x1, y0, y1 = 6, W - 7, 6, 44
+    for y in range(y0, y1):
+        band = SKY[min(2, (y - y0) * 3 // (y1 - y0))]
+        for x in range(x0, x1):
+            px[x, y] = band + (255,)
+    x = x0
+    while x < x1:
+        bw = rand.randint(4, 9)
+        top = rand.randint(y0 + 6, y1 - 8)
+        for xx in range(x, min(x + bw, x1)):
+            for yy in range(top, y1):
+                lit = (xx - x) % 2 == 1 and (yy - top) % 3 == 1 and rand.random() < 0.45
+                px[xx, yy] = (LIT if lit else TOWERS) + (255,)
+        x += bw + rand.randint(0, 2)
+    for x in range(x0 - 1, x1 + 1):
+        px[x, y0 - 1] = GOLD + (255,)
+        px[x, y1] = GOLD_DARK + (255,)
+    for y in range(y0 - 1, y1 + 1):
+        px[x0 - 1, y] = GOLD + (255,)
+        px[x1, y] = GOLD_DARK + (255,)
+        px[W // 2, y] = GOLD_DARK + (255,)
+    return im
+
+
 def grate():
     """A steel floor grate: the basement tileset's "bridge" (tileset.py needs one; it stretches over any span)."""
     im = Image.new('RGBA', (24, 24), PIPE_DARK + (255,))
@@ -105,8 +167,12 @@ def main():
     out = os.path.join(ROOT, 'tools', 'region-art', 'props')
     wall(1).save(os.path.join(out, 'prop_wall.png'))
     with_pipe(wall(1)).save(os.path.join(out, 'prop_wall_pipe.png'))
+    office_wall().save(os.path.join(out, 'prop_office_wall.png'))
+    office_window().save(os.path.join(out, 'prop_office_window.png'))
     grate().save(os.path.join(ROOT, 'tools', 'region-art', 'basement', 'bridge.png'))
-    print('prop_wall, prop_wall_pipe', (W, H), 'and the basement grate')
+    os.makedirs(os.path.join(ROOT, 'tools', 'region-art', 'office'), exist_ok=True)
+    grate().save(os.path.join(ROOT, 'tools', 'region-art', 'office', 'bridge.png'))
+    print('prop_wall, prop_wall_pipe, prop_office_wall, prop_office_window', (W, H), 'and the floor grates')
 
 
 if __name__ == '__main__':

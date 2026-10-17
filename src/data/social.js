@@ -23,6 +23,10 @@ export const ACCOUNTS = {
   chad: { name: 'CHAD', handle: '@chad', sheet: 'field_chad' },
   vinny: { name: 'VELVET VINNY', handle: '@bluecheckbouncer', sheet: 'field_vinny', verified: true },
   wendy: { name: 'WHALE WENDY', handle: '@whalewatching', sheet: 'field_wendy', verified: true },
+  floyd: { name: 'FLOATIE FLOYD', handle: '@hottubfloyd', sheet: 'field_floyd' },
+  lola: { name: 'LOSS PORN LOLA', handle: '@redcandlelola', sheet: 'field_lola' },
+  bob: { name: 'BOT ACCOUNT BOB', handle: '@totally_human_bob', sheet: 'field_bob' },
+  helena: { name: 'HEDGE FUND HELENA', handle: '@velocitycap', sheet: 'field_helena', verified: true },
   news: { name: 'OVERWORLD NEWS', handle: '@overworldnews', color: 0x1f6feb, verified: true },
   guru: { name: 'GRINDSET GURU', handle: '@330am', color: 0xff8c42 },
   lilturnt: { name: "LIL' TURNT", handle: '@lilturnt', color: 0xf08a3c },
@@ -164,6 +168,28 @@ export const FEED = [
       right: 'Real recognize real. Followed.',
       wrong: 'Bro what.',
     },
+  },
+  {
+    id: 'derek_opsec', by: 'derek', likes: 3100,
+    text: 'Nobody will ever find my battle station. Undisclosed location. Military-grade router. #OPSEC #HODL',
+    reply: {
+      options: ["Bold of a man named 'DiamondHands' to name his Wi-Fi after himself.", 'Respect the privacy, king.', 'Where is it though?'],
+      right: '...how do you know what my Wi-Fi is called',
+      wrong: "Exactly. You'll never know. Never.",
+    },
+  },
+  {
+    id: 'lola_loss', by: 'lola', likes: 5800, when: { met: 'start:lola' },
+    text: 'Down 87% today. Hot tub is 104°. Both of these numbers are my personality now. #LOSSPORN',
+    reply: {
+      options: ["That's not a loss, Lola. That's content.", 'Have you tried not doing that?', 'F'],
+      right: 'Finally someone who gets it. Pinning this.',
+      wrong: 'Muted.',
+    },
+  },
+  {
+    id: 'helena_desk', by: 'helena', likes: 41000, when: { gate: 'start:office' },
+    text: 'Velocity Capital is taking meetings. Proof of skill required. Proof of Clout is just the lobby.',
   },
   {
     id: 'vinny_rope', by: 'vinny', likes: 640, when: { met: 'start:vinny' },

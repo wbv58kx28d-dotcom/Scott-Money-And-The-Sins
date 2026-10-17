@@ -2,7 +2,8 @@
 // §6.11). The Region scene builds its walk grid here, the map editor runs the
 // checks live, and the unit tests run them on every committed map, so a map
 // written by hand, by the editor, or by AI is held to the same rules:
-//   - $cott can reach every exit and every NPC from the spawn (ropes opened);
+//   - $cott can reach the way out from the spawn with every rope up, and every
+//     door and NPC with the ropes opened (a door can wait behind a rope);
 //   - every velvet rope closes something off (you can't just walk around it),
 //     and its bouncer can be reached without going through it;
 //   - nothing stands in the water, in the reeds, or off the map.
@@ -72,6 +73,20 @@ function canReach(grid, seen, x, y, range) {
   return false;
 }
 
+/** Can $cott step inside a rectangle (an exit): is a reachable open cell's center in it? */
+function canEnter(grid, seen, rect) {
+  const [c0, r0] = grid.cellOf(rect.x, rect.y);
+  const [c1, r1] = grid.cellOf(rect.x + rect.w, rect.y + rect.h);
+  for (let r = Math.max(0, r0); r <= Math.min(grid.rows - 1, r1); r++) {
+    for (let c = Math.max(0, c0); c <= Math.min(grid.cols - 1, c1); c++) {
+      if (!seen[r * grid.cols + c]) continue;
+      const p = grid.center(c, r);
+      if (inRect(p.x, p.y, rect)) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Check a map. Returns { problems: [{ level: 'error' | 'warn', msg, x, y }],
  * open, closed } where open / closed are the cells reachable from the spawn
@@ -97,7 +112,9 @@ export function checkMap(map, terrain) {
   for (const e of map.exits) {
     const cx = e.x + e.w / 2;
     const cy = e.y + e.h / 2;
-    if (!canReach(closedGrid, closed, cx, cy, Math.max(e.w, e.h) / 2 + closedGrid.cell)) err(`The exit to ${e.to} can't be reached.`, cx, cy);
+    // He has to be able to step INTO it, not just near it (a prop's footprint can crowd a door).
+    if (e.to === 'map' && !canEnter(closedGrid, closed, e)) err(`The exit to ${e.to} can't be reached.`, cx, cy);
+    else if (e.to !== 'map' && !canEnter(openGrid, open, e)) err(`The door to ${e.to} can't be reached, even with every rope down.`, cx, cy);
   }
 
   for (const n of map.npcs) {

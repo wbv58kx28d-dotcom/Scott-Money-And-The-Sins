@@ -11,8 +11,10 @@ import startLayout from './start.layout.js';
 import start from './start.js';
 import startLairLayout from './start_lair.layout.js';
 import startLair from './start_lair.js';
+import startOfficeLayout from './start_office.layout.js';
+import startOffice from './start_office.js';
 
-export const LAYOUTS = { start: startLayout, start_lair: startLairLayout };
-export const CONTENT = { start, start_lair: startLair };
+export const LAYOUTS = { start: startLayout, start_lair: startLairLayout, start_office: startOfficeLayout };
+export const CONTENT = { start, start_lair: startLair, start_office: startOffice };
 
 export const MAPS = Object.fromEntries(Object.keys(LAYOUTS).map((id) => [id, mergeMap(LAYOUTS[id], CONTENT[id])]));

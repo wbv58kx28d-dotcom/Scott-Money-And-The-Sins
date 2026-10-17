@@ -29,10 +29,12 @@ import { Audio } from '../systems/audio.js';
 import { DEBUG } from '../systems/debug.js';
 import { Terrain, hash } from '../systems/terrain.js';
 import { buildRegionGrid } from '../systems/mapcheck.js';
+import { present, secretSpots, secretKey, signal, heading } from '../systems/secrets.js';
 import { revealLines } from '../systems/intel.js';
 import { formatClout, fillIn } from '../systems/social.js';
 import { money } from '../systems/market.js';
 import { ITEMS } from '../data/items.js';
+import { APPS } from '../data/phone.js';
 import { PhoneBadge } from '../ui/badge.js';
 import { rng, createRng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
@@ -134,10 +136,15 @@ export default class RegionScene extends Phaser.Scene {
     this.ground = new TerrainView(this, this.terrain, { set: map.tileset, bridges: map.bridges, depth: -WORLD_DEPTH * 2, id: `region_${map.id}` });
     this.addBubbles();
 
+    // Props tagged with a secret show once it's found; a `cover` shows until then (systems/secrets.js).
+    this.secretProps = [];
     for (const p of map.props) {
       const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
-      if (p.label) signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5);
+      const tag = p.label ? signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5) : null;
+      if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });
     }
+    this.found = new Set(Object.keys(map.secrets ?? {}).filter((id) => Save.isFound(secretKey(this.region.id, id))));
+    this.showSecrets();
 
     const cleared = Save.cleared.has(this.region.id);
     this.npcs = map.npcs.map((n) => {
@@ -288,7 +295,10 @@ export default class RegionScene extends Phaser.Scene {
       this.badge = new PhoneBadge(this, b.right - 6, b.y - b.h / 2 + 4, 31);
       // Off again at shutdown: the scene restarts through every door, and a stale
       // listener would refresh the last visit's (destroyed) badge.
-      const refresh = () => this.badge.refresh();
+      const refresh = () => {
+        this.badge.refresh();
+        if (this.revealing) this.revealSecret(this.revealing);
+      };
       this.events.on('resume', refresh);
       this.events.once('shutdown', () => this.events.off('resume', refresh));
 
@@ -460,9 +470,64 @@ export default class RegionScene extends Phaser.Scene {
     if (exit) this.leave(exit);
   }
 
-  /** The exit $cott is standing in, or null. */
+  /** The exit $cott is standing in, or null. A secret exit (Derek's cellar) only works once it's found. */
   exitAt() {
-    return this.map.exits.find((e) => Phaser.Geom.Rectangle.Contains(new Phaser.Geom.Rectangle(e.x, e.y, e.w, e.h), this.player.x, this.player.y)) ?? null;
+    return this.map.exits.find((e) => present(e, (id) => this.found.has(id))
+      && Phaser.Geom.Rectangle.Contains(new Phaser.Geom.Rectangle(e.x, e.y, e.w, e.h), this.player.x, this.player.y)) ?? null;
+  }
+
+  // ---- Secrets (systems/secrets.js) -------------------------------------------------
+
+  /** Show what's found, hide what isn't, and the covers the other way round. */
+  showSecrets() {
+    for (const { p, objs } of this.secretProps) {
+      const on = present(p, (id) => this.found.has(id));
+      for (const o of objs) o.setVisible(on).setAlpha(1);
+    }
+  }
+
+  /** For the WIFI app: this map's hidden networks, their signal at $cott's spot, and which way to go. */
+  wifiNetworks() {
+    const spots = secretSpots(this.map);
+    return Object.entries(this.map.secrets ?? {}).filter(([id, s]) => s.app === 'wifi' && spots[id]).map(([id, s]) => {
+      const at = spots[id];
+      const { bars, trace } = signal(Phaser.Math.Distance.Between(this.player.x, this.player.y, at.x, at.y));
+      return { id, ssid: s.ssid, bars, trace, heading: heading(this.player, at), found: this.found.has(id) };
+    });
+  }
+
+  /** The WIFI app traced a secret: save it, and show it once the phone's put away. */
+  traceSecret(id) {
+    if (!Save.find(secretKey(this.region.id, id))) return;
+    this.revealing = id;
+  }
+
+  /** Back from the phone with a fresh find: the cover comes off, the hidden thing fades in, and someone says so. */
+  async revealSecret(id) {
+    this.revealing = null;
+    this.found.add(id);
+    this.mode = 'talk';
+    this.stop();
+    const fadeIn = [];
+    for (const { p, objs } of this.secretProps) {
+      if (p.cover === id) this.tweens.add({ targets: objs, alpha: 0, duration: 500, onComplete: () => objs.forEach((o) => o.setVisible(false)) });
+      if (p.secret === id) fadeIn.push(...objs.map((o) => o.setVisible(true).setAlpha(0)));
+    }
+    this.tweens.add({ targets: fadeIn, alpha: 1, duration: 700, delay: 300 });
+    this.cameras.main.flash(220, 255, 63, 210);
+    Audio.sfx('crit');
+    const lines = this.map.secrets[id]?.found ?? [];
+    if (lines.length) {
+      this.stick.setVisible(false);
+      this.talkButton.setVisible(false);
+      this.panel.setVisible(true);
+      await this.sayAll(lines);
+      this.dialog.hide();
+      this.panel.setVisible(false);
+      this.stick.setVisible(true);
+      this.talkButton.setVisible(true);
+    }
+    this.mode = 'explore';
   }
 
   walkAnim(facing) {
@@ -538,13 +603,23 @@ export default class RegionScene extends Phaser.Scene {
       Audio.sfx('good');
       await this.dialog.say('NEW DRAFT: that conversation gave $cott an idea for a classic post.\nIt\'s waiting in his phone, in Y.', null, { color: SOCIAL_CSS });
     }
-    if (npc.gift && Save.brag(`gift:${this.challengeId(npc)}`)) {
-      const { cash = 0, items = {} } = npc.gift;
-      if (cash) Save.earn(cash);
-      for (const [id, n] of Object.entries(items)) Save.addStash(id, n);
-      const got = [cash ? `+${money(cash)}` : null, ...Object.entries(items).map(([id, n]) => `+${n} ${ITEMS[id]?.name ?? id}`)].filter(Boolean);
+    if (npc.gift && Save.brag(`gift:${this.challengeId(npc)}`)) await this.giveGift(npc.gift);
+  }
+
+  /** Hand over a gift: cash, stash items, and phone apps (the WIFI app). */
+  async giveGift({ cash = 0, items = {}, apps = [] }) {
+    if (cash) Save.earn(cash);
+    for (const [id, n] of Object.entries(items)) Save.addStash(id, n);
+    const newApps = apps.filter((id) => Save.addApp(id));
+    const got = [cash ? `+${money(cash)}` : null, ...Object.entries(items).map(([id, n]) => `+${n} ${ITEMS[id]?.name ?? id}`)].filter(Boolean);
+    if (got.length) {
       Audio.sfx('heal');
       await this.dialog.say(got.join('\n'), null, { color: '#ffd166' });
+    }
+    for (const id of newApps) {
+      Audio.sfx('crit');
+      const app = APPS.find((a) => a.id === id);
+      await this.dialog.say(`NEW APP: ${app?.name ?? id.toUpperCase()}\nIt's on $cott's phone now.`, null, { color: '#7cf29c' });
     }
   }
 
@@ -598,7 +673,8 @@ export default class RegionScene extends Phaser.Scene {
     Save.winChallenge(this.challengeId(npc), c.reveal);
     npc.alert?.destroy();
     npc.alert = null;
-    for (const line of revealLines(ENEMIES[c.reveal.enemy], c.reveal)) await this.dialog.say(line.text, null, { color: INTEL_CSS });
+    if (c.reveal) for (const line of revealLines(ENEMIES[c.reveal.enemy], c.reveal)) await this.dialog.say(line.text, null, { color: INTEL_CSS });
+    if (c.gift && Save.brag(`gift:${this.challengeId(npc)}:won`)) await this.giveGift(c.gift);
     this.dialog.hide();
   }
 
@@ -713,7 +789,9 @@ export default class RegionScene extends Phaser.Scene {
       clout: Save.clout,
       cash: Save.cash,
       gates: this.gates.map((g) => ({ id: g.id, open: g.open, clout: g.clout, tap: screen(g.x, g.y - 20) })),
-      exits: this.map.exits.map((e) => ({ to: e.to, tap: screen(e.x + e.w / 2, e.y + e.h / 2) })),
+      exits: this.map.exits.map((e) => ({ to: e.to, open: present(e, (id) => this.found.has(id)), tap: screen(e.x + e.w / 2, e.y + e.h / 2) })),
+      secrets: this.wifiNetworks(),
+      apps: APPS.filter((x) => x.gift && Save.hasApp(x.id)).map((x) => x.id),
     };
   }
 }

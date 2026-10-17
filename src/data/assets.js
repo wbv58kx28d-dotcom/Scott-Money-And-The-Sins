@@ -34,6 +34,8 @@ export const FIELD_SHEETS = [
   { key: 'field_chad', path: 'assets/field/field_chad.png' },
   { key: 'field_vinny', path: 'assets/field/field_vinny.png' },
   { key: 'field_wendy', path: 'assets/field/field_wendy.png' },
+  // Idle-only standees (tools/region-art/standee.py): the hot-tub regulars, the doorman, the day traders.
+  ...['floyd', 'lola', 'bob', 'doorman', 'helena', 'quentin', 'bart'].map((n) => ({ key: `field_${n}`, path: `assets/field/field_${n}.png` })),
 ];
 
 // Scenery props, drawn with their feet (bottom center) on the ground. `name` and
@@ -59,6 +61,15 @@ export const PROP_IMAGES = [
   { key: 'prop_rig', path: 'assets/props/prop_rig.png', name: 'MINING RIG', block: { w: 70, h: 24 } },
   { key: 'prop_reeds', path: 'assets/props/prop_reeds.png', name: 'REEDS', block: { w: 34, h: 12 } },
   { key: 'prop_trash', path: 'assets/props/prop_trash.png', name: 'TRASH' }, // flat: walk right over it
+  // The hot-tub hub (CLAUDE.md §6.6).
+  { key: 'prop_hottub', path: 'assets/props/prop_hottub.png', name: 'HOT TUB', block: { w: 150, h: 40 } },
+  { key: 'prop_cooler', path: 'assets/props/prop_cooler.png', name: 'COOLER', block: { w: 56, h: 18 } },
+  { key: 'prop_tiki', path: 'assets/props/prop_tiki.png', name: 'TIKI TORCH', block: { w: 18, h: 10 } },
+  // The trading firm's tower; its door is an exit just in front of its footprint.
+  { key: 'prop_tower', path: 'assets/props/prop_tower.png', name: 'OFFICE TOWER', block: { w: 230, h: 24 } },
+  { key: 'prop_plant', path: 'assets/props/prop_plant.png', name: 'PLANT', block: { w: 30, h: 14 } },
+  // A tarp over Derek's cellar door: a `cover` until the WIFI app traces his router (systems/secrets.js).
+  { key: 'prop_tarp', path: 'assets/props/prop_tarp.png', name: 'TARP' },
   // Derek's house; its open cellar door is the way down to his basement (an exit on top of it).
   { key: 'prop_house', path: 'assets/props/prop_house.png', name: 'HOUSE', block: { w: 250, h: 70 } },
   { key: 'prop_cellar', path: 'assets/props/prop_cellar.png', name: 'CELLAR DOOR' },
@@ -74,6 +85,12 @@ export const PROP_IMAGES = [
   { key: 'prop_battlestation', path: 'assets/props/prop_battlestation.png', name: 'BATTLE STATION', block: { w: 200, h: 50 } },
   { key: 'prop_fridge', path: 'assets/props/prop_fridge.png', name: 'MINI FRIDGE', block: { w: 36, h: 18 } },
   { key: 'prop_mattress', path: 'assets/props/prop_mattress.png', name: 'MATTRESS', block: { w: 100, h: 36 } },
+  // The trading floor: a marble-and-glass office (tools/region-art/wall.py draws its wall).
+  { key: 'prop_office_wall', path: 'assets/props/prop_office_wall.png', name: 'OFFICE WALL' },
+  { key: 'prop_office_window', path: 'assets/props/prop_office_window.png', name: 'OFFICE WINDOW' },
+  { key: 'prop_tradedesk', path: 'assets/props/prop_tradedesk.png', name: 'TRADING DESK', block: { w: 170, h: 40 } },
+  { key: 'prop_espresso', path: 'assets/props/prop_espresso.png', name: 'ESPRESSO BAR', block: { w: 110, h: 30 } },
+  { key: 'prop_screen', path: 'assets/props/prop_screen.png', name: 'WALL SCREEN' },
   // A velvet rope (map `gates`), closed and unhooked.
   { key: 'prop_rope', path: 'assets/props/prop_rope.png', place: false },
   { key: 'prop_rope_open', path: 'assets/props/prop_rope_open.png', place: false },

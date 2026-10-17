@@ -59,18 +59,38 @@ test('painting keeps every cell drawable: what meets with no tile between gives 
 test('the checks catch a rope you can walk around, an unreachable NPC, and things in the water', () => {
   const ts = tileset('swamp');
   const layout = cloneLayout(LAYOUTS.start);
-  // Drain the lagoon: the Yacht Club rope no longer closes anything off.
+  // Drain the lagoon around Wendy's island: the Yacht Club rope no longer closes anything off.
   const t = new Terrain(layout.terrain, ts);
-  for (let j = 24; j <= 36; j++) for (let i = 19; i <= 32; i++) t.paint(i, j, 1, 'g');
+  const wendy = layout.npcs.find((n) => n.id === 'wendy');
+  const [wi, wj] = [Math.round(wendy.x / t.cell), Math.round(wendy.y / t.cell)];
+  for (let j = wj - 12; j <= wj + 12; j++) for (let i = wi - 14; i <= wi + 14; i++) if (t.at(i, j) === 'w') t.paint(i, j, 1, 'g');
+  // And put Brad in the middle of a pool: a corner with water two cells all round.
+  let pool = null;
+  for (let j = 2; j < t.rows - 2 && !pool; j++) {
+    for (let i = 2; i < t.cols - 2 && !pool; i++) {
+      if ([-2, -1, 0, 1, 2].every((dj) => [-2, -1, 0, 1, 2].every((di) => t.at(i + di, j + dj) === 'w'))) pool = { x: i * t.cell, y: j * t.cell };
+    }
+  }
   layout.terrain = t.toRows();
-  // And put Brad in the middle of a pool.
-  layout.npcs.find((n) => n.id === 'brad').x = 230;
-  layout.npcs.find((n) => n.id === 'brad').y = 1540;
+  Object.assign(layout.npcs.find((n) => n.id === 'brad'), pool);
   const map = mergeMap(layout, CONTENT.start);
   const msgs = checkMap(map, new Terrain(layout.terrain, ts)).problems.map((p) => p.msg).join('\n');
   assert.match(msgs, /rope doesn't close anything off/);
   assert.match(msgs, /BAGHOLDER BRAD can't be reached/);
   assert.match(msgs, /BAGHOLDER BRAD is standing in the water/);
+});
+
+test('an exit $cott can walk up to but not into (a footprint crowding it) is caught, and a door may wait behind a rope', () => {
+  const ts = tileset('swamp');
+  const layout = cloneLayout(LAYOUTS.start);
+  const door = layout.exits.find((e) => e.to === 'start_office');
+  // Slide the tower down over its own door: he can get close, but never step in.
+  layout.props.find((p) => p.texture === 'prop_tower').y = door.y + door.h / 2;
+  const msgs = checkMap(mergeMap(layout, CONTENT.start), new Terrain(layout.terrain, ts)).problems.map((p) => p.msg).join('\n');
+  assert.match(msgs, /door to start_office can't be reached/);
+  // As committed, the tower's door is behind the doorman's rope, and that's fine.
+  const committed = checkMap(MAPS.start, new Terrain(MAPS.start.layout.terrain, ts)).problems.filter((p) => p.level === 'error');
+  assert.deepEqual(committed, []);
 });
 
 test('ropes are respected by the walk grid', () => {
