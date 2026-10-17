@@ -7,7 +7,8 @@
 // unlocked and posted, who he's met, his replies, his own posts, the order
 // the feed's posts arrived in, the velvet ropes he's opened, and the big
 // moments he's already bragged about; plus the phone apps people gave him
-// (the WIFI app) and the secrets he's found with them (Derek's hidden cellar).
+// (the WIFI app) and the secrets he's found with them (Derek's hidden cellar);
+// and the Sin who walks behind him: the test toggle, and her jealousy (data/followers.js).
 //
 // localStorage can be missing or throw (private browsing, blocked storage), so
 // every access is guarded and the game falls back to an in-memory save.
@@ -19,6 +20,7 @@ import { DEBUG } from './debug.js';
 import { emptyIntel, mergeIntel } from './intel.js';
 import { PHONES, ECONOMY } from '../data/phone.js';
 import { SOCIAL } from '../data/social.js';
+import { FOLLOWERS, MAX_JEALOUSY } from '../data/followers.js';
 
 const KEY = 'scottmoney.save';
 const VERSION = 1;
@@ -30,6 +32,7 @@ const fresh = () => ({
   clout: SOCIAL.startClout, posts: SOCIAL.postsPerFight, unlocked: [], posted: [], met: [], replied: {},
   seq: 0, feedSeq: {}, mine: [], gates: [], bragged: [],
   apps: [], found: [],
+  tryFollow: false, jealousy: {},
 });
 const MINE_MAX = 40; // $cott's own posts kept in the feed
 
@@ -102,6 +105,33 @@ class SaveGame {
     this.data.found.push(id);
     this.flush();
     return true;
+  }
+
+  // ---- The follower (Pikachu style, data/followers.js) ------------------------------
+
+  /** Who walks behind $cott: the first recruited Sin who can, or Lil' Turnt while the test toggle is on. */
+  get follower() {
+    if (this.data.tryFollow) return 'lilturnt';
+    return Object.keys(FOLLOWERS).find((id) => this.data.sins[id]) ?? null;
+  }
+
+  /** Whether the test toggle can be used (she isn't recruited yet). */
+  get followIsTrial() {
+    return !this.data.sins.lilturnt;
+  }
+
+  setTryFollow(on) {
+    this.data.tryFollow = !!on;
+    this.flush();
+  }
+
+  jealousy(id) {
+    return this.data.jealousy[id] ?? 0;
+  }
+
+  setJealousy(id, n) {
+    this.data.jealousy[id] = Math.max(0, Math.min(MAX_JEALOUSY, n));
+    this.flush();
   }
 
   // ---- Money, phone, stash ------------------------------------------------------

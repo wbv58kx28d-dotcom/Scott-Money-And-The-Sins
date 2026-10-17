@@ -34,6 +34,8 @@ export const FIELD_SHEETS = [
   { key: 'field_chad', path: 'assets/field/field_chad.png' },
   { key: 'field_vinny', path: 'assets/field/field_vinny.png' },
   { key: 'field_wendy', path: 'assets/field/field_wendy.png' },
+  // Lil' Turnt, who follows $cott around (data/followers.js).
+  { key: 'field_lilturnt', path: 'assets/field/field_lilturnt.png' },
   // Idle-only standees (tools/region-art/standee.py): the hot-tub regulars, the doorman, the day traders.
   ...['floyd', 'lola', 'bob', 'doorman', 'helena', 'quentin', 'bart'].map((n) => ({ key: `field_${n}`, path: `assets/field/field_${n}.png` })),
 ];

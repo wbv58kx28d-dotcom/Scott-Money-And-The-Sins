@@ -41,7 +41,8 @@ def main(char_id, key):
         steps = [load(p) for p in walk.get(d, [])][:4]
         cells.append([idle] + (steps if len(steps) == 4 else [idle] * 4))
 
-    lowest = max(im.getbbox()[3] for row in cells for im in row) * ART_PX - 1
+    # Frames sit at the bottom of the cell (a 48×48 kitten as well as a 48×72 person), so measure from there.
+    lowest = max(FRAME_H - im.height * ART_PX + im.getbbox()[3] * ART_PX for row in cells for im in row) - 1
     dy = FEET_Y - lowest
     sheet = Image.new('RGBA', (FRAME_W * 5, FRAME_H * len(ROWS)))
     for r, row in enumerate(cells):

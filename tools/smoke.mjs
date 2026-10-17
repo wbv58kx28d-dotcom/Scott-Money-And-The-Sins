@@ -833,6 +833,109 @@ async function main() {
       await page.context().close();
     }
 
+    // 5e. Lil' Turnt follows him, Pikachu style: SETTINGS' test toggle brings her in, she walks
+    // his trail, talks when tapped (or on TALK with nobody else around), gets jealous when he
+    // talks to someone else, and comes through doors with him.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&canvas=1&region=start&fast=1&seed=5&phone=smart`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 30_000 });
+      await sleep(600);
+      let s = await state(page);
+      if (s.follower) failures.push('follow: nobody should follow before she is recruited or tried');
+      const press = async (text) => {
+        const t = [...((await state(page)).targets ?? []), ...((await state(page)).buttons ?? [])].find((x) => x.text === text && x.enabled !== false);
+        if (!t) throw new Error(`follow: no "${text}" to press`);
+        await tapGame(page, t.x, t.y);
+        await sleep(500);
+      };
+      await press('PHONE');
+      await press('SETTINGS');
+      await press("TRY LIL' TURNT");
+      await page.evaluate(() => window.__smm.game.scene.getScene('Phone').close());
+      for (let i = 0; i < 40 && (await state(page)).scene !== 'Region'; i++) await sleep(150);
+      await sleep(400);
+      s = await state(page);
+      if (!s.follower) throw new Error("follow: SETTINGS' toggle should bring Lil' Turnt in");
+      const gap = await page.evaluate(() => window.__smm.game.scene.getScene('Region').follower.data.gap);
+
+      // Walk a good way up the path: she stays on his heels, never farther than her gap.
+      await page.evaluate(() => {
+        const scene = window.__smm.game.scene.getScene('Region');
+        scene.walkTo(scene.player.x, scene.player.y - 700);
+      });
+      let farthest = 0;
+      let moved = false;
+      for (let i = 0; i < 200 && (s = await state(page)).walking; i++) {
+        farthest = Math.max(farthest, Math.hypot(s.player.x - s.follower.x, s.player.y - s.follower.y));
+        moved ||= s.follower.moving;
+        await sleep(100);
+      }
+      await sleep(300);
+      s = await state(page);
+      if (!moved) failures.push('follow: she should walk while he does');
+      if (farthest > gap + 6) failures.push(`follow: she fell ${Math.round(farthest)} px behind (gap ${gap})`);
+      if (s.follower.moving) failures.push('follow: she should stop when he stops');
+      await page.screenshot({ path: path.join(SHOTS, '19g-follower.png') });
+
+      // Tap her: her intro the first time.
+      await tapGame(page, s.follower.tap.x, s.follower.tap.y);
+      await sleep(400);
+      s = await state(page);
+      if (s.mode !== 'talk') failures.push('follow: tapping her should start a talk');
+      await page.screenshot({ path: path.join(SHOTS, '19h-follower-talk.png') });
+      for (let i = 0; i < 30 && (s = await state(page)).mode !== 'explore'; i++) {
+        await tapGame(page, GAME_W / 2, 1170);
+        await sleep(250);
+      }
+
+      // Talk to Brad: she gets jealous, and says so over her head.
+      await walkNear(page, 'brad');
+      for (let i = 0; i < 60 && (s = await state(page)).mode === 'explore'; i++) {
+        const npc = s.npcs.find((n) => n.id === 'brad');
+        if (!s.walking) await tapGame(page, npc.tap.x, npc.tap.y);
+        await sleep(250);
+      }
+      for (let i = 0; i < 40 && (s = await state(page)).mode !== 'explore'; i++) {
+        // Brad offers his trade: NOT NOW.
+        const notNow = (s.buttons ?? []).find((b) => b.text === 'NOT NOW');
+        if (notNow) await tapGame(page, notNow.x, notNow.y);
+        else await tapGame(page, GAME_W / 2, 1170);
+        await sleep(250);
+      }
+      s = await state(page);
+      if (s.follower.jealousy !== 1) failures.push(`follow: talking to Brad should make her jealous (${s.follower.jealousy})`);
+      if (!s.emote) failures.push('follow: she should pop an emote when he talks to someone else');
+
+      // Away from everyone, TALK talks to her, and that settles her down.
+      await page.evaluate(() => {
+        const scene = window.__smm.game.scene.getScene('Region');
+        scene.walkTo(scene.map.spawn.x, scene.map.spawn.y);
+      });
+      for (let i = 0; i < 400 && (await state(page)).walking; i++) await sleep(150);
+      s = await state(page);
+      if (s.talkButton.near) failures.push(`follow: expected nobody near the spawn, found ${s.talkButton.near}`);
+      await tapGame(page, s.talkButton.x, s.talkButton.y);
+      await sleep(300);
+      if ((await state(page)).mode !== 'talk') failures.push('follow: TALK with nobody else around should talk to her');
+      for (let i = 0; i < 30 && (s = await state(page)).mode !== 'explore'; i++) {
+        await tapGame(page, GAME_W / 2, 1170);
+        await sleep(250);
+      }
+      if (s.follower.jealousy !== 0) failures.push(`follow: talking to her should settle her jealousy (${s.follower.jealousy})`);
+
+      // Through a door, she comes too.
+      s = await goThroughDoor(page, 'start_lair');
+      await sleep(300);
+      s = await state(page);
+      if (!s.follower) failures.push('follow: she should come down to the basement with him');
+      else if (Math.hypot(s.player.x - s.follower.x, s.player.y - s.follower.y) > gap + 6) failures.push('follow: she should arrive right behind him');
+      console.log(`follow: Lil' Turnt trailed him (max ${Math.round(farthest)} px, gap ${gap}), talked, got jealous of Brad, settled, followed him to ${s.map}`);
+      failures.push(...errors.map((x) => `follow: ${x}`));
+      await page.context().close();
+    }
+
     // 6. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
     {
       const errors = [];
