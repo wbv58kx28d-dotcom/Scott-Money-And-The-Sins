@@ -1,7 +1,7 @@
 // Draws a region's ground from its terrain grid (systems/terrain.js) and its
 // tileset's art (assets/regions/<set>/, built by tools/region-art/tileset.py):
-// each cell's tile, small details scattered on solid cells, and boardwalks
-// over the water. The ground is cut into square chunks, each its own canvas
+// each cell's tile, small details scattered on solid cells, cliff faces under
+// high ground, and boardwalks over the water (or stairs up a cliff). The ground is cut into square chunks, each its own canvas
 // texture, so a big map never needs one texture past a phone's size limit,
 // and the map editor can repaint just the chunks a brush stroke touched.
 
@@ -13,7 +13,7 @@ const key = (set, part) => `ts_${set}_${part}`;
 export function preloadTileset(scene, set) {
   const dir = `assets/regions/${set}`;
   if (!scene.cache.json.exists(key(set, 'json'))) scene.load.json(key(set, 'json'), `${dir}/tileset.json`);
-  for (const part of ['tiles', 'decals', 'bridge']) {
+  for (const part of ['tiles', 'decals', 'bridge', 'cliff', 'stairs']) {
     if (!scene.textures.exists(key(set, part))) scene.load.image(key(set, part), `${dir}/${part}.png`);
   }
 }
@@ -25,7 +25,7 @@ export class TerrainView {
   /**
    * @param {Phaser.Scene} scene
    * @param {import('../systems/terrain.js').Terrain} terrain
-   * @param {object} o  set: tileset id; bridges: [{x, y, w, h}]; depth; id: texture key prefix;
+   * @param {object} o  set: tileset id; bridges: [{x, y, w, h, kind?}] (kind 'stairs' for steps); depth; id: texture key prefix;
    *                    parent: a Layer to draw into (default: a new one)
    */
   constructor(scene, terrain, { set, bridges = [], depth = 0, id = 'ground', parent = null }) {
@@ -38,6 +38,8 @@ export class TerrainView {
     this.tiles = scene.textures.get(key(set, 'tiles')).getSourceImage();
     this.decals = scene.textures.get(key(set, 'decals')).getSourceImage();
     this.bridgeImg = scene.textures.get(key(set, 'bridge')).getSourceImage();
+    this.stairsImg = scene.textures.get(key(set, 'stairs')).getSourceImage();
+    this.cliffImg = scene.textures.get(key(set, 'cliff')).getSourceImage();
     this.chunks = new Map();
     this.ownLayer = !parent;
     this.layer = parent ?? scene.add.layer().setDepth(depth);
@@ -128,8 +130,40 @@ export class TerrainView {
     }
     const ox = i0 * cell;
     const oy = j0 * cell;
+    this.drawCliffs(ctx, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     for (const b of this.bridges) this.drawBridge(ctx, b, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     chunk.tex.refresh();
+  }
+
+  /**
+   * Cliff faces (systems/terrain.js facesAt): for each 2 px column, the face
+   * art's matching column (by world x, so it tiles across chunks) hung below
+   * each south-facing rim, and a soft shadow on the ground at its foot.
+   */
+  drawCliffs(ctx, ox, oy, w, h) {
+    const { terrain } = this;
+    const img = this.cliffImg;
+    if (!terrain.face || img.width < 2) return;
+    // Nothing to draw unless high ground is somewhere in (or just above) this chunk.
+    const { cell } = terrain;
+    const ci0 = Math.floor(ox / cell);
+    const cj0 = Math.max(0, Math.floor((oy - terrain.face) / cell));
+    let any = false;
+    for (let j = cj0; j <= Math.min(terrain.rows, Math.ceil((oy + h) / cell)) && !any; j++) {
+      for (let i = ci0; i <= Math.min(terrain.cols, ci0 + Math.ceil(w / cell)) && !any; i++) any = terrain.cliffs.has(terrain.grid[j][i]);
+    }
+    if (!any) return;
+    for (let x = 0; x < w; x += 2) {
+      const wx = ox + x;
+      const sx = wx % img.width;
+      for (const f of terrain.facesAt(wx + 1, oy, oy + h)) {
+        ctx.drawImage(img, sx, 0, 2, f.height, x, f.top - oy, 2, f.height);
+        if (f.height === terrain.face) {
+          ctx.fillStyle = 'rgba(10, 6, 16, 0.28)';
+          ctx.fillRect(x, f.top - oy + f.height, 2, 6);
+        }
+      }
+    }
   }
 
   /**
@@ -138,7 +172,7 @@ export class TerrainView {
    * plank rows (never by scaling pixels).
    */
   drawBridge(ctx, b, ox, oy, w, h) {
-    const img = this.bridgeImg;
+    const img = b.kind === 'stairs' ? this.stairsImg : this.bridgeImg;
     const x = Math.round(b.x + b.w / 2 - img.width / 2) - ox;
     const y = Math.round(b.y) - oy;
     if (x > w || y > h || x + img.width < 0 || y + b.h < 0) return;

@@ -17,13 +17,19 @@
       "name": "reeds",
       "label": "REEDS",
       "blocks": true
+    },
+    "h": {
+      "name": "high",
+      "label": "HIGH GROUND",
+      "cliff": true
     }
   },
   "base": "g",
   "pairs": [
     "water_grass",
     "dirt_grass",
-    "grass_reeds"
+    "grass_reeds",
+    "grass_high"
   ],
   "grade": {
     "saturation": 1.0,
@@ -112,5 +118,8 @@
       1400,
       5200
     ]
+  },
+  "cliff": {
+    "face": 24
   }
 }
