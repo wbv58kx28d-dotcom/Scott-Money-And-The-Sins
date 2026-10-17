@@ -651,7 +651,8 @@ export default class EditorScene extends Phaser.Scene {
       const swap = (d) => this.edit(() => {
         const next = placeable[(k + d + placeable.length) % placeable.length];
         r.texture = next.key;
-        r.block = { ...next.block };
+        if (next.block) r.block = { ...next.block };
+        else delete r.block;
         if (next.label && !r.label) r.label = next.label;
         if (!next.label) delete r.label;
       });
@@ -681,7 +682,12 @@ export default class EditorScene extends Phaser.Scene {
         ['W−', () => this.edit(() => { r.w = Math.max(32, r.w - c / 2); })], ['W+', () => this.edit(() => { r.w += c / 2; })],
         ['H−', () => this.edit(() => { r.h = Math.max(32, r.h - c / 2); })], ['H+', () => this.edit(() => { r.h += c / 2; })],
       ]);
-      rows.push([dup, del]);
+      if (t.kind === 'exit') {
+        // Where it leads: the overworld, or a door into another map of this region.
+        const region = CONTENT[this.mapId]?.region ?? this.mapId;
+        const dests = ['map', ...Object.keys(LAYOUTS).filter((id) => id !== this.mapId && (CONTENT[id]?.region ?? id) === region)];
+        rows.push([['LEADS TO ▶', () => this.edit(() => { r.to = dests[(dests.indexOf(r.to) + 1) % dests.length]; })], dup, del]);
+      } else rows.push([dup, del]);
     } else if (t.kind === 'spawn') {
       rows.push([['FACE ▶', () => this.edit(() => { r.facing = FACINGS[(FACINGS.indexOf(r.facing) + 1) % FACINGS.length]; })]]);
     }
@@ -704,13 +710,23 @@ export default class EditorScene extends Phaser.Scene {
     this.info.setText(`${what} at ${Math.round(r.x)}, ${Math.round(r.y)}`);
   }
 
+  /** NPCs, ropes, boardwalks and exits always on top; the props below, a page at a time (there are more than fit). */
   addPanel() {
     this.panelText(BOTTOM + 70, 'Tap to drop one in the middle of the view.', 24);
-    const props = PROP_IMAGES.filter((p) => p.place !== false).map((p) => [p.name, () => this.addThing('prop', p)]);
     const other = [['NPC', () => this.addThing('npc')], ['ROPE', () => this.addThing('gate')], ['BOARDWALK', () => this.addThing('bridge')], ['EXIT', () => this.addThing('exit')]];
-    const all = [...props, ...other];
-    const perRow = 4;
-    for (let k = 0; k * perRow < all.length; k++) this.row(BOTTOM + 132 + k * 50, all.slice(k * perRow, k * perRow + perRow).map(([t, f]) => [t, f, { size: 11 }]), 44);
+    const props = PROP_IMAGES.filter((p) => p.place !== false).map((p) => [p.name, () => this.addThing('prop', p)]);
+    const perPage = 6;
+    const pages = Math.ceil(props.length / perPage);
+    this.addPage = Math.min(this.addPage ?? 0, pages - 1);
+    const page = props.slice(this.addPage * perPage, this.addPage * perPage + perPage);
+    const turn = (d) => () => {
+      this.addPage = (this.addPage + d + pages) % pages;
+      this.showTab('ADD');
+    };
+    const small = (items) => items.map(([t, f, o = {}]) => [t, f, { size: 11, ...o }]);
+    this.row(BOTTOM + 132, small(other), 44);
+    this.row(BOTTOM + 182, small(page.slice(0, 4)), 44);
+    this.row(BOTTOM + 232, small([['◀ PROPS', turn(-1), { accent: SEL }], ...page.slice(4), [`PROPS ▶ ${this.addPage + 1}/${pages}`, turn(1), { accent: SEL }]]), 44);
   }
 
   mapPanel() {
@@ -768,7 +784,8 @@ export default class EditorScene extends Phaser.Scene {
     this.snapshot();
     let index = 0;
     if (kind === 'prop') {
-      L.props.push({ texture: prop.key, ...at, block: { ...prop.block }, ...(prop.label ? { label: prop.label } : {}) });
+      // A prop you walk over or into (floor clutter, the cellar door) has no footprint.
+      L.props.push({ texture: prop.key, ...at, ...(prop.block ? { block: { ...prop.block } } : {}), ...(prop.label ? { label: prop.label } : {}) });
       index = L.props.length - 1;
     } else if (kind === 'npc') {
       L.npcs.push({ id: this.uniqueId('npc', L.npcs), sprite: FIELD_SHEETS[1]?.key ?? 'field_scott', ...at, facing: 'down' });

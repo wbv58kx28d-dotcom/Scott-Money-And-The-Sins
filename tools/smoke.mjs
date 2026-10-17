@@ -95,15 +95,48 @@ async function tapGame(page, gx, gy) {
 const state = (page) => page.evaluate(() => window.__smm?.state() ?? null);
 
 /**
- * In a walkable region: screenshot it, tap the villain until $cott has walked
- * over and started talking, tap through the talk, then press FIGHT.
+ * Go through a door (an exit to another map): walk most of the way with the
+ * scene's own pathing, since the door can start far off screen, then tap the
+ * door itself until $cott walks in and the next map is up.
+ */
+async function goThroughDoor(page, to) {
+  let s = await state(page);
+  const exit = s.exits.find((e) => e.to === to);
+  if (!exit) throw new Error(`region: no door to ${to} on ${s.map}`);
+  await page.evaluate((to) => {
+    const scene = window.__smm.game.scene.getScene('Region');
+    const e = scene.map.exits.find((x) => x.to === to);
+    scene.walkTo(e.x + e.w / 2, e.y + e.h + 90);
+  }, to);
+  for (let i = 0; i < 120 && (await state(page)).walking; i++) await sleep(150);
+  const started = Date.now();
+  for (s = await state(page); !(s.scene === 'Region' && s.map === to && s.mode === 'explore'); s = await state(page)) {
+    if (Date.now() - started > 30_000) throw new Error(`region: never got through the door to ${to}`);
+    if (s.scene === 'Region' && s.mode === 'explore' && !s.walking) {
+      const { tap } = s.exits.find((e) => e.to === to);
+      await tapGame(page, tap.x, tap.y);
+    }
+    await sleep(250);
+  }
+  return s;
+}
+
+/**
+ * In a walkable region: screenshot it, go down to Derek's basement if he's
+ * there, tap the villain until $cott has walked over and started talking,
+ * tap through the talk, then press FIGHT.
  */
 async function walkToVillain(page, failures, { shots = true } = {}) {
   await page.waitForFunction(() => window.__smm.state().scene === 'Region', null, { timeout: 15_000 });
   await sleep(700);
   if (shots) await page.screenshot({ path: path.join(SHOTS, '11b-region.png') });
-  const started = Date.now();
   let s = await state(page);
+  if (!s.npcs.some((n) => n.id === 'derek')) {
+    s = await goThroughDoor(page, 'start_lair');
+    await sleep(500);
+    if (shots) await page.screenshot({ path: path.join(SHOTS, '11b-region-basement.png') });
+  }
+  const started = Date.now();
   const start = s.player;
   while (s.mode === 'explore') {
     if (Date.now() - started > 30_000) throw new Error('region: never reached the villain');
@@ -114,7 +147,7 @@ async function walkToVillain(page, failures, { shots = true } = {}) {
     await sleep(250);
     s = await state(page);
   }
-  if (shots && Math.hypot(s.player.x - start.x, s.player.y - start.y) < 500) failures.push('region: $cott should have walked up the path to Derek');
+  if (shots && Math.hypot(s.player.x - start.x, s.player.y - start.y) < 300) failures.push('region: $cott should have walked across the basement to Derek');
   if (shots) await page.screenshot({ path: path.join(SHOTS, '11c-region-talk.png') });
   for (let i = 0; i < 20; i++) {
     const fight = (await state(page)).buttons.find((b) => b.text === 'FIGHT');
@@ -661,8 +694,8 @@ async function main() {
       const before = await ed();
       if (before.dirty || before.cols !== 34) failures.push(`editor: should open the saved swamp (${JSON.stringify({ dirty: before.dirty, cols: before.cols })})`);
       await page.screenshot({ path: path.join(SHOTS, '19-editor.png') });
-      // PAINT is the starting tool, with WATER picked: paint a stroke across the middle of the view.
-      await touchDrag(page, { x: 200, y: 500 }, { x: 520, y: 520 }, 200);
+      // PAINT is the starting tool, with WATER picked: paint a stroke across the whole map, wall to wall.
+      await touchDrag(page, { x: 120, y: 500 }, { x: 600, y: 520 }, 200);
       await sleep(300);
       let e = await ed();
       if (!e.dirty || JSON.stringify(e.terrain) === JSON.stringify(before.terrain)) failures.push('editor: a paint stroke should change the terrain');
@@ -674,8 +707,8 @@ async function main() {
       if ((await ed()).counts.npcs !== before.counts.npcs) failures.push('editor: UNDO should take the NPC back out');
       await press('CHECK');
       const notes = (await ed()).problems;
-      // The water stroke across the middle cut Derek's camp off: CHECK should say so.
-      if (!notes.some((n) => /^error: DEREK can't be reached/.test(n))) failures.push(`editor: CHECK should catch the stroke cutting Derek off (${JSON.stringify(notes)})`);
+      // The water stroke cut the north of the swamp off (Derek's cellar door, and Chad beside it): CHECK should say so.
+      if (!notes.some((n) => /^error: (The exit to start_lair|CHAD) can't be reached/.test(n))) failures.push(`editor: CHECK should catch the stroke cutting Derek's house off (${JSON.stringify(notes)})`);
       await page.screenshot({ path: path.join(SHOTS, '19b-editor-check.png') });
       await press('MAP');
       await press('+ RIGHT');

@@ -1,0 +1,67 @@
+{
+  "terrains": {
+    "f": {
+      "name": "floor",
+      "label": "FLOOR"
+    },
+    "x": {
+      "name": "wall",
+      "label": "WALL",
+      "blocks": true
+    },
+    "u": {
+      "name": "rug",
+      "label": "RUG"
+    }
+  },
+  "base": "f",
+  "pairs": [
+    "floor_wall",
+    "floor_rug"
+  ],
+  "grade": {
+    "saturation": 1.0,
+    "brightness": 1.0
+  },
+  "scatter": [
+    {
+      "on": "floor",
+      "files": [
+        "cable_01.png",
+        "cable_03.png",
+        "cable_11.png"
+      ],
+      "density": 0.02
+    },
+    {
+      "on": "floor",
+      "files": [
+        "can_16.png",
+        "can_17.png",
+        "can_24.png",
+        "can_25.png",
+        "can_28.png",
+        "paper_40.png",
+        "paper_41.png",
+        "paper_42.png",
+        "paper_49.png",
+        "paper_50.png",
+        "paper_52.png"
+      ],
+      "density": 0.035
+    },
+    {
+      "on": "rug",
+      "files": [
+        "pizza_32.png",
+        "pizza_33.png",
+        "can_16.png",
+        "can_17.png",
+        "can_24.png",
+        "can_25.png",
+        "can_28.png"
+      ],
+      "density": 0.06
+    }
+  ]
+}
