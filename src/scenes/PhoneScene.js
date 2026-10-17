@@ -2,7 +2,7 @@
 // the overworld map, which pause underneath, and holds the apps in
 // data/phone.js: MAP, Y ($cott's social app, scenes/SocialScene.js), STONKS
 // (stake cash on $cott's day trade, minigames/trade.js), REALTY, SHOP (spend
-// it), SETTINGS. A big Stonks or Realty win posts itself to Y for Clout.
+// it), SETTINGS, and WIFI once the day traders give it to him. A big Stonks or Realty win posts itself to Y for Clout.
 //
 // $cott starts on a flip phone: a green LCD with chunky pixel lettering
 // (ui/pixelFont.js), a 2×2 icon grid, and a keypad whose right soft key goes
@@ -25,7 +25,7 @@ import realty from '../minigames/realty.js';
 import social from './SocialScene.js';
 import { formatClout, fillIn, momentPost } from '../systems/social.js';
 import { SOCIAL, MOMENTS } from '../data/social.js';
-import { socialNews } from '../ui/badge.js';
+import { socialNews, badgeLabel } from '../ui/badge.js';
 import { REALTY, CITIES } from '../data/realty.js';
 import { price } from '../systems/realty.js';
 import { VERSION } from '../version.js';
@@ -252,7 +252,7 @@ export default class PhoneScene extends Phaser.Scene {
       fn();
     });
     this.root.add(zone);
-    this.chrome.push({ text: name, x: x + w / 2, y: y + h / 2, enabled: true, zone });
+    this.chrome.push({ text: name, x: x + w / 2, y: y + h / 2, enabled: true });
   }
 
   // ---- Page helpers ------------------------------------------------------------------
@@ -265,7 +265,7 @@ export default class PhoneScene extends Phaser.Scene {
     this.refreshStatus();
   }
 
-  /** Text in the current model's style. `size`: s, m, l, xl. Returns its width. */
+  /** Text in the current model's style. `size`: s, m, l, xl. Returns the text object. */
   text(x, y, str, { size = 'm', color = null, align = 'left', font = 'label', maxW = null } = {}) {
     let obj;
     if (this.flip) {
@@ -296,7 +296,7 @@ export default class PhoneScene extends Phaser.Scene {
     }
     this.pageLayer.add(g);
     const color = this.flip ? (enabled ? FLIP.colors.ink : FLIP.colors.mid) : enabled ? '#ffffff' : '#8f88a8';
-    const ty = sub ? y + h / 2 - (this.flip ? 16 : 16) : y + h / 2 - (this.flip ? 7 : 8);
+    const ty = sub ? y + h / 2 - 16 : y + h / 2 - (this.flip ? 7 : 8);
     this.text(x + w / 2, ty, str, { size: 'm', color, align: 'center', maxW: w - 16 });
     if (sub) this.text(x + w / 2, y + h / 2 + (this.flip ? 5 : 4), sub, { size: 's', color, align: 'center', font: 'body', maxW: w - 16 });
     const zone = this.add.zone(x, y, w, h).setOrigin(0).setInteractive();
@@ -315,9 +315,20 @@ export default class PhoneScene extends Phaser.Scene {
     return g;
   }
 
+  /** The screen area apps draw in, on the current model. */
+  get content() {
+    return this.flip ? FLIP.content : SMART.content;
+  }
+
+  /** Start an app's page: clear the screen; returns where to draw and the app's color. */
+  appPage(page, appId) {
+    this.clearPage(page);
+    return { c: this.content, accent: APPS.find((a) => a.id === appId).color };
+  }
+
   /** A page title, with a back arrow on the smartphone (the flip phone has a BACK key). */
   header(title, accent) {
-    const c = this.flip ? FLIP.content : SMART.content;
+    const c = this.content;
     if (this.flip) {
       this.text(c.x + c.w / 2, c.y, title, { size: 'l', align: 'center' });
     } else {
@@ -408,7 +419,7 @@ export default class PhoneScene extends Phaser.Scene {
     if (this.flip) g.fillStyle(FLIP.colors.inkHex, 1).fillCircle(x, y, 13);
     else g.fillStyle(0x0d0820, 1).fillCircle(x, y, 17).fillStyle(0xe0245e, 1).fillCircle(x, y, 14);
     this.pageLayer.add(g);
-    const str = n > 9 ? '9+' : String(n);
+    const str = badgeLabel(n);
     if (this.flip) this.pageLayer.add(pixelText(this, Math.round(x - pixelTextWidth(str, 2) / 2), y - 5, str, { px: 2, color: FLIP.colors.light }));
     else this.pageLayer.add(label(this, Math.round(x), Math.round(y + 1), str, 12, { strokeThickness: 0 }).setOrigin(0.5));
   }
@@ -446,13 +457,19 @@ export default class PhoneScene extends Phaser.Scene {
 
   async openSocial() {
     if (this.trading) return;
+    await this.aside('social', () => social.run(this));
+    this.home();
+  }
+
+  /** Step aside while a full-screen app plays (Y, a trade, the property ladder); resolves with what it returns. */
+  async aside(page, run) {
     this.trading = true;
-    this.page = 'social';
+    this.page = page;
     this.root.setVisible(false);
-    await social.run(this);
+    const result = await run();
     this.trading = false;
     this.root.setVisible(true);
-    this.home();
+    return result;
   }
 
   /** A big moment posts itself: $cott's own post in the feed, and the Clout it earned. */
@@ -467,9 +484,7 @@ export default class PhoneScene extends Phaser.Scene {
   // aside while it plays, then shows what came back.
 
   stonks() {
-    this.clearPage('stonks');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'stonks').color;
+    const { c, accent } = this.appPage('stonks', 'stonks');
     this.header('STONKS', accent);
     const top = c.y + (this.flip ? 28 : 90);
     this.text(c.x + c.w / 2, top, `TRADES LEFT ${Save.trades}/${ECONOMY.tradesPerFight}`, { size: 's', align: 'center', font: 'body' });
@@ -501,26 +516,19 @@ export default class PhoneScene extends Phaser.Scene {
     if (this.trading || Save.trades <= 0 || Save.cash < stake) return;
     Save.useTrade();
     Save.spend(stake);
-    this.trading = true;
-    this.page = 'stonks-trade';
     // The day trade takes the whole screen; the phone comes back for the result.
-    this.root.setVisible(false);
     const ticker = rng.pick(ECONOMY.tickers);
-    const { grade, value } = await trade.run(this, { context: { title: 'STONKS', ticker, cash: stake } });
+    const { grade, value } = await this.aside('stonks-trade', () => trade.run(this, { context: { title: 'STONKS', ticker, cash: stake } }));
     Save.earn(value);
     // A big win posts itself.
     const clout = SOCIAL.moments.stonks[grade] ?? 0;
     this.brag(fillIn(MOMENTS.stonks, { pct: pct(value / stake - 1), ticker }), clout, 'STONKS');
-    this.trading = false;
-    this.root.setVisible(true);
-    this.result(stake, value, grade, clout);
+    this.stonksResult(stake, value, grade, clout);
   }
 
-  result(stake, value, gradeId, clout = 0) {
+  stonksResult(stake, value, gradeId, clout = 0) {
     const profit = value - stake;
-    this.clearPage('stonks-result');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'stonks').color;
+    const { c, accent } = this.appPage('stonks-result', 'stonks');
     // The trade's grades are measured against Brad's 25% goal; here any profit is a win.
     const grade = TRADE.grades.find((g) => g.id === gradeId);
     const quips = this.flip
@@ -538,10 +546,16 @@ export default class PhoneScene extends Phaser.Scene {
       this.text(c.x + c.w / 2, top + 80, pct(value / stake - 1), { size: 'm', align: 'center', color: profit >= 0 ? good : bad });
       this.text(c.x + c.w / 2, top + 130, quip, { size: 's', align: 'center', font: 'body', color: '#e2d9ff', maxW: c.w });
     }
+    this.resultFooter(clout, () => this.stonks(), { enabled: Save.trades > 0 && Save.cash >= ECONOMY.stakes[0], accent });
+  }
+
+  /** Under a Stonks or Realty result: the Clout its post earned, then AGAIN and DONE. */
+  resultFooter(clout, again, { enabled = true, accent }) {
+    const c = this.content;
     const btnH = this.flip ? 56 : 110;
     const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
     if (clout) this.text(c.x + c.w / 2, y - (this.flip ? 18 : 56), `POSTED IT. +${formatClout(clout)} CLOUT`, { size: 's', align: 'center', color: this.flip ? FLIP.colors.ink : '#ff8ad8', maxW: c.w });
-    this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.stonks(), { enabled: Save.trades > 0 && Save.cash >= ECONOMY.stakes[0], accent });
+    this.button(c.x, y, c.w, btnH, 'AGAIN', again, { enabled, accent });
     this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
   }
 
@@ -550,9 +564,7 @@ export default class PhoneScene extends Phaser.Scene {
   // trophy. Play money for now: it doesn't touch his cash.
 
   realty() {
-    this.clearPage('realty');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'realty').color;
+    const { c, accent } = this.appPage('realty', 'realty');
     this.header('REALTY', accent);
     const top = c.y + (this.flip ? 28 : 90);
     this.text(c.x + c.w / 2, top, this.flip ? 'PICK A CITY' : 'PICK A CITY. CLIMB TO THE TROPHY.', { size: this.flip ? 'm' : 's', align: 'center', maxW: c.w });
@@ -573,25 +585,18 @@ export default class PhoneScene extends Phaser.Scene {
 
   async playRealty(city) {
     if (this.trading) return;
-    this.trading = true;
-    this.page = 'realty-play';
-    this.root.setVisible(false);
-    const result = await realty.run(this, { context: { city } });
+    const result = await this.aside('realty-play', () => realty.run(this, { context: { city } }));
     // Climbing to a trophy posts itself, once per city and grade.
     let clout = 0;
     if (result.won !== null && Save.brag(`realty:${city}:${result.grade}`)) {
       clout = SOCIAL.moments.realty[result.grade] ?? 0;
       this.brag(fillIn(MOMENTS.realty, { city: CITIES.find((c) => c.id === city)?.name ?? city }), clout, 'REALESTATE');
     }
-    this.trading = false;
-    this.root.setVisible(true);
     this.realtyResult(result, clout);
   }
 
   realtyResult({ won, value, grade }, clout = 0) {
-    this.clearPage('realty-result');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'realty').color;
+    const { c, accent } = this.appPage('realty-result', 'realty');
     this.header(won !== null ? 'SOLD!' : 'TIME UP', accent);
     const top = c.y + (this.flip ? 34 : 120);
     const ink = this.flip ? FLIP.colors.ink : null;
@@ -604,11 +609,7 @@ export default class PhoneScene extends Phaser.Scene {
       this.text(c.x + c.w / 2, top, price(value), { size: 'xl', align: 'center', color: ink ?? '#ff5c8a' });
       this.text(c.x + c.w / 2, top + (this.flip ? 34 : 80), 'NET WORTH. STILL RENTING.', { size: 's', align: 'center', font: 'body', color: ink ?? '#e2d9ff', maxW: c.w });
     }
-    const btnH = this.flip ? 56 : 110;
-    const y = c.y + c.h - btnH * 2 - (this.flip ? 6 : 80);
-    if (clout) this.text(c.x + c.w / 2, y - (this.flip ? 18 : 56), `POSTED IT. +${formatClout(clout)} CLOUT`, { size: 's', align: 'center', color: this.flip ? FLIP.colors.ink : '#ff8ad8', maxW: c.w });
-    this.button(c.x, y, c.w, btnH, 'AGAIN', () => this.realty(), { accent });
-    this.button(c.x, y + btnH + (this.flip ? 6 : 16), c.w, btnH, 'DONE', () => this.home(), { accent: 0x3a3550 });
+    this.resultFooter(clout, () => this.realty(), { accent });
   }
 
   // ---- WIFI -----------------------------------------------------------------------------
@@ -617,9 +618,7 @@ export default class PhoneScene extends Phaser.Scene {
   // he's right on top of it, TRACE finds it, and the region shows what was hidden.
 
   wifi() {
-    this.clearPage('wifi');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'wifi').color;
+    const { c, accent } = this.appPage('wifi', 'wifi');
     this.header('WIFI', accent);
     const region = this.from === 'Region' ? this.scene.get('Region') : null;
     const hidden = region?.wifiNetworks() ?? [];
@@ -666,9 +665,7 @@ export default class PhoneScene extends Phaser.Scene {
   trace(region, network) {
     region.traceSecret(network.id);
     Audio.sfx('crit');
-    this.clearPage('wifi-traced');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'wifi').color;
+    const { c, accent } = this.appPage('wifi-traced', 'wifi');
     this.header('WIFI', accent);
     const top = c.y + (this.flip ? 40 : 160);
     this.text(c.x + c.w / 2, top, 'TRACED', { size: 'xl', align: 'center', color: this.flip ? null : '#7cf29c' });
@@ -683,9 +680,7 @@ export default class PhoneScene extends Phaser.Scene {
   // ---- SHOP -----------------------------------------------------------------------------
 
   shop() {
-    this.clearPage('shop');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'shop').color;
+    const { c, accent } = this.appPage('shop', 'shop');
     this.header('SHOP', accent);
     const top = c.y + (this.flip ? 28 : 100);
     const rowH = this.flip ? 80 : 150;
@@ -726,9 +721,7 @@ export default class PhoneScene extends Phaser.Scene {
   // ---- SETTINGS -------------------------------------------------------------------------
 
   settings() {
-    this.clearPage('settings');
-    const c = this.flip ? FLIP.content : SMART.content;
-    const accent = APPS.find((a) => a.id === 'settings').color;
+    const { c, accent } = this.appPage('settings', 'settings');
     this.header('SETTINGS', accent);
     const top = c.y + (this.flip ? 28 : 100);
     const rowH = this.flip ? 48 : 110;
@@ -754,7 +747,7 @@ export default class PhoneScene extends Phaser.Scene {
     // Work in progress: Lil' Turnt following him around before she's recruited (data/followers.js).
     let rows = 3;
     if (Save.followIsTrial) {
-      const on = Save.data.tryFollow;
+      const on = Save.tryFollow;
       this.button(c.x, top + (rowH + gap) * rows++, c.w, rowH, on ? 'SEND TURNT HOME' : "TRY LIL' TURNT", () => {
         Save.setTryFollow(!on);
         this.settings();

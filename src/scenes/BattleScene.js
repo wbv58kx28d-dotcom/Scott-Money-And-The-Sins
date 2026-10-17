@@ -519,7 +519,7 @@ export default class BattleScene extends Phaser.Scene {
         reactions: [{ handle: '@apestrong', text: 'he is SO back' }],
       }));
     }
-    Save.refillTrades();
+    Save.refillAfterFight();
     this.showEndScreen(won);
   }
 

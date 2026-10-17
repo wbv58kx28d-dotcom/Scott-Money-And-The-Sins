@@ -853,11 +853,7 @@ export default class RegionScene extends Phaser.Scene {
   /** Quiz challenge: each question's first answer is the right one (they're shuffled on screen). */
   async runQuiz(c) {
     for (const q of c.questions) {
-      const answers = q.answers.map((text, i) => ({ text, right: i === 0 }));
-      for (let i = answers.length - 1; i > 0; i--) {
-        const j = rng.int(0, i);
-        [answers[i], answers[j]] = [answers[j], answers[i]];
-      }
+      const answers = rng.shuffled(q.answers.map((text, i) => ({ text, right: i === 0 })));
       this.quizAnswer = q.answers[0];
       const card = this.ui(() => this.questionCard(q.q));
       const pick = await this.ui(() => this.menu.choose(

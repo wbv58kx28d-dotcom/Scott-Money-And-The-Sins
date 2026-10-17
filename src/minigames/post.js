@@ -18,7 +18,7 @@
 // Scoring is pure, in systems/social.js.
 
 import { GAME_W, GAME_H, COLORS, LAYOUT } from '../config.js';
-import { SOCIAL, REACTIONS, FANS } from '../data/social.js';
+import { SOCIAL, REACTIONS, FANS, ACCOUNTS } from '../data/social.js';
 import {
   pickTrending, offerDrafts, activityCurve, activityAt, ratingFor, scorePost, engagement, formatCount, formatClout,
 } from '../systems/social.js';
@@ -184,7 +184,8 @@ export class PostScene extends Phaser.Scene {
       this.keep(body(this, x, PLOT.bottom + 12, t, 24, { color: COLORS.textDim }).setOrigin(i === 0 ? 0 : i === 4 ? 1 : 0.5, 0));
     });
     this.chart = this.keep(this.add.graphics());
-    this.primeLabel = null;
+    const prime = SOCIAL.timing.ratings[0];
+    this.keep(label(this, PLOT.right, Math.round(this.yAt(prime.min)) - 26, prime.label, 12, { color: GOLD_CSS }).setOrigin(1, 0));
     this.drawCurve();
     this.marker = this.keep(this.add.graphics());
     this.ratingText = this.keep(label(this, GAME_W / 2, PLOT.bottom + 62, '', 20).setOrigin(0.5));
@@ -211,7 +212,6 @@ export class PostScene extends Phaser.Scene {
     const py = Math.round(this.yAt(prime.min));
     g.fillStyle(RIBBON_GOLD, 0.6);
     for (let x = PLOT.left; x < PLOT.right; x += 20) g.fillRect(x, py - 1, Math.min(12, PLOT.right - x), 2);
-    if (!this.primeLabel) this.primeLabel = this.keep(label(this, PLOT.right, py - 26, prime.label, 12, { color: GOLD_CSS }).setOrigin(1, 0));
     // Whole-pixel columns, colored by the rating at that hour.
     const step = 4;
     for (let x = PLOT.left; x < PLOT.right; x += step) {
@@ -281,9 +281,9 @@ export class PostScene extends Phaser.Scene {
     this.keep(drawCard(this.add.graphics(), r, this.draft.classic ? RIBBON_GOLD : PINK));
     text.setDepth(1); // drawn before its card, to size it
     this.keep(avatar(this, r.x + CARD_INSET + 34, r.y + 50, 'scott'));
-    const name = this.keep(label(this, r.x + CARD_INSET + 84, r.y + 26, '$COTT MONEY', 18));
+    const name = this.keep(label(this, r.x + CARD_INSET + 84, r.y + 26, ACCOUNTS.scott.name, 18));
     this.keep(verifiedBadge(this, name.x + name.width + 18, name.y + 9));
-    this.keep(body(this, r.x + CARD_INSET + 84, r.y + 52, '@scottmoney · now', 26, { color: COLORS.textDim }));
+    this.keep(body(this, r.x + CARD_INSET + 84, r.y + 52, `${ACCOUNTS.scott.handle} · now`, 26, { color: COLORS.textDim }));
     // Likes, reposts, replies: they roll up from zero.
     this.counters = ['heart', 'repost', 'reply'].map((icon, i) => {
       const x = r.x + CARD_INSET + i * 200;

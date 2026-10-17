@@ -26,7 +26,7 @@ test('the save tracks cash, the stash, trades, and the phone', () => {
   assert.equal(Save.useStash('voicemail'), false);
   for (let i = 0; i < ECONOMY.tradesPerFight; i++) assert.equal(Save.useTrade(), true);
   assert.equal(Save.useTrade(), false, 'the market closes when trades run out');
-  Save.refillTrades();
+  Save.refillAfterFight();
   assert.equal(Save.trades, ECONOMY.tradesPerFight);
   Save.setPhone('smart');
   assert.equal(Save.phone, 'smart');

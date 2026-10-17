@@ -22,18 +22,9 @@ export function visibleFeed(state, feed = FEED) {
   return feed.filter((p) => isVisible(p, state));
 }
 
-function shuffled(r, list) {
-  const out = [...list];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = r.int(0, i);
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
 /** `n` distinct trending hashtags. */
 export function pickTrending(r, n = SOCIAL.trending, trends = TRENDS) {
-  return shuffled(r, trends).slice(0, n);
+  return r.shuffled(trends).slice(0, n);
 }
 
 /**
@@ -47,14 +38,14 @@ export function offerDrafts(r, { trending, classics = [], exclude = [], n = SOCI
   if (classic) out.push({ ...classic, classic: true });
   // Leave out `exclude` (recently posted), unless that leaves too few.
   const fresh = drafts.filter((d) => !exclude.includes(d.id));
-  const pool = shuffled(r, fresh.length >= n * 2 ? fresh : drafts);
+  const pool = r.shuffled(fresh.length >= n * 2 ? fresh : drafts);
   const onTrend = pool.find((d) => trending.includes(d.tag));
   if (onTrend && out.length < n) out.push(onTrend);
   for (const d of pool) {
     if (out.length >= n) break;
     if (!out.includes(d)) out.push(d);
   }
-  return [...out.filter((d) => d.classic), ...shuffled(r, out.filter((d) => !d.classic))];
+  return [...out.filter((d) => d.classic), ...r.shuffled(out.filter((d) => !d.classic))];
 }
 
 /** A day's "followers online" curve: one prime-time peak and a smaller bump elsewhere. */

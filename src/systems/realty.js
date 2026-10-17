@@ -82,14 +82,6 @@ export function mapLots(cfg = REALTY) {
 
 function buildSession(rng, city, cfg) {
   const { months } = cfg;
-  const shuffled = (list) => {
-    const out = [...list];
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = rng.int(0, i);
-      [out[i], out[j]] = [out[j], out[i]];
-    }
-    return out;
-  };
   const lots = mapLots(cfg);
   const lotIndex = (i, j) => lots.findIndex((l) => l.i === i && l.j === j);
   const variantCount = (tier) => city.art?.[tier]?.length ?? 3;
@@ -127,7 +119,7 @@ function buildSession(rng, city, cfg) {
   const trophyLot = lotIndex(0, 0);
   occupied.set(trophyLot, addUnit('high', trophyLot, 0, { trophy: true }).id);
   for (const tier of TIERS) {
-    const open = shuffled(lots.map((l, k) => k).filter((k) => lots[k].zone === tier && !occupied.has(k)));
+    const open = rng.shuffled(lots.map((l, k) => k).filter((k) => lots[k].zone === tier && !occupied.has(k)));
     for (let n = 0; n < cfg.start[tier]; n++) occupied.set(open[n], addUnit(tier, open[n], 0).id);
   }
   const trophy = 0; // the first unit made
@@ -137,7 +129,7 @@ function buildSession(rng, city, cfg) {
   // pays nothing. Each leg is an event whose chip flips `lead` months before
   // it starts; up and down legs bring a matching headline to the ticker (flavor).
   const { trend } = cfg;
-  const pool = shuffled([...city.headlines, ...cfg.headlines]);
+  const pool = rng.shuffled([...city.headlines, ...cfg.headlines]);
   const used = new Set();
   const headlineFor = (ti, dir) => {
     const fits = pool.filter((h) => Math.sign(h.fx[ti]) === dir && Math.abs(h.fx[ti]) >= 0.1);

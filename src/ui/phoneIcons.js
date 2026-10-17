@@ -168,7 +168,7 @@ const ICONS = {
   ],
 };
 
-export const ICON_SIZE = 9;
+const ICON_SIZE = 9;
 
 /** An image of an icon, top-left at (x, y), cached per name, size and color. */
 export function pixelIcon(scene, x, y, name, { px = 4, color = '#ffffff' } = {}) {
