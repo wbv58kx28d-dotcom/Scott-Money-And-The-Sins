@@ -17,7 +17,8 @@
 // A recruited Sin can walk behind him on his own trail, Pikachu style
 // (data/followers.js, systems/follower.js): Lil' Turnt, for now. Tap her (or
 // press TALK with nobody else around) to hear what she thinks; she gets
-// jealous when he talks to anyone else.
+// jealous when he talks to anyone else. Walking past people and landmarks she
+// has an opinion on, she sometimes barks a line in a bubble over her head.
 //
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
 // everything in the world sits below the UI's ordinary depths. UI is created
@@ -41,7 +42,7 @@ import { money } from '../systems/market.js';
 import { ITEMS } from '../data/items.js';
 import { APPS } from '../data/phone.js';
 import { FOLLOWERS } from '../data/followers.js';
-import { Trail, facingOf, moodOf, followerLines } from '../systems/follower.js';
+import { Trail, Barker, barkTargets, facingOf, moodOf, followerLines } from '../systems/follower.js';
 import { PhoneBadge } from '../ui/badge.js';
 import { rng, createRng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
@@ -54,7 +55,7 @@ import { Button } from '../ui/button.js';
 import { TimingBar } from '../ui/timingBar.js';
 import { Joystick } from '../ui/joystick.js';
 import { InteractButton } from '../ui/interactButton.js';
-import { emoteBubble } from '../ui/emote.js';
+import { emoteBubble, barkBubble } from '../ui/emote.js';
 import { pixelText, pixelTextWidth, signLabel } from '../ui/pixelFont.js';
 import { drawCard, drawRibbonPanel, RIBBON_GOLD, CARD_INSET } from '../ui/ribbon.js';
 import { label, body, fitWidth, fitWrapped, snapCenter } from '../ui/text.js';
@@ -73,6 +74,8 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 // How long an emote bubble stays up, and how far over the head it floats.
 const EMOTE_MS = 1300;
 const EMOTE_GAP = 6;
+// A bark stays up long enough to read: this long, plus this much a letter, up to the max.
+const BARK_MS = { base: 1600, perChar: 45, max: 4500 };
 
 const worldDepth = (y) => y - WORLD_DEPTH;
 /** Is (x, y) on a body standing at `s` (its feet), in a hit box this big? */
@@ -442,6 +445,7 @@ export default class RegionScene extends Phaser.Scene {
     else if (this.path.length) this.walkPath(delta);
     else if (this.follower) this.follower.stillMs += delta;
     this.moveFollower();
+    this.checkBarks();
   }
 
   /** Tap-to-walk: follow the path, then leave, talk, or stop at its end. */
@@ -543,6 +547,7 @@ export default class RegionScene extends Phaser.Scene {
   async revealSecret(id) {
     this.revealing = null;
     this.found.add(id);
+    this.buildBarkTargets(); // the cellar door's a door now
     this.mode = 'talk';
     this.stop();
     const fadeIn = [];
@@ -611,7 +616,30 @@ export default class RegionScene extends Phaser.Scene {
     const { x, y } = trail.position();
     const sprite = this.add.sprite(Math.round(x), Math.round(y), data.sprite).setOrigin(0.5, 1).setDepth(worldDepth(y));
     this.face(sprite, this.facing);
-    this.follower = { id, data, trail, sprite, facing: this.facing, moving: false, stillMs: 0 };
+    const barker = data.barks ? new Barker(data.barks, { now: this.time.now }) : null;
+    this.follower = { id, data, trail, sprite, barker, facing: this.facing, moving: false, stillMs: 0 };
+    this.buildBarkTargets();
+  }
+
+  /** What she can bark about on this map (systems/follower.js); rebuilt when a secret turns up. */
+  buildBarkTargets() {
+    const f = this.follower;
+    if (!f?.barker) return;
+    const found = (id) => this.found.has(id);
+    f.barkTargets = barkTargets(f.data.barks, {
+      npcs: this.npcs,
+      props: this.map.props.filter((p) => present(p, found)),
+      gates: this.gates,
+      exits: this.map.exits.filter((e) => present(e, found)),
+    });
+  }
+
+  /** Walking past something she has an opinion on: sometimes, she says so. */
+  checkBarks() {
+    const f = this.follower;
+    if (!f?.barker) return;
+    const bark = f.barker.update(this.time.now, this.player, f.barkTargets, () => rng.fx.random(), (n) => rng.fx.int(0, n - 1));
+    if (bark) this.bark(bark.text);
   }
 
   /** She walks $cott's trail, `gap` px behind him, and pops an emote now and then when he stands still. */
@@ -664,6 +692,7 @@ export default class RegionScene extends Phaser.Scene {
     const f = this.follower;
     this.mode = 'talk';
     this.controls(false);
+    this.clearEmote();
     Audio.sfx('blip');
     this.facing = facingOf(f.sprite.x - this.player.x, f.sprite.y - this.player.y) ?? this.facing;
     this.stop();
@@ -684,14 +713,25 @@ export default class RegionScene extends Phaser.Scene {
 
   // ---- Emotes (ui/emote.js) ------------------------------------------------------------
 
-  /** Pop an emote bubble over the follower's head for a moment (one at a time). */
+  /** Pop an emote bubble over the follower's head for a moment (one bubble at a time). */
   emote(id) {
+    this.overhead(id, emoteBubble(this, id), EMOTE_MS);
+    Audio.sfx(id === 'anger' ? 'bad' : 'blip');
+  }
+
+  /** A bark: a line of hers in a bubble over her head, up long enough to read. */
+  bark(text) {
+    this.overhead('bark', barkBubble(this, text), Math.min(BARK_MS.max, BARK_MS.base + text.length * BARK_MS.perChar), text);
+    Audio.sfx('blip');
+  }
+
+  /** Put a bubble over her head (replacing whatever's there) for `ms`. */
+  overhead(id, g, ms, text = null) {
     this.clearEmote();
-    const g = emoteBubble(this, id).setDepth(-1).setAlpha(0);
-    this.emoting = { id, g, until: this.time.now + EMOTE_MS };
+    g.setDepth(-1).setAlpha(0);
+    this.emoting = { id, g, text, until: this.time.now + ms };
     this.placeEmote();
     this.tweens.add({ targets: g, alpha: 1, duration: 120 });
-    Audio.sfx(id === 'anger' ? 'bad' : 'blip');
   }
 
   /** Keep the bubble over her head (she may be walking), and take it down when its time's up. */
@@ -700,6 +740,8 @@ export default class RegionScene extends Phaser.Scene {
     if (!e) return;
     const f = this.follower;
     if (!f || this.time.now >= e.until) return this.clearEmote();
+    // A bark fades out over its last moment.
+    if (e.id === 'bark') e.g.setAlpha(Math.min(1, (e.until - this.time.now) / 200));
     e.g.setPosition(Math.round(f.sprite.x), Math.round(f.sprite.y - f.data.head - EMOTE_GAP));
   }
 
@@ -713,6 +755,7 @@ export default class RegionScene extends Phaser.Scene {
   async talkTo(npc) {
     this.mode = 'talk';
     this.controls(false);
+    this.clearEmote(); // she can have her say after
     // Face each other.
     this.facing = facingOf(npc.x - this.player.x, npc.y - this.player.y) ?? this.facing;
     this.stop();
@@ -956,6 +999,7 @@ export default class RegionScene extends Phaser.Scene {
         tap: screen(this.follower.sprite.x, this.follower.sprite.y - 30),
       },
       emote: this.emoting?.id ?? null,
+      bark: this.emoting?.text ?? null,
     };
   }
 }

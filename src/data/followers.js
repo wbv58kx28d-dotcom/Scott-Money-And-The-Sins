@@ -10,6 +10,14 @@
 // she talks and when she notices him talking to someone else.
 // Emotes: heart, note, dots, anger, bang (ui/emote.js).
 //
+// Barks: walking past someone or something in `barks` (NPCs by id, props by
+// texture, ropes by id, doors by the map they lead to), she sometimes says one
+// line in a bubble over her head, without stopping play. Each one counts once
+// each time $cott walks up to it, then only `chance` of the time, at least
+// `cooldownMs` after her last bark, and not about the same thing for `againMs`.
+// `range` is how close he has to come (px); an entry can be { range, lines } to
+// set its own. Keep bark lines short: the bubble wraps at about 25 letters.
+//
 // Placeholder lines until the writing chat sends real ones.
 
 export const FOLLOWERS = {
@@ -71,6 +79,48 @@ export const FOLLOWERS = {
       chad: [{ text: '"Chad. Of course his name is Chad."' }],
       derek: [{ text: '"His hands are DIAMONDS? Mine are paws and I\'m still richer in spirit."' }],
       doorman: [{ text: '"The list? Darling, I AM the list."' }],
+    },
+    barks: {
+      chance: 0.5,
+      cooldownMs: 9000,
+      againMs: 60000,
+      range: 200,
+      npcs: {
+        brad: ['Still holding, Brad? Bless.', 'Sell. SELL. Ugh.'],
+        morgan: ['A mod. Ew. Rules.', "Don't let her ban me."],
+        chad: ['Chad. Of course.', "Who's Chad? Who cares?"],
+        floyd: ['That floatie is a lifestyle.', 'He owes the hot tub rent.'],
+        lola: ['Couldn\'t be me. Posting losses.', 'Her losses get more likes than me. RUDE.'],
+        bob: ["That one's a bot. I can smell it.", 'Beep boop. Loser.'],
+        doorman: ["I'm with him. Ugh. WITH him.", 'Professionals only? So, me.'],
+        vinny: ['Velvet rope? I AM the velvet rope.'],
+        wendy: ['Her chair. I want her chair.', 'A whale? I eat fish. Just saying.'],
+        helena: ['Corner office. Mine now.', "Don't look at her. Look at me."],
+        quentin: ['He does math. For fun. Gross.'],
+        bart: ['He yells more than I do. Respect.'],
+        derek: ['He smells like energy drink and fear.', 'Diamond hands? I have diamond CLAWS.'],
+      },
+      props: {
+        prop_hottub: { range: 260, lines: ['Hot tub? Cats don\'t do water.', 'Everyone in there is a bagholder.'] },
+        prop_tower: { range: 300, lines: ['Glass tower. Finally, my aesthetic.', 'That\'s where the money lives.'] },
+        prop_tarp: ['That tarp is hiding something.', 'Something smells like basement.'],
+        prop_house: { range: 260, lines: ['Who lives HERE? Gross.', 'This house needs a cat. Badly.'] },
+        prop_lounge: ['Dibs on the lounge chair.'],
+        prop_rack: ['Warm servers. Nap spot acquired.', 'Blinky lights. Must. Swat.'],
+        prop_battlestation: ['Three monitors. I\'m lying on all of them.'],
+        prop_fridge: ['Energy drinks. No tuna. Unacceptable.'],
+        prop_tradedesk: ['Keyboards. Sit on them. Obviously.'],
+        prop_espresso: ["Espresso? I'm already this awake."],
+      },
+      ropes: {
+        vip: ['VIP? I\'m VIP-er.'],
+        office: ['Professionals only. So, me.'],
+      },
+      doors: {
+        start_lair: ['Down THERE? In the dark? ...Fine.'],
+        start_office: ['Ooh. Air conditioning.'],
+        start: ['Back to the swamp. Joy.'],
+      },
     },
   },
 };
