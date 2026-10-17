@@ -15,6 +15,9 @@ export function hash(i, j, salt = 0) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** A cell whose four corners are all one terrain. */
+const isSolid = (key) => key === key[0].repeat(4);
+
 export class Terrain {
   /**
    * @param {string[]} rows  (rows + 1) strings of (cols + 1) corner codes
@@ -154,14 +157,13 @@ export class Terrain {
     const key = this.key(i, j);
     const frames = this.tileset.tiles[key] ?? this.tileset.tiles[this.tileset.base.repeat(4)];
     const frame = frames[Math.floor(hash(i, j, 1) * frames.length)];
-    const solid = key[0] === key[1] && key[1] === key[2] && key[2] === key[3];
-    return { frame, flip: solid && hash(i, j, 2) < 0.5 };
+    return { frame, flip: isSolid(key) && hash(i, j, 2) < 0.5 };
   }
 
   /** Little details scattered on a solid cell: [{ frame, x, y }] in px from the cell's corner. */
   decalsFor(i, j) {
     const key = this.key(i, j);
-    if (!(key[0] === key[1] && key[1] === key[2] && key[2] === key[3])) return [];
+    if (!isSolid(key)) return [];
     const { frames, scatter } = this.tileset.decals;
     const out = [];
     scatter.forEach((s, k) => {

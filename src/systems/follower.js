@@ -21,13 +21,15 @@ export function facingOf(dx, dy) {
 
 export class Trail {
   /**
-   * `gap` is how far behind (in px of trail) she walks. She starts at `behind`
-   * (or `gap` px behind `leader`, opposite his facing), joined to him by a straight line.
+   * `gap` is how far behind (in px of trail) she walks. She starts `gap` px
+   * behind `leader`, opposite his facing (kept inside `bounds`, the map's
+   * { w, h }, if given), joined to him by a straight line.
    */
-  constructor(gap, leader, { behind = null, facing = 'up' } = {}) {
+  constructor(gap, leader, { facing = 'up', bounds = null } = {}) {
     this.gap = gap;
     const [fx, fy] = DIRS[facing] ?? DIRS.up;
-    const start = behind ?? { x: leader.x - fx * gap, y: leader.y - fy * gap };
+    const clamp = (v, max) => (bounds ? Math.max(0, Math.min(max, v)) : v);
+    const start = { x: clamp(leader.x - fx * gap, bounds?.w), y: clamp(leader.y - fy * gap, bounds?.h) };
     this.points = [{ x: start.x, y: start.y }, { x: leader.x, y: leader.y }];
     this.leader = { x: leader.x, y: leader.y };
   }

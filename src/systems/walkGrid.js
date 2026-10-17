@@ -1,7 +1,7 @@
 // Where $cott can walk inside a region, and how he gets there.
 //
-// A region's walk mask (white = walkable) is sampled into a coarse grid of
-// cells. Tap-to-move asks findPath() for a route: A* over 8 directions (no
+// A region's walkable ground (systems/mapcheck.js) is sampled into a coarse
+// grid of cells. Tap-to-move asks findPath() for a route: A* over 8 directions (no
 // cutting corners past walls), then smoothed so he walks in straight lines
 // wherever he has a clear view. Pure logic, no Phaser: unit-tested in tools/.
 

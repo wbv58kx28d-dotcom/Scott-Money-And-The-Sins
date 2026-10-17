@@ -67,7 +67,8 @@ function rowsCanvas(rows, palette) {
 
 /** A walker sheet (views × idle + 4 walk frames) under `key`, numbered like load.spritesheet. */
 export function bakeWalkerSheet(scene, key) {
-  const palette = FIELD_PALETTES[key];
+  // Only the first walkers have a placeholder palette; anyone else borrows $cott's.
+  const palette = FIELD_PALETTES[key] ?? FIELD_PALETTES.field_scott;
   const { w: fw, h: fh } = FIELD.frame;
   const sheet = canvas(fw * SHEET_COLS, fh * SHEET_VIEWS.length);
   const ctx = sheet.getContext('2d');
