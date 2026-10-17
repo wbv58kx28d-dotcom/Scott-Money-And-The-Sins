@@ -8,7 +8,8 @@ Reads `tools/region-art/<set>/`:
                                terrain pair (lower_upper, e.g. water_grass)
     art.json                   `terrains` (code, name, which ones block walking), `base`
                                (the terrain two others meet through), the color `grade`,
-                               and which `scatter` decals go on which terrain
+                               which `scatter` decals go on which terrain, and optional
+                               `bubbles` (animated fx_bubble pops on a terrain, Region scene)
     decals/*.png, bridge.png
 
 and writes `assets/regions/<set>/`: tiles.png (every tile, color-graded, at the
@@ -44,6 +45,47 @@ def graded(im, grade):
     return im
 
 
+def solid_colors(sheet, meta):
+    """The average color of each pair's all-lower and all-upper tile."""
+    out = {}
+    for t in meta['tileset_data']['tiles']:
+        sides = set(t['corners'].values())
+        if len(sides) == 1:
+            b = t['bounding_box']
+            tile = sheet.crop((b['x'], b['y'], b['x'] + b['width'], b['y'] + b['height'])).convert('RGB')
+            out[sides.pop()] = tile.resize((1, 1), Image.BOX).getpixel((0, 0))
+    return out
+
+
+def dist(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b))
+
+
+def swapped_pairs(spec, sheets):
+    """
+    PixelLab sometimes labels a set's two terrains the wrong way round (the art is
+    right, the 'lower'/'upper' tags are swapped), which paints land as water. Pairs
+    share a terrain (the base), so a pair whose shared terrain looks like the other
+    side's art is swapped. Returns the names of the pairs to flip.
+    """
+    colors = {pair: solid_colors(*sheets[pair]) for pair in spec['pairs']}
+    flip = []
+    for pair in spec['pairs']:
+        lower, upper = pair.split('_')
+        for side, terr in (('lower', lower), ('upper', upper)):
+            others = [colors[o]['lower' if o.split('_')[0] == terr else 'upper']
+                      for o in spec['pairs'] if o != pair and terr in o.split('_')]
+            if not others:
+                continue
+            other_side = 'upper' if side == 'lower' else 'lower'
+            near = min(dist(colors[pair][side], c) for c in others)
+            far = min(dist(colors[pair][other_side], c) for c in others)
+            if far * 4 < near:
+                flip.append(pair)
+            break
+    return flip
+
+
 def main(name):
     src = os.path.join(ROOT, 'tools', 'region-art', name)
     out = os.path.join(ROOT, 'assets', 'regions', name)
@@ -51,12 +93,20 @@ def main(name):
     spec = json.load(open(os.path.join(src, 'art.json')))
     code = {t['name']: c for c, t in spec['terrains'].items()}  # 'water' -> 'w'
 
+    sheets = {pair: (Image.open(os.path.join(src, 'tiles', f'{pair}.png')).convert('RGBA'),
+                     json.load(open(os.path.join(src, 'tiles', f'{pair}.json')))) for pair in spec['pairs']}
+    flip = swapped_pairs(spec, sheets)
+    for pair in flip:
+        print(f'{pair}: PixelLab labelled its terrains the wrong way round; flipping them')
+
     tiles, keys = [], {}
     for pair in spec['pairs']:
         lower, upper = pair.split('_')
-        sheet = graded(Image.open(os.path.join(src, 'tiles', f'{pair}.png')).convert('RGBA'), spec.get('grade', {}))
-        meta = json.load(open(os.path.join(src, 'tiles', f'{pair}.json')))
+        sheet = graded(sheets[pair][0].copy(), spec.get('grade', {}))
+        meta = sheets[pair][1]
         side = {'lower': code[lower], 'upper': code[upper]}
+        if pair in flip:
+            side = {'lower': code[upper], 'upper': code[lower]}
         for t in meta['tileset_data']['tiles']:
             c, b = t['corners'], t['bounding_box']
             key = ''.join(side[c[k]] for k in ('NW', 'NE', 'SW', 'SE'))
@@ -106,6 +156,8 @@ def main(name):
             'scatter': [{'on': code[s['on']], 'density': s['density'], 'frames': [files.index(f) for f in s['files']]} for s in spec.get('scatter', [])],
         },
     }
+    if 'bubbles' in spec:
+        tileset['bubbles'] = {**spec['bubbles'], 'on': code[spec['bubbles']['on']]}
     json.dump(tileset, open(os.path.join(out, 'tileset.json'), 'w'), separators=(',', ':'))
     print(f'{name}: {len(tiles)} tiles of {size * ART_PX}px, {len(frames)} decals, keys {len(keys)}')
 

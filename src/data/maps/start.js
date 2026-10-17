@@ -2,23 +2,11 @@
 // do, keyed by id. WHERE everything stands (and the ground itself) is in
 // ./start.layout.js, which the map editor writes; systems/mapfile.js joins the
 // two. An NPC or rope in the layout with nothing here still works, with
-// stand-in lines.
+// stand-in lines. Derek himself waits down the cellar door, in his basement
+// (./start_lair.js).
 
 export default {
   npcs: {
-    derek: {
-      name: 'DEREK',
-      fight: 'derek', // tapping him walks over, talks, then offers the fight
-      // Placeholder lines until the writing chat sends real ones.
-      talk: [
-        { speaker: 'DEREK', text: '"Well, well. $cott Money, wading through MY swamp."' },
-        { speaker: 'DEREK', text: '"Down 98% and still holding. You know what that makes me?\nA LEGEND."' },
-      ],
-      talkCleared: [
-        { speaker: 'DEREK', text: '"Back for more? I averaged down on my feelings."' },
-      ],
-    },
-
     // Swamp locals. Each holds a `challenge`: win it and they spill intel on
     // Derek, which starts out visible in the fight (systems/intel.js).
     //   kind: 'beat'  `rounds` taps on the timing bar, each `need` or better

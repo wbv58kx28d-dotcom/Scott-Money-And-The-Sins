@@ -30,7 +30,7 @@ export function buildRegionGrid(map, terrain, { isClosed = () => true } = {}) {
   const cols = Math.ceil(map.size.w / cell);
   const rows = Math.ceil(map.size.h / cell);
   const grid = new WalkGrid(cols, rows, cell, (c, r) => groundWalkable(map, terrain, (c + 0.5) * cell, (r + 0.5) * cell));
-  for (const p of map.props) if (p.block) grid.block(footprint(p.x, p.y, p.block));
+  for (const p of map.props) if (p.block?.w) grid.block(footprint(p.x, p.y, p.block));
   for (const n of map.npcs) grid.block(footprint(n.x, n.y, FIELD.npcBlock));
   for (const g of map.gates) if (isClosed(g)) grid.block(footprint(g.x, g.y, g.block));
   return grid.erode(clearance);
@@ -126,7 +126,7 @@ export function checkMap(map, terrain) {
 
   for (const p of map.props) {
     if (off(p)) err(`A ${p.texture} is off the map.`, p.x, p.y);
-    else if (p.block && terrain.blocksAt(p.x, p.y)) warn(`A ${p.texture.replace('prop_', '')} stands in the water or the reeds.`, p.x, p.y);
+    else if (p.block?.w && terrain.blocksAt(p.x, p.y)) warn(`A ${p.texture.replace('prop_', '')} stands in the water or the reeds.`, p.x, p.y);
   }
   return { problems, open, closed, grid: openGrid };
 }

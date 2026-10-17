@@ -63,14 +63,14 @@ test('the checks catch a rope you can walk around, an unreachable NPC, and thing
   const t = new Terrain(layout.terrain, ts);
   for (let j = 24; j <= 36; j++) for (let i = 19; i <= 32; i++) t.paint(i, j, 1, 'g');
   layout.terrain = t.toRows();
-  // And put Derek in the middle of a pool.
-  layout.npcs.find((n) => n.id === 'derek').x = 230;
-  layout.npcs.find((n) => n.id === 'derek').y = 1540;
+  // And put Brad in the middle of a pool.
+  layout.npcs.find((n) => n.id === 'brad').x = 230;
+  layout.npcs.find((n) => n.id === 'brad').y = 1540;
   const map = mergeMap(layout, CONTENT.start);
   const msgs = checkMap(map, new Terrain(layout.terrain, ts)).problems.map((p) => p.msg).join('\n');
   assert.match(msgs, /rope doesn't close anything off/);
-  assert.match(msgs, /DEREK can't be reached/);
-  assert.match(msgs, /DEREK is standing in the water/);
+  assert.match(msgs, /BAGHOLDER BRAD can't be reached/);
+  assert.match(msgs, /BAGHOLDER BRAD is standing in the water/);
 });
 
 test('ropes are respected by the walk grid', () => {

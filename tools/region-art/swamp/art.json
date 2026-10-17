@@ -26,8 +26,8 @@
     "grass_reeds"
   ],
   "grade": {
-    "saturation": 0.6,
-    "brightness": 0.74
+    "saturation": 1.0,
+    "brightness": 1.0
   },
   "scatter": [
     {
@@ -54,14 +54,6 @@
     {
       "on": "grass",
       "files": [
-        "flower_17.png",
-        "flower_18.png",
-        "flower_19.png",
-        "flower_20.png",
-        "flower_21.png",
-        "flower_22.png",
-        "flower_26.png",
-        "flower_27.png",
         "mushroom_24.png",
         "mushroom_25.png",
         "mushroom_27.png"
@@ -99,15 +91,26 @@
     {
       "on": "water",
       "files": [
-        "lily_56.png",
-        "lily_57.png",
-        "lily_58.png",
-        "lily_59.png",
-        "lily_60.png",
-        "lily_61.png",
-        "lily_62.png"
+        "bubble_04.png",
+        "bubble_12.png",
+        "bubble_15.png",
+        "bubble_26.png",
+        "bubble_28.png",
+        "bubble_34.png",
+        "bubble_36.png",
+        "bubble_45.png",
+        "bubble_46.png",
+        "bubble_52.png"
       ],
-      "density": 0.18
+      "density": 0.12
     }
-  ]
+  ],
+  "bubbles": {
+    "on": "water",
+    "density": 0.06,
+    "gapMs": [
+      1400,
+      5200
+    ]
+  }
 }

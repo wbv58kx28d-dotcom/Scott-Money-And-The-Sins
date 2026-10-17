@@ -5,6 +5,9 @@
 //                                 The map editor writes it (layoutToSource below).
 //   src/data/maps/<id>.js         WHAT they are: names, lines, challenges, fights,
 //                                 classic posts, gifts, rope prices. Keyed by id.
+//                                 A map behind a door (an interior) also sets its
+//                                 `region` and `name` here; an exit whose `to` is
+//                                 another map's id is a door into it.
 // mergeMap() joins them into the map object the Region scene plays. Pure, so
 // the editor, the game, the map checks and the unit tests all share it.
 
@@ -14,6 +17,10 @@ export function mergeMap(layout, content = {}) {
   const gateContent = content.gates ?? {};
   return {
     id: layout.id,
+    // A region's own map has the region's id; another map in it (an interior
+    // behind a door) names its region and its own title in its content file.
+    region: content.region ?? layout.id,
+    name: content.name,
     tileset: layout.tileset,
     layout,
     size: { w: layout.cols * layout.cell, h: (layout.terrain.length - 1) * layout.cell },

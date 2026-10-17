@@ -7,7 +7,8 @@
 // the joystick when someone's close (it lights up). The villain's talk ends
 // with FIGHT / NOT YET. Minor characters can offer a challenge (a beat tap, a
 // quiz, or a day trade); winning it reveals intel on the villain that shows in the fight
-// (systems/intel.js). Walking into an exit leaves for the overworld map.
+// (systems/intel.js). Walking into an exit leaves for the overworld map, or,
+// if it's a door, into another of the region's maps (Derek's basement).
 //
 // Talking to someone can unlock one of $cott's classic posts for his social
 // app (data/social.js), and a velvet rope (map `gates`) blocks a side area
@@ -17,23 +18,23 @@
 // everything in the world sits below the UI's ordinary depths. UI is created
 // inside ui(), which pins it to the screen.
 
-import { FIELD, LAYOUT } from '../config.js';
+import { FIELD, LAYOUT, GAME_W, GAME_H } from '../config.js';
 import { TIMING } from '../data/rules.js';
 import { MAPS } from '../data/maps/index.js';
-import { FIELD_SHEETS, PROP_IMAGES } from '../data/assets.js';
+import { FIELD_SHEETS, PROP_IMAGES, FX_SHEETS } from '../data/assets.js';
 import { regionById, TIER_NAMES } from '../data/regions.js';
 import { ENEMIES } from '../data/enemies/index.js';
 import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { DEBUG } from '../systems/debug.js';
-import { Terrain } from '../systems/terrain.js';
+import { Terrain, hash } from '../systems/terrain.js';
 import { buildRegionGrid } from '../systems/mapcheck.js';
 import { revealLines } from '../systems/intel.js';
 import { formatClout, fillIn } from '../systems/social.js';
 import { money } from '../systems/market.js';
 import { ITEMS } from '../data/items.js';
 import { PhoneBadge } from '../ui/badge.js';
-import { rng } from '../systems/rng.js';
+import { rng, createRng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
 import { bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
@@ -65,16 +66,21 @@ export default class RegionScene extends Phaser.Scene {
     super('Region');
   }
 
-  /** data: { region } to play a region; the map editor adds { map, playtest } to try a draft. */
+  /**
+   * data: { region } to play a region from its own map; a door passes { mapId, from }
+   * (the map to play and the one $cott came from); the map editor adds { map, playtest } to try a draft.
+   */
   init(data) {
-    this.region = regionById(data?.region) ?? regionById('start');
-    this.map = data?.map ?? MAPS[this.region.id];
+    this.map = data?.map ?? MAPS[data?.mapId] ?? MAPS[data?.region] ?? MAPS.start;
+    this.region = regionById(this.map.region) ?? regionById(data?.region) ?? regionById('start');
+    this.from = data?.from ?? null;
     this.playtest = !!data?.playtest;
   }
 
   // Real art loads when src/data/assets.js lists it; any walker or prop missing is baked in create().
   preload() {
     preloadTileset(this, this.map.tileset);
+    for (const f of FX_SHEETS) if (!this.textures.exists(f.key)) this.load.spritesheet(f.key, f.path, { frameWidth: f.w, frameHeight: f.h });
     const { w, h } = FIELD.frame;
     for (const s of FIELD_SHEETS) if (s.path) this.load.spritesheet(s.key, s.path, { frameWidth: w, frameHeight: h });
     for (const p of PROP_IMAGES) if (p.path) this.load.image(p.key, p.path);
@@ -126,6 +132,7 @@ export default class RegionScene extends Phaser.Scene {
     // The ground, drawn from the layout's terrain grid (CLAUDE.md §6.11).
     this.terrain = new Terrain(map.layout.terrain, tilesetOf(this, map.tileset));
     this.ground = new TerrainView(this, this.terrain, { set: map.tileset, bridges: map.bridges, depth: -WORLD_DEPTH * 2, id: `region_${map.id}` });
+    this.addBubbles();
 
     for (const p of map.props) {
       const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
@@ -158,7 +165,7 @@ export default class RegionScene extends Phaser.Scene {
     });
     this.buildGrid();
 
-    const { spawn } = map;
+    const spawn = this.arrival() ?? map.spawn;
     this.player = this.add.sprite(spawn.x, spawn.y, 'field_scott').setOrigin(0.5, 1).setDepth(worldDepth(spawn.y));
     this.facing = spawn.facing;
     this.face(this.player, this.facing);
@@ -166,9 +173,72 @@ export default class RegionScene extends Phaser.Scene {
     this.tapMark = this.add.ellipse(0, 0, 36, 16).setStrokeStyle(3, 0xffffff, 0.9).setDepth(-WORLD_DEPTH * 2 + 1).setVisible(false);
 
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, map.size.w, map.size.h);
+    // A room smaller than the screen (Derek's basement) sits centered in the dark around it.
+    const bw = Math.max(map.size.w, GAME_W);
+    const bh = Math.max(map.size.h, GAME_H);
+    cam.setBounds((map.size.w - bw) / 2, (map.size.h - bh) / 2, bw, bh);
     cam.startFollow(this.player, true, FIELD.cameraLerp, FIELD.cameraLerp);
     cam.setFollowOffset(0, FIELD.frame.h / 2);
+  }
+
+  /**
+   * Toxic bubbles (the tileset's `bubbles`): a few solid cells of that terrain
+   * each play fx_bubble's rise-and-pop on their own random beat, just above the ground.
+   */
+  addBubbles() {
+    const spec = this.terrain.tileset.bubbles;
+    if (!spec || !this.textures.exists('fx_bubble')) return;
+    if (!this.anims.exists('fx_bubble_pop')) {
+      this.anims.create({ key: 'fx_bubble_pop', frames: this.anims.generateFrameNumbers('fx_bubble'), frameRate: 8 });
+    }
+    const rand = createRng(7).random; // its own stream, so bubbles never shift gameplay rolls
+    const { cols, rows, cell } = this.terrain;
+    const solid = spec.on.repeat(4);
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        if (this.terrain.key(i, j) !== solid || hash(i, j, 40) >= spec.density) continue;
+        const x = i * cell + 6 + Math.floor(hash(i, j, 41) * (cell - 12) / 2) * 2;
+        const y = j * cell + cell - 4;
+        const bubble = this.add.sprite(x, y, 'fx_bubble', 0).setOrigin(0.5, 1).setDepth(-WORLD_DEPTH * 2 + 1).setVisible(false);
+        const pop = () => {
+          bubble.setVisible(true).play('fx_bubble_pop');
+          bubble.once('animationcomplete', () => {
+            bubble.setVisible(false);
+            this.time.delayedCall(spec.gapMs[0] + rand() * (spec.gapMs[1] - spec.gapMs[0]), pop);
+          });
+        };
+        this.time.delayedCall(rand() * spec.gapMs[1], pop);
+      }
+    }
+  }
+
+  /**
+   * Where $cott stands after coming through a door: just outside the door on
+   * this map that leads back, on its `arrive` side (down, up, left, right), or
+   * else the side toward the middle of the map, facing away from the door.
+   */
+  arrival() {
+    const door = this.from && this.map.exits.find((e) => e.to === this.from);
+    if (!door) return null;
+    const gap = 44;
+    const cx = door.x + door.w / 2;
+    const cy = door.y + door.h / 2;
+    const dx = this.map.size.w / 2 - cx;
+    const dy = this.map.size.h / 2 - cy;
+    const side = door.arrive ?? (Math.abs(dy) >= Math.abs(dx) ? (dy > 0 ? 'down' : 'up') : dx > 0 ? 'right' : 'left');
+    const at = {
+      down: { x: cx, y: door.y + door.h + gap },
+      up: { x: cx, y: door.y - gap },
+      right: { x: door.x + door.w + gap, y: cy },
+      left: { x: door.x - gap, y: cy },
+    }[side];
+    at.facing = side;
+    // Props or water in the way: the nearest spot he can stand on.
+    if (!this.grid.walkableAt(at.x, at.y)) {
+      const c = this.grid.nearestOpen(at.x, at.y, 6);
+      if (c) Object.assign(at, this.grid.center(c[0], c[1]));
+    }
+    return { ...at, x: Math.round(at.x), y: Math.round(at.y) };
   }
 
   /** The walk grid (systems/mapcheck.js), with the ropes that are still up. Rebuilt when one opens. */
@@ -193,9 +263,10 @@ export default class RegionScene extends Phaser.Scene {
     this.ui(() => {
       const c = FIELD.card;
       drawCard(this.add.graphics(), c, RIBBON_GOLD);
-      fitWidth(label(this, c.x + CARD_INSET, c.y + 16, this.region.name.toUpperCase(), 18, { color: '#ffd166' }), c.w - CARD_INSET - 12);
-      const villain = this.npcs.find((n) => n.fight);
-      const sub = villain ? `${TIER_NAMES[this.region.tier]} · find ${ENEMIES[villain.fight].name}` : TIER_NAMES[this.region.tier];
+      fitWidth(label(this, c.x + CARD_INSET, c.y + 16, (this.map.name ?? this.region.name).toUpperCase(), 18, { color: '#ffd166' }), c.w - CARD_INSET - 12);
+      // The villain may be behind a door (Derek's in his basement), so name them from the region.
+      const fighter = this.npcs.find((n) => n.fight)?.fight ?? this.region.villain;
+      const sub = ENEMIES[fighter] ? `${TIER_NAMES[this.region.tier]} · find ${ENEMIES[fighter].name}` : TIER_NAMES[this.region.tier];
       fitWidth(body(this, c.x + CARD_INSET, c.y + 44, sub, 28, { color: '#e2d9ff' }), c.w - CARD_INSET - 12, 16);
 
       // The phone holds the map, settings (sound), stonks and the shop (scenes/PhoneScene.js).
@@ -215,7 +286,11 @@ export default class RegionScene extends Phaser.Scene {
       }
       // New posts in the social app.
       this.badge = new PhoneBadge(this, b.right - 6, b.y - b.h / 2 + 4, 31);
-      this.events.on('resume', () => this.badge.refresh());
+      // Off again at shutdown: the scene restarts through every door, and a stale
+      // listener would refresh the last visit's (destroyed) badge.
+      const refresh = () => this.badge.refresh();
+      this.events.on('resume', refresh);
+      this.events.once('shutdown', () => this.events.off('resume', refresh));
 
       // The bottom panel only shows while someone's talking.
       this.panel = drawRibbonPanel(this, LAYOUT.panel).setVisible(false);
@@ -350,7 +425,8 @@ export default class RegionScene extends Phaser.Scene {
     this.player.setDepth(worldDepth(this.player.y));
     if (mx || my) this.walkAnim(Math.abs(mx) > Math.abs(my) ? (mx < 0 ? 'left' : 'right') : my < 0 ? 'up' : 'down');
 
-    if (this.atExit()) return this.leave();
+    const exit = this.exitAt();
+    if (exit) return this.leave(exit);
     if (this.pendingNpc && this.closeTo(this.pendingNpc)) return this.talkTo(this.pendingNpc);
     if (!this.path.length) {
       this.face(this.player, this.facing);
@@ -380,11 +456,13 @@ export default class RegionScene extends Phaser.Scene {
     }
     this.player.setDepth(worldDepth(this.player.y));
     this.walkAnim(Math.abs(v.x) > Math.abs(v.y) ? (v.x < 0 ? 'left' : 'right') : v.y < 0 ? 'up' : 'down');
-    if (this.atExit()) this.leave();
+    const exit = this.exitAt();
+    if (exit) this.leave(exit);
   }
 
-  atExit() {
-    return this.map.exits.some((e) => Phaser.Geom.Rectangle.Contains(new Phaser.Geom.Rectangle(e.x, e.y, e.w, e.h), this.player.x, this.player.y));
+  /** The exit $cott is standing in, or null. */
+  exitAt() {
+    return this.map.exits.find((e) => Phaser.Geom.Rectangle.Contains(new Phaser.Geom.Rectangle(e.x, e.y, e.w, e.h), this.player.x, this.player.y)) ?? null;
   }
 
   walkAnim(facing) {
@@ -595,15 +673,25 @@ export default class RegionScene extends Phaser.Scene {
     cam.once('camerafadeoutcomplete', () => this.scene.start('Battle', { enemy: npc.fight, region: this.region.id }));
   }
 
-  leave() {
+  /**
+   * Walk out: an exit with `to: 'map'` (or none, from the EDIT button) goes back to
+   * the overworld, or to the editor from a playtest; any other `to` is a door
+   * into that map of the region, and $cott comes out at its door back here.
+   */
+  leave(exit = null) {
     if (this.mode === 'leaving') return;
     this.mode = 'leaving';
     this.stick.setVisible(false);
     this.talkButton.setVisible(false);
     this.stop();
     this.cameras.main.fadeOut(250, 0, 0, 0);
-    // A playtest from the map editor goes back to the editor.
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(this.playtest ? 'Editor' : 'Overworld', { id: this.map.id }));
+    const door = exit && exit.to !== 'map' && MAPS[exit.to] ? exit.to : null;
+    if (door) Audio.sfx('blip');
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      if (door) this.scene.restart({ mapId: door, from: this.map.id, playtest: this.playtest });
+      // A playtest from the map editor goes back to the editor.
+      else this.scene.start(this.playtest ? 'Editor' : 'Overworld', { id: this.map.id });
+    });
   }
 
   /** Read by the debug hook / smoke test. Screen points are canvas coordinates. */
@@ -612,6 +700,7 @@ export default class RegionScene extends Phaser.Scene {
     const screen = (x, y) => ({ x: Math.round(x - cam.worldView.x), y: Math.round(y - cam.worldView.y) });
     return {
       region: this.region.id,
+      map: this.map.id,
       mode: this.mode,
       walking: this.path.length > 0,
       stick: { ...FIELD.stick, active: this.stick.active },
@@ -624,6 +713,7 @@ export default class RegionScene extends Phaser.Scene {
       clout: Save.clout,
       cash: Save.cash,
       gates: this.gates.map((g) => ({ id: g.id, open: g.open, clout: g.clout, tap: screen(g.x, g.y - 20) })),
+      exits: this.map.exits.map((e) => ({ to: e.to, tap: screen(e.x + e.w / 2, e.y + e.h / 2) })),
     };
   }
 }

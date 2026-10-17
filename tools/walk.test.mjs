@@ -57,7 +57,9 @@ test('erode keeps feet off walls; block closes a footprint', () => {
 test('every region map is wired up: its region exists, its villain exists, points sit inside it', () => {
   for (const [id, map] of Object.entries(MAPS)) {
     assert.equal(map.id, id);
-    assert.ok(REGIONS.some((r) => r.id === id), `${id} is a region`);
+    assert.ok(REGIONS.some((r) => r.id === map.region), `${id} is in a region (${map.region})`);
+    // A region's own map has its id; anything else is a room behind a door, and needs a name.
+    if (map.region !== id) assert.ok(map.name, `${id} names itself`);
     const inside = ({ x, y }) => x >= 0 && y >= 0 && x <= map.size.w && y <= map.size.h;
     assert.ok(inside(map.spawn), `${id} spawn`);
     assert.ok(map.exits.length > 0, `${id} needs a way out`);
@@ -67,5 +69,26 @@ test('every region map is wired up: its region exists, its villain exists, point
       assert.ok(n.talk?.length, `${id}/${n.id} has lines`);
     }
     for (const p of map.props) assert.ok(inside(p), `${id} prop ${p.texture}`);
+  }
+});
+
+test('doors lead to a map in the same region, and there is a door back', () => {
+  for (const [id, map] of Object.entries(MAPS)) {
+    for (const e of map.exits.filter((x) => x.to !== 'map')) {
+      const there = MAPS[e.to];
+      assert.ok(there, `${id}: a door to ${e.to}, which isn't a map`);
+      assert.equal(there.region, map.region, `${id} -> ${e.to} stays in the region`);
+      assert.ok(there.exits.some((x) => x.to === id), `${e.to} has a door back to ${id}`);
+      if (e.arrive) assert.ok(['down', 'up', 'left', 'right'].includes(e.arrive), `${id} -> ${e.to} arrive`);
+    }
+    // Every room behind a door can be reached from its region's own map.
+    if (map.region !== id) assert.ok(MAPS[map.region].exits.some((x) => x.to === id), `${id} has a door from ${map.region}`);
+  }
+});
+
+test("each region's villain stands in exactly one of its maps", () => {
+  for (const r of REGIONS.filter((x) => x.villain && MAPS[x.id])) {
+    const where = Object.values(MAPS).filter((m) => m.region === r.id && m.npcs.some((n) => n.fight === r.villain));
+    assert.equal(where.length, 1, `${r.villain} in ${where.map((m) => m.id).join(', ') || 'none'}`);
   }
 });
