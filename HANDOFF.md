@@ -2,7 +2,7 @@
 
 This hands the game build off from claude.ai chat to Claude Code. **Read `CLAUDE.md` first.** That's the full project brief: story, region structure, crew, combat numbers, planned systems, art rules, and the decision log. This file covers the migration, the known quirks of the prototype, and the build order.
 
-_Last updated: Oct 12, 2026._
+_Last updated: Oct 17, 2026._
 
 ---
 
@@ -61,12 +61,23 @@ every push to `https://wbv58kx28d-dotcom.github.io/Scott-Money-And-The-Sins/`
 - Step 5, **overworld map**: done, built ahead of steps 2–4 because the map
   art arrived (`src/scenes/OverworldScene.js`, gating rules in
   `src/systems/progress.js`, art in `assets/map/`). `?debug=1` now opens the map.
-- **Walkable regions** (added to the plan, `CLAUDE.md` §6.6): done as a
-  prototype for the Subreddit Swamps (`src/scenes/RegionScene.js`, map data in
-  `src/data/maps/`, pathfinding in `src/systems/walkGrid.js`). The ground,
-  props, and walking sprites are procedural placeholders
-  (`src/systems/fieldArt.js`) until the field art in `CLAUDE.md` §8.4 arrives.
-  `&region=start` jumps straight in.
+- **Walkable regions** (added to the plan, `CLAUDE.md` §6.6): done for the
+  Subreddit Swamps (`src/scenes/RegionScene.js`, pathfinding in
+  `src/systems/walkGrid.js`), with PixelLab art for the characters, props, and
+  ground (`CLAUDE.md` §8.4). Each region is two files in `src/data/maps/`: a
+  layout (`<id>.layout.js`: a terrain grid plus where everything stands) and its
+  content (`<id>.js`: who's there and what they say). The ground is drawn from
+  tiles at runtime. `&region=start` jumps straight in.
+- **Map editor** (`CLAUDE.md` §6.11): done (`src/scenes/EditorScene.js`,
+  `&edit=<region id>`). It paints terrain, places props, NPCs, ropes,
+  boardwalks, and exits, grows the map, playtests, and exports the layout file.
+  Map checks (`src/systems/mapcheck.js`) run in the editor and in `npm test`
+  on every committed map. Change maps through the editor's layout format
+  (`src/systems/mapfile.js`), never by hand-rolling a different structure.
+- **$cott's phone** (`CLAUDE.md` §6.7): done, with MAP, Y (the social app,
+  §6.10: Clout, posting, NPC feed, velvet ropes), STONKS, REALTY (the property
+  ladder, §6.9), SHOP, and SETTINGS. Battle HP is now called Ego; Clout is the
+  social meter.
 - **$cott's day trade** (`CLAUDE.md` §6.8): done (`src/minigames/trade.js`, the
   first minigame on the §6.3 contract, launched as an overlay scene; markets
   in `src/systems/market.js`, tuning in `src/data/trade.js`). Bagholder Brad's
@@ -211,7 +222,7 @@ Each step should be playable and committed before starting the next.
    - Each minigame must work standalone through a debug parameter (`&minigame=catquiz`).
 4. **Parley scene** (`CLAUDE.md` §6.2). Read the villain's parley data, offer choices for recruited Sins only, run the minigame, and carry the results into the battle as starting modifiers.
 5. **Overworld map** (`CLAUDE.md` §2, §6.5). Tier-gated regions, side-quest stops, and the tower at the end, all driven by `src/data/regions.js`.
-   - **Walkable regions** (`CLAUDE.md` §6.6): entering a region opens its map; $cott walks to the villain to start the fight. One map file per region in `src/data/maps/`.
+   - **Walkable regions** (`CLAUDE.md` §6.6): entering a region opens its map; $cott walks to the villain to start the fight. Two files per region in `src/data/maps/` (layout + content), laid out in the map editor (§6.11).
 6. **Sin levels and side quests** (`CLAUDE.md` §6.4).
 7. **Remaining minigames, villains, and backgrounds** as content and art arrive from chat, one data file per villain.
 

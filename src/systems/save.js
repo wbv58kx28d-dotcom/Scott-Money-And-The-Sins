@@ -60,7 +60,8 @@ class SaveGame {
         // storage unavailable; nothing to wipe
       }
     }
-    const preset = DEBUG.cleared !== null || DEBUG.sins !== null || DEBUG.cash !== null || DEBUG.phone !== null || DEBUG.clout !== null;
+    const preset = DEBUG.cleared !== null || DEBUG.sins !== null || DEBUG.cash !== null || DEBUG.phone !== null || DEBUG.clout !== null
+      || DEBUG.edit !== null; // playtesting a map in the editor never touches the real save
     this.persist = !preset;
     this.data = preset ? fresh() : read() ?? fresh();
     if (DEBUG.cleared) this.data.cleared = DEBUG.cleared.filter((id) => REGIONS.some((r) => r.id === id));

@@ -1,4 +1,30 @@
 {
+  "terrains": {
+    "w": {
+      "name": "water",
+      "label": "WATER",
+      "blocks": true
+    },
+    "g": {
+      "name": "grass",
+      "label": "GRASS"
+    },
+    "d": {
+      "name": "dirt",
+      "label": "DIRT"
+    },
+    "r": {
+      "name": "reeds",
+      "label": "REEDS",
+      "blocks": true
+    }
+  },
+  "base": "g",
+  "pairs": [
+    "water_grass",
+    "dirt_grass",
+    "grass_reeds"
+  ],
   "grade": {
     "saturation": 0.6,
     "brightness": 0.74

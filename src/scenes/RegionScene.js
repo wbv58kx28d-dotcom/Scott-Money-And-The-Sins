@@ -20,13 +20,14 @@
 import { FIELD, LAYOUT } from '../config.js';
 import { TIMING } from '../data/rules.js';
 import { MAPS } from '../data/maps/index.js';
-import { REGION_ART, FIELD_SHEETS, PROP_IMAGES } from '../data/assets.js';
+import { FIELD_SHEETS, PROP_IMAGES } from '../data/assets.js';
 import { regionById, TIER_NAMES } from '../data/regions.js';
 import { ENEMIES } from '../data/enemies/index.js';
 import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { DEBUG } from '../systems/debug.js';
-import { WalkGrid } from '../systems/walkGrid.js';
+import { Terrain } from '../systems/terrain.js';
+import { buildRegionGrid } from '../systems/mapcheck.js';
 import { revealLines } from '../systems/intel.js';
 import { formatClout, fillIn } from '../systems/social.js';
 import { money } from '../systems/market.js';
@@ -34,9 +35,8 @@ import { ITEMS } from '../data/items.js';
 import { PhoneBadge } from '../ui/badge.js';
 import { rng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
-import {
-  bakeRegionPlaceholder, bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, maskSampler, SHEET_COLS,
-} from '../systems/fieldArt.js';
+import { bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
+import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { TapBus } from '../ui/tapBus.js';
 import { DialogBox } from '../ui/dialog.js';
 import { Menu } from '../ui/menu.js';
@@ -44,7 +44,7 @@ import { Button } from '../ui/button.js';
 import { TimingBar } from '../ui/timingBar.js';
 import { Joystick } from '../ui/joystick.js';
 import { InteractButton } from '../ui/interactButton.js';
-import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
+import { pixelText, pixelTextWidth, signLabel } from '../ui/pixelFont.js';
 import { drawCard, drawRibbonPanel, RIBBON_GOLD, CARD_INSET } from '../ui/ribbon.js';
 import { label, body, fitWidth, fitWrapped, snapCenter } from '../ui/text.js';
 
@@ -55,8 +55,7 @@ const INTEL_CSS = '#9fdcff';
 const SOCIAL_CSS = '#ff8ad8'; // social app news (unlocked posts, Clout)
 // The quiz question's card, above the menu's prompt tag.
 const QUESTION_CARD = { x: 16, y: 930, w: 688, h: 116 };
-// An NPC's own footprint, and the tap area around its body.
-const NPC_BLOCK = { w: 70, h: 30 };
+// The tap area around an NPC's body.
 const NPC_HIT = { w: 100, h: 140 };
 
 const worldDepth = (y) => y - WORLD_DEPTH;
@@ -66,16 +65,16 @@ export default class RegionScene extends Phaser.Scene {
     super('Region');
   }
 
+  /** data: { region } to play a region; the map editor adds { map, playtest } to try a draft. */
   init(data) {
     this.region = regionById(data?.region) ?? regionById('start');
-    this.map = MAPS[this.region.id];
+    this.map = data?.map ?? MAPS[this.region.id];
+    this.playtest = !!data?.playtest;
   }
 
-  // Real art loads when src/data/assets.js lists it; anything missing is baked in create().
+  // Real art loads when src/data/assets.js lists it; any walker or prop missing is baked in create().
   preload() {
-    const art = REGION_ART[this.map.id];
-    if (art?.base) this.load.image(`${this.map.id}_base`, art.base);
-    if (art?.walk) this.load.image(`${this.map.id}_walk`, art.walk);
+    preloadTileset(this, this.map.tileset);
     const { w, h } = FIELD.frame;
     for (const s of FIELD_SHEETS) if (s.path) this.load.spritesheet(s.key, s.path, { frameWidth: w, frameHeight: h });
     for (const p of PROP_IMAGES) if (p.path) this.load.image(p.key, p.path);
@@ -118,28 +117,19 @@ export default class RegionScene extends Phaser.Scene {
 
   buildWorld() {
     const { map } = this;
-    if (!this.textures.exists(`${map.id}_base`) || !this.textures.exists(`${map.id}_walk`)) bakeRegionPlaceholder(this, map);
     bakeProps(this);
     for (const key of new Set(['field_scott', ...map.npcs.map((n) => n.sprite)])) {
       if (!this.textures.exists(key)) bakeWalkerSheet(this, key);
       walkerAnims(this, key);
     }
 
-    this.add.image(0, 0, `${map.id}_base`).setOrigin(0).setDepth(-WORLD_DEPTH * 2);
-    this.sampleWalk = maskSampler(this, `${map.id}_walk`);
+    // The ground, drawn from the layout's terrain grid (CLAUDE.md §6.11).
+    this.terrain = new Terrain(map.layout.terrain, tilesetOf(this, map.tileset));
+    this.ground = new TerrainView(this, this.terrain, { set: map.tileset, bridges: map.bridges, depth: -WORLD_DEPTH * 2, id: `region_${map.id}` });
 
     for (const p of map.props) {
       const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
-      if (p.label) {
-        // Painted on the sign's board, centered ~59% up from the feet, in the pixel
-        // font on the sign's own 2 px art grid so it doesn't shimmer when the camera moves.
-        const px = pixelTextWidth(p.label, 2) <= img.width - 22 ? 2 : 1;
-        const left = p.x - img.width / 2;
-        const onGrid = (v, origin) => origin + Math.round((v - origin) / px) * px;
-        const x = onGrid(p.x - pixelTextWidth(p.label, px) / 2, left);
-        const y = onGrid(p.y - img.height * 0.59 - (5 * px) / 2, p.y - img.height);
-        pixelText(this, x, y, p.label, { px }).setDepth(worldDepth(p.y) + 0.5);
-      }
+      if (p.label) signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5);
     }
 
     const cleared = Save.cleared.has(this.region.id);
@@ -181,22 +171,9 @@ export default class RegionScene extends Phaser.Scene {
     cam.setFollowOffset(0, FIELD.frame.h / 2);
   }
 
-  /**
-   * The walk grid: the mask, minus every prop's, NPC's and closed rope's
-   * footprint, eroded so feet keep a little distance from walls. Rebuilt when a rope opens.
-   */
+  /** The walk grid (systems/mapcheck.js), with the ropes that are still up. Rebuilt when one opens. */
   buildGrid() {
-    const { map } = this;
-    const { cell } = FIELD;
-    const cols = Math.ceil(map.size.w / cell);
-    const rows = Math.ceil(map.size.h / cell);
-    const sample = this.sampleWalk;
-    this.grid = new WalkGrid(cols, rows, cell, (c, r) => sample(((c + 0.5) * cell) / map.size.w, ((r + 0.5) * cell) / map.size.h));
-    const footprint = (x, y, b) => ({ x: x - b.w / 2, y: y - b.h / 2, w: b.w, h: b.h });
-    for (const p of map.props) if (p.block) this.grid.block(footprint(p.x, p.y, p.block));
-    for (const n of map.npcs) this.grid.block(footprint(n.x, n.y, NPC_BLOCK));
-    for (const g of this.gates) if (!g.open) this.grid.block(footprint(g.x, g.y, g.block));
-    this.grid.erode(FIELD.clearance);
+    this.grid = buildRegionGrid(this.map, this.terrain, { isClosed: (g) => !this.gates.find((o) => o.id === g.id)?.open });
   }
 
   gateId(gate) {
@@ -228,6 +205,14 @@ export default class RegionScene extends Phaser.Scene {
         x: b.right - phoneW / 2, y: b.y, w: phoneW, h: b.h, text: 'PHONE', size: 16, accent: GOLD, system: true, depth: 30,
         onPress: () => this.openPhone(),
       });
+      if (this.playtest) {
+        // Trying a draft from the map editor: a way back to it.
+        const w = 100;
+        new Button(this, {
+          x: b.right - phoneW - b.gap - w / 2, y: b.y, w, h: b.h, text: 'EDIT', size: 16, accent: 0x9fdcff, system: true, depth: 30,
+          onPress: () => this.leave(),
+        });
+      }
       // New posts in the social app.
       this.badge = new PhoneBadge(this, b.right - 6, b.y - b.h / 2 + 4, 31);
       this.events.on('resume', () => this.badge.refresh());
@@ -617,7 +602,8 @@ export default class RegionScene extends Phaser.Scene {
     this.talkButton.setVisible(false);
     this.stop();
     this.cameras.main.fadeOut(250, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Overworld'));
+    // A playtest from the map editor goes back to the editor.
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(this.playtest ? 'Editor' : 'Overworld', { id: this.map.id }));
   }
 
   /** Read by the debug hook / smoke test. Screen points are canvas coordinates. */
