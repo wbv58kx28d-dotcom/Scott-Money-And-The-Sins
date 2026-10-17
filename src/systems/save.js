@@ -88,10 +88,7 @@ class SaveGame {
 
   /** Install a gifted app. Returns whether it's new. */
   addApp(id) {
-    if (this.hasApp(id)) return false;
-    this.data.apps.push(id);
-    this.flush();
-    return true;
+    return this.addOnce('apps', id);
   }
 
   /** A secret (`<region>:<secret>`) is found once traced, or for good once its region is cleared. */
@@ -101,10 +98,7 @@ class SaveGame {
 
   /** Returns whether it's new. */
   find(id) {
-    if (this.data.found.includes(id)) return false;
-    this.data.found.push(id);
-    this.flush();
-    return true;
+    return this.addOnce('found', id);
   }
 
   // ---- The follower (Pikachu style, data/followers.js) ------------------------------
@@ -118,6 +112,11 @@ class SaveGame {
   /** Whether the test toggle can be used (she isn't recruited yet). */
   get followIsTrial() {
     return !this.data.sins.lilturnt;
+  }
+
+  /** SETTINGS' test toggle: she follows before she's recruited. */
+  get tryFollow() {
+    return this.data.tryFollow;
   }
 
   setTryFollow(on) {
@@ -194,7 +193,7 @@ class SaveGame {
   }
 
   /** After a fight the market reopens and $cott gets his posts back. */
-  refillTrades() {
+  refillAfterFight() {
     this.data.trades = ECONOMY.tradesPerFight;
     this.data.posts = SOCIAL.postsPerFight;
     this.flush();
@@ -228,10 +227,7 @@ class SaveGame {
 
   /** Unlock a classic post. Returns whether it's new. */
   unlockClassic(id) {
-    if (this.data.unlocked.includes(id)) return false;
-    this.data.unlocked.push(id);
-    this.flush();
-    return true;
+    return this.addOnce('unlocked', id);
   }
 
   /** Unlocked classics not posted yet. */
@@ -240,15 +236,12 @@ class SaveGame {
   }
 
   markPosted(classicId) {
-    if (!this.data.posted.includes(classicId)) this.data.posted.push(classicId);
-    this.flush();
+    this.addOnce('posted', classicId);
   }
 
   /** $cott has talked to an NPC (`<region>:<npc>`). */
   meet(id) {
-    if (this.data.met.includes(id)) return;
-    this.data.met.push(id);
-    this.flush();
+    this.addOnce('met', id);
   }
 
   /** { right, text } once he's replied to a feed post. */
@@ -304,16 +297,12 @@ class SaveGame {
   }
 
   openGate(id) {
-    if (!this.data.gates.includes(id)) this.data.gates.push(id);
-    this.flush();
+    this.addOnce('gates', id);
   }
 
-  /** A big moment worth a post, once (`realty:tokyo:great`). Returns whether it's new. */
+  /** Something that happens once (a big moment's post, `realty:tokyo:great`; a gift). Returns whether it's new. */
   brag(key) {
-    if (this.data.bragged.includes(key)) return false;
-    this.data.bragged.push(key);
-    this.flush();
-    return true;
+    return this.addOnce('bragged', key);
   }
 
   /** Is there anything worth continuing? (The title screen offers CONTINUE / START FRESH.) */
@@ -372,6 +361,14 @@ class SaveGame {
   moveTo(regionId) {
     this.data.at = regionId;
     this.flush();
+  }
+
+  /** Add `id` to the saved list `key` if it isn't there yet. Returns whether it's new. */
+  addOnce(key, id) {
+    if (this.data[key].includes(id)) return false;
+    this.data[key].push(id);
+    this.flush();
+    return true;
   }
 
   flush() {

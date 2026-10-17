@@ -19,7 +19,7 @@ import { FIELD_SHEETS, PROP_IMAGES } from '../data/assets.js';
 import { LAYOUTS, CONTENT } from '../data/maps/index.js';
 import { regionById } from '../data/regions.js';
 import { Terrain } from '../systems/terrain.js';
-import { checkMap, buildRegionGrid } from '../systems/mapcheck.js';
+import { checkMap } from '../systems/mapcheck.js';
 import { mergeMap, layoutToSource, cloneLayout } from '../systems/mapfile.js';
 import { bakeProps, bakeWalkerSheet, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
 import { Audio } from '../systems/audio.js';
@@ -27,6 +27,7 @@ import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { signLabel } from '../ui/pixelFont.js';
 import { Button } from '../ui/button.js';
 import { label, body, fitWidth } from '../ui/text.js';
+import { hex } from '../ui/ribbon.js';
 
 const TOP = 112; // the top bar
 const BOTTOM = 1000; // the tool panel starts here
@@ -38,6 +39,12 @@ const ZOOM = { min: 0.2, max: 2.5 };
 const UNDO_MAX = 60;
 const DRAFT_KEY = (id) => `scottmoney.mapdraft.${id}`;
 const FACINGS = ['down', 'left', 'right', 'up'];
+// Which layout list each kind of thing lives in.
+const LISTS = { prop: 'props', npc: 'npcs', gate: 'gates', bridge: 'bridges', exit: 'exits' };
+/** The next value after `v` in a list (wrapping round; the first if `v` isn't in it). */
+const cycle = (list, v, d = 1) => list[(list.indexOf(v) + d + list.length) % list.length];
+/** An id the content files can key by: lowercase letters, digits, underscores. */
+const cleanId = (v) => v.toLowerCase().replace(/[^a-z0-9_]/g, '');
 const TABS = ['VIEW', 'PAINT', 'SELECT', 'ADD', 'MAP'];
 const BRUSHES = [1, 2, 3];
 const GROW = 4; // cells per GROW press
@@ -111,6 +118,12 @@ export default class EditorScene extends Phaser.Scene {
     this.checking = false;
     this.problems = [];
     this.toastTimer = null;
+    // The scene object is reused (PLAYTEST, then EDIT), so nothing carries over from last time.
+    this.revertArmed = false;
+    this.lastExport = null;
+    this.drag = null;
+    this.stroke = null;
+    this.pinch = null;
     bakeProps(this);
     for (const s of FIELD_SHEETS) if (!this.textures.exists(s.key)) bakeWalkerSheet(this, s.key);
 
@@ -190,7 +203,7 @@ export default class EditorScene extends Phaser.Scene {
     return this.things().find((t) => t.kind === this.selected.kind && t.index === this.selected.index) ?? null;
   }
 
-  /** Redraw every object (cheap: a region has a few dozen). */
+  /** Redraw every object (a few hundred on the big swamp; a drag redraws on every move). */
   drawObjects() {
     for (const o of this.objs) o.destroy();
     this.objs = [];
@@ -287,17 +300,17 @@ export default class EditorScene extends Phaser.Scene {
     if (over.length || !this.inView(p)) return;
     const pinch = this.pinchPointers();
     if (pinch) {
-      // A second finger: stop whatever the first one was doing and pinch.
-      this.endStroke();
-      this.drag = null;
+      // A second finger: finish whatever the first one was doing and pinch.
+      this.endGesture();
       const [a, b] = pinch;
       this.pinch = { dist: Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y), zoom: this.cameras.main.zoom, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
       return;
     }
     const w = this.toWorld(p.x, p.y);
     const panButton = p.rightButtonDown?.() || p.middleButtonDown?.();
+    const pan = { kind: 'pan', x: p.x, y: p.y, sx: this.cameras.main.scrollX, sy: this.cameras.main.scrollY };
     if (this.tab === 'VIEW' || panButton) {
-      this.drag = { kind: 'pan', x: p.x, y: p.y, sx: this.cameras.main.scrollX, sy: this.cameras.main.scrollY };
+      this.drag = pan;
     } else if (this.tab === 'PAINT') {
       this.snapshot();
       this.stroke = { last: this.cornerAt(w) };
@@ -305,8 +318,7 @@ export default class EditorScene extends Phaser.Scene {
     } else if (this.tab === 'SELECT' || this.tab === 'ADD') {
       const hit = this.hitTest(w);
       this.select(hit);
-      if (hit) this.drag = { kind: 'move', w, ox: hit.ref.x, oy: hit.ref.y, moved: false };
-      else this.drag = { kind: 'pan', x: p.x, y: p.y, sx: this.cameras.main.scrollX, sy: this.cameras.main.scrollY };
+      this.drag = hit ? { kind: 'move', w, ox: hit.ref.x, oy: hit.ref.y, moved: false } : pan;
     }
   }
 
@@ -358,6 +370,11 @@ export default class EditorScene extends Phaser.Scene {
   onUp() {
     if (this.pinchPointers()) return;
     this.pinch = null;
+    this.endGesture();
+  }
+
+  /** Commit a paint stroke or a move (a drag that was cut short by a second finger, too). */
+  endGesture() {
     this.endStroke();
     if (this.drag?.kind === 'move' && this.drag.moved) this.changed();
     this.drag = null;
@@ -379,11 +396,11 @@ export default class EditorScene extends Phaser.Scene {
     const t = this.selectedThing();
     if (nudge && t) {
       e.preventDefault?.();
-      this.snapshot();
       const step = e.shiftKey ? this.terrain.cell : 2;
-      t.ref.x += nudge[0] * step;
-      t.ref.y += nudge[1] * step;
-      this.changed(true);
+      this.edit(() => {
+        t.ref.x += nudge[0] * step;
+        t.ref.y += nudge[1] * step;
+      });
     }
   }
 
@@ -419,7 +436,7 @@ export default class EditorScene extends Phaser.Scene {
     if (this.tab !== 'PAINT') return;
     const { i, j } = this.cornerAt(w);
     const cell = this.terrain.cell;
-    const color = Phaser.Display.Color.HexStringToColor(this.terrain.tileset.terrains[this.paintWith].color).color;
+    const color = hex(this.terrain.tileset.terrains[this.paintWith].color);
     g.lineStyle(3, 0xffffff, 0.9).strokeCircle(i * cell, j * cell, Math.max(8, (this.brush - 0.5) * cell));
     g.fillStyle(color, 0.5).fillCircle(i * cell, j * cell, 8);
   }
@@ -486,13 +503,12 @@ export default class EditorScene extends Phaser.Scene {
     }
   }
 
-  /** Run the map checks and shade the walk grid: clear = walkable from the start, gold = behind a rope, red = cut off. */
+  /** Run the map checks and shade the walk grid: green = walkable from the start, gold = behind a rope, red = cut off. */
   runCheck() {
     const map = this.map;
     const result = checkMap(map, this.terrain);
     this.problems = result.problems;
-    const grid = buildRegionGrid(map, this.terrain, { isClosed: () => false });
-    const { open, closed } = result;
+    const { open, closed, grid } = result;
     const key = `editor_check_${this.mapId}`;
     if (this.textures.exists(key)) this.textures.remove(key);
     const tex = this.textures.createCanvas(key, grid.cols, grid.rows);
@@ -570,8 +586,8 @@ export default class EditorScene extends Phaser.Scene {
   // ---- The tool panel ---------------------------------------------------------------------
 
   /** A ribbon button in the UI layer. Returns it. */
-  button(x, y, w, h, text, onPress, { size = 13, accent = null, enabled = true, sub = null, parent = null } = {}) {
-    const b = new Button(this, { x, y, w, h, text, sub, size, accent, enabled, onPress, depth: 20 });
+  button(x, y, w, h, text, onPress, { size = 13, accent = null, parent = null } = {}) {
+    const b = new Button(this, { x, y, w, h, text, size, accent, onPress, depth: 20 });
     (parent ?? this.ui).add(b.container);
     return b;
   }
@@ -617,7 +633,7 @@ export default class EditorScene extends Phaser.Scene {
     terrains.forEach(([code, t], i) => {
       const x = 8 + i * (w + gap);
       const on = code === this.paintWith;
-      const color = Phaser.Display.Color.HexStringToColor(t.color).color;
+      const color = hex(t.color);
       const g = this.add.graphics();
       g.fillStyle(color, 1).fillRoundedRect(x, ys - 40, w, 80, 12);
       g.lineStyle(on ? 6 : 2, on ? SEL : 0x000000, 1).strokeRoundedRect(x, ys - 40, w, 80, 12);
@@ -647,9 +663,8 @@ export default class EditorScene extends Phaser.Scene {
     const dup = ['COPY', () => this.duplicateSelected()];
     if (t.kind === 'prop') {
       const placeable = PROP_IMAGES.filter((p) => p.place !== false);
-      const k = placeable.findIndex((p) => p.key === r.texture);
       const swap = (d) => this.edit(() => {
-        const next = placeable[(k + d + placeable.length) % placeable.length];
+        const next = cycle(placeable, placeable.find((p) => p.key === r.texture), d);
         r.texture = next.key;
         if (next.block) r.block = { ...next.block };
         else delete r.block;
@@ -660,20 +675,19 @@ export default class EditorScene extends Phaser.Scene {
       rows.push([dup, del]);
     } else if (t.kind === 'npc') {
       const sheets = FIELD_SHEETS.map((s) => s.key);
-      const k = sheets.indexOf(r.sprite);
       rows.push([
-        ['LOOK ▶', () => this.edit(() => { r.sprite = sheets[(k + 1) % sheets.length]; })],
-        ['FACE ▶', () => this.edit(() => { r.facing = FACINGS[(FACINGS.indexOf(r.facing) + 1) % FACINGS.length]; })],
+        ['LOOK ▶', () => this.edit(() => { r.sprite = cycle(sheets, r.sprite); })],
+        ['FACE ▶', () => this.edit(() => { r.facing = cycle(FACINGS, r.facing); })],
         ['RENAME', () => this.ask('NPC id (their lines are keyed by it)', r.id, (v) => this.renameNpc(r, v))],
       ]);
       rows.push([dup, del]);
     } else if (t.kind === 'gate') {
       const ids = this.layout.npcs.map((n) => n.id);
       rows.push([
-        ['BOUNCER ▶', () => this.edit(() => { r.bouncer = ids.length ? ids[(ids.indexOf(r.bouncer) + 1) % ids.length] : undefined; })],
+        ['BOUNCER ▶', () => this.edit(() => { r.bouncer = ids.length ? cycle(ids, r.bouncer) : undefined; })],
         ['WIDER', () => this.edit(() => { r.block.w += 16; })],
         ['NARROWER', () => this.edit(() => { r.block.w = Math.max(48, r.block.w - 16); })],
-        ['RENAME', () => this.ask('Rope id (its price and lines are keyed by it)', r.id, (v) => this.edit(() => { r.id = v; }))],
+        ['RENAME', () => this.ask('Rope id (its price and lines are keyed by it)', r.id, (v) => this.renameGate(r, v))],
       ]);
       rows.push([dup, del]);
     } else if (t.kind === 'bridge' || t.kind === 'exit') {
@@ -686,10 +700,10 @@ export default class EditorScene extends Phaser.Scene {
         // Where it leads: the overworld, or a door into another map of this region.
         const region = CONTENT[this.mapId]?.region ?? this.mapId;
         const dests = ['map', ...Object.keys(LAYOUTS).filter((id) => id !== this.mapId && (CONTENT[id]?.region ?? id) === region)];
-        rows.push([['LEADS TO ▶', () => this.edit(() => { r.to = dests[(dests.indexOf(r.to) + 1) % dests.length]; })], dup, del]);
+        rows.push([['LEADS TO ▶', () => this.edit(() => { r.to = cycle(dests, r.to); })], dup, del]);
       } else rows.push([dup, del]);
     } else if (t.kind === 'spawn') {
-      rows.push([['FACE ▶', () => this.edit(() => { r.facing = FACINGS[(FACINGS.indexOf(r.facing) + 1) % FACINGS.length]; })]]);
+      rows.push([['FACE ▶', () => this.edit(() => { r.facing = cycle(FACINGS, r.facing); })]]);
     }
     rows.forEach((items, k) => this.row(BOTTOM + 152 + k * 84, items, 72));
   }
@@ -747,13 +761,13 @@ export default class EditorScene extends Phaser.Scene {
 
   // ---- Edits ------------------------------------------------------------------------------
 
-  /** Apply one change to the layout as a single undo step. */
-  edit(fn) {
+  /** Apply one change to the layout as a single undo step (then show SELECT, if it's up or `toSelect`). */
+  edit(fn, toSelect = false) {
     this.snapshot();
     fn();
     this.ground.setBridges(this.layout.bridges);
     this.changed(true);
-    if (this.tab === 'SELECT') this.showTab('SELECT');
+    if (toSelect || this.tab === 'SELECT') this.showTab('SELECT');
   }
 
   ask(question, current, then) {
@@ -764,13 +778,20 @@ export default class EditorScene extends Phaser.Scene {
   }
 
   renameNpc(npc, id) {
-    const clean = id.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const clean = cleanId(id);
     if (!clean) return;
     if (this.layout.npcs.some((n) => n !== npc && n.id === clean)) return this.toast(`There's already an NPC called ${clean}.`);
     this.edit(() => {
       for (const g of this.layout.gates) if (g.bouncer === npc.id) g.bouncer = clean;
       npc.id = clean;
     });
+  }
+
+  renameGate(gate, id) {
+    const clean = cleanId(id);
+    if (!clean) return;
+    if (this.layout.gates.some((g) => g !== gate && g.id === clean)) return this.toast(`There's already a rope called ${clean}.`);
+    this.edit(() => { gate.id = clean; });
   }
 
   uniqueId(prefix, list) {
@@ -781,66 +802,50 @@ export default class EditorScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const at = { x: Math.round(cam.midPoint.x / 2) * 2, y: Math.round(cam.midPoint.y / 2) * 2 };
     const L = this.layout;
-    this.snapshot();
-    let index = 0;
-    if (kind === 'prop') {
+    const made = {
       // A prop you walk over or into (floor clutter, the cellar door) has no footprint.
-      L.props.push({ texture: prop.key, ...at, ...(prop.block ? { block: { ...prop.block } } : {}), ...(prop.label ? { label: prop.label } : {}) });
-      index = L.props.length - 1;
-    } else if (kind === 'npc') {
-      L.npcs.push({ id: this.uniqueId('npc', L.npcs), sprite: FIELD_SHEETS[1]?.key ?? 'field_scott', ...at, facing: 'down' });
-      index = L.npcs.length - 1;
-    } else if (kind === 'gate') {
-      L.gates.push({ id: this.uniqueId('rope', L.gates), ...at, block: { w: 150, h: 50 }, bouncer: L.npcs[0]?.id });
-      index = L.gates.length - 1;
-    } else if (kind === 'bridge') {
-      L.bridges.push({ x: at.x - 48, y: at.y - 96, w: 96, h: 192 });
-      index = L.bridges.length - 1;
-    } else if (kind === 'exit') {
-      L.exits.push({ to: 'map', x: at.x - 70, y: at.y - 20, w: 140, h: 40 });
-      index = L.exits.length - 1;
-    }
-    this.selected = { kind, index };
-    this.ground.setBridges(L.bridges);
-    this.changed(true);
-    this.showTab('SELECT');
+      prop: () => ({ texture: prop.key, ...at, ...(prop.block ? { block: { ...prop.block } } : {}), ...(prop.label ? { label: prop.label } : {}) }),
+      npc: () => ({ id: this.uniqueId('npc', L.npcs), sprite: FIELD_SHEETS[1]?.key ?? 'field_scott', ...at, facing: 'down' }),
+      gate: () => ({ id: this.uniqueId('rope', L.gates), ...at, block: { w: 150, h: 50 }, bouncer: L.npcs[0]?.id }),
+      bridge: () => ({ x: at.x - 48, y: at.y - 96, w: 96, h: 192 }),
+      exit: () => ({ to: 'map', x: at.x - 70, y: at.y - 20, w: 140, h: 40 }),
+    }[kind];
+    if (!made) return;
+    this.edit(() => {
+      const list = L[LISTS[kind]];
+      list.push(made());
+      this.selected = { kind, index: list.length - 1 };
+    }, true);
   }
 
   deleteSelected() {
     const t = this.selectedThing();
     if (!t || t.kind === 'spawn') return;
-    const list = { prop: 'props', npc: 'npcs', gate: 'gates', bridge: 'bridges', exit: 'exits' }[t.kind];
-    this.snapshot();
-    this.layout[list].splice(t.index, 1);
-    this.selected = null;
-    this.ground.setBridges(this.layout.bridges);
-    this.changed(true);
-    this.showTab('SELECT');
+    this.edit(() => {
+      this.layout[LISTS[t.kind]].splice(t.index, 1);
+      this.selected = null;
+    }, true);
   }
 
   duplicateSelected() {
     const t = this.selectedThing();
     if (!t || t.kind === 'spawn') return;
-    const list = { prop: 'props', npc: 'npcs', gate: 'gates', bridge: 'bridges', exit: 'exits' }[t.kind];
-    this.snapshot();
-    const copy = { ...cloneLayout(t.ref), x: t.ref.x + 48, y: t.ref.y + 16 };
-    if (t.kind === 'npc') copy.id = this.uniqueId('npc', this.layout.npcs);
-    if (t.kind === 'gate') copy.id = this.uniqueId('rope', this.layout.gates);
-    this.layout[list].push(copy);
-    this.selected = { kind: t.kind, index: this.layout[list].length - 1 };
-    this.ground.setBridges(this.layout.bridges);
-    this.changed(true);
-    this.showTab('SELECT');
+    this.edit(() => {
+      const list = this.layout[LISTS[t.kind]];
+      const copy = { ...cloneLayout(t.ref), x: t.ref.x + 48, y: t.ref.y + 16 };
+      if (t.kind === 'npc') copy.id = this.uniqueId('npc', this.layout.npcs);
+      if (t.kind === 'gate') copy.id = this.uniqueId('rope', this.layout.gates);
+      list.push(copy);
+      this.selected = { kind: t.kind, index: list.length - 1 };
+    }, true);
   }
 
   /** Grow (or shrink) the map by whole cells; everything shifts with a left or top change. */
   grow(sides) {
-    this.snapshot();
+    // The layout is untouched until it's known to fit, so a refusal costs no undo (or redo) history.
     const shift = this.terrain.resize(sides);
-    if (!shift) {
-      this.undoStack.pop();
-      return this.toast('The map can\'t get that small.');
-    }
+    if (!shift) return this.toast('The map can\'t get that small.');
+    this.snapshot();
     const L = this.layout;
     L.terrain = this.terrain.toRows();
     L.cols = this.terrain.cols;
@@ -896,6 +901,9 @@ export default class EditorScene extends Phaser.Scene {
         const mod = await import(`data:text/javascript,${encodeURIComponent(text)}`);
         const layout = mod.default;
         if (!layout?.terrain || !layout.cols) throw new Error('not a layout file');
+        // Another map's file would load into the wrong tileset and save under this map's name.
+        if (layout.id !== this.mapId) throw new Error(`that's ${layout.id}'s layout, not ${this.mapId}'s`);
+        if (layout.tileset !== this.layout.tileset && !tilesetOf(this, layout.tileset)) throw new Error(`the ${layout.tileset} tileset isn't loaded`);
         this.snapshot();
         this.layout = cloneLayout(layout);
         this.loadTerrain();
@@ -922,7 +930,6 @@ export default class EditorScene extends Phaser.Scene {
     this.revertArmed = false;
     this.snapshot();
     this.layout = cloneLayout(this.saved);
-    writeDraft(this.mapId, null);
     this.loadTerrain();
     this.selected = null;
     this.changed(true);
@@ -933,21 +940,13 @@ export default class EditorScene extends Phaser.Scene {
   /** Read by the debug hook / smoke test. Points are canvas coordinates. */
   debugState() {
     const cam = this.cameras.main;
-    const screen = (x, y) => ({
-      x: Math.round(cam.x + cam.width / 2 + (x - cam.scrollX - cam.width / 2) * cam.zoom),
-      y: Math.round(cam.y + cam.height / 2 + (y - cam.scrollY - cam.height / 2) * cam.zoom),
-    });
     return {
       editor: {
         id: this.mapId, tab: this.tab, cols: this.terrain.cols, rows: this.terrain.rows, dirty: this.dirty,
         selected: this.selected, zoom: cam.zoom, problems: this.problems.map((p) => `${p.level}: ${p.msg}`),
         counts: { props: this.layout.props.length, npcs: this.layout.npcs.length, gates: this.layout.gates.length },
         terrain: this.layout.terrain,
-        export: this.lastExport ?? null,
-        // The middle of the view, and where the spawn and every NPC are on screen (for tapping them).
-        center: screen(cam.midPoint.x, cam.midPoint.y),
-        midWorld: { x: Math.round(cam.midPoint.x), y: Math.round(cam.midPoint.y) },
-        npcs: this.layout.npcs.map((n) => ({ id: n.id, ...screen(n.x, n.y - 40) })),
+        export: this.lastExport,
       },
     };
   }

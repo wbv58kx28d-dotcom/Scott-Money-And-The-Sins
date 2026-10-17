@@ -9,7 +9,7 @@ import { createRng } from './rng.js';
 const OUTLINE_COLOR = '#120d1c';
 
 /** Bake a pixel map into a canvas texture with a dark outline. */
-export function bakePixelSprite(scene, key, { rows, palette }, px = PLACEHOLDER_PX, outline = OUTLINE_PX) {
+function bakePixelSprite(scene, key, { rows, palette }, px = PLACEHOLDER_PX, outline = OUTLINE_PX) {
   const h = rows.length;
   const w = rows[0].length;
   const tex = scene.textures.createCanvas(key, w * px + outline * 2, h * px + outline * 2);
@@ -33,7 +33,7 @@ export function bakePixelSprite(scene, key, { rows, palette }, px = PLACEHOLDER_
  * pixel art. Follows the background rules: dimmed, horizon about halfway
  * down, bottom band dark for the menu.
  */
-export function bakeCityBackground(scene, key) {
+function bakeCityBackground(scene, key) {
   const S = 4;
   const w = GAME_W / S;
   const h = GAME_H / S;

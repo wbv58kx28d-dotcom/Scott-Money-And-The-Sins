@@ -6,8 +6,8 @@
 // month at a time, like the day trade's market (systems/market.js): which lot
 // holds what each month, every unit's price for every month it stands, which
 // units are listed when, the news, and the development (cranes, wrecking
-// balls, renovations). Each headline breaks a couple of months before it
-// moves its tiers' prices.
+// balls, renovations). Each trend leg is announced (its chip flips, with a
+// flavor headline if it's a big one) half a month before it moves its tiers' prices.
 
 import { REALTY, TIERS } from '../data/realty.js';
 
@@ -82,14 +82,6 @@ export function mapLots(cfg = REALTY) {
 
 function buildSession(rng, city, cfg) {
   const { months } = cfg;
-  const shuffled = (list) => {
-    const out = [...list];
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = rng.int(0, i);
-      [out[i], out[j]] = [out[j], out[i]];
-    }
-    return out;
-  };
   const lots = mapLots(cfg);
   const lotIndex = (i, j) => lots.findIndex((l) => l.i === i && l.j === j);
   const variantCount = (tier) => city.art?.[tier]?.length ?? 3;
@@ -127,7 +119,7 @@ function buildSession(rng, city, cfg) {
   const trophyLot = lotIndex(0, 0);
   occupied.set(trophyLot, addUnit('high', trophyLot, 0, { trophy: true }).id);
   for (const tier of TIERS) {
-    const open = shuffled(lots.map((l, k) => k).filter((k) => lots[k].zone === tier && !occupied.has(k)));
+    const open = rng.shuffled(lots.map((l, k) => k).filter((k) => lots[k].zone === tier && !occupied.has(k)));
     for (let n = 0; n < cfg.start[tier]; n++) occupied.set(open[n], addUnit(tier, open[n], 0).id);
   }
   const trophy = 0; // the first unit made
@@ -137,7 +129,7 @@ function buildSession(rng, city, cfg) {
   // pays nothing. Each leg is an event whose chip flips `lead` months before
   // it starts; up and down legs bring a matching headline to the ticker (flavor).
   const { trend } = cfg;
-  const pool = shuffled([...city.headlines, ...cfg.headlines]);
+  const pool = rng.shuffled([...city.headlines, ...cfg.headlines]);
   const used = new Set();
   const headlineFor = (ti, dir) => {
     const fits = pool.filter((h) => Math.sign(h.fx[ti]) === dir && Math.abs(h.fx[ti]) >= 0.1);
@@ -172,7 +164,7 @@ function buildSession(rng, city, cfg) {
   events.sort((a, b) => a.announce - b.announce || a.tier - b.tier);
 
   // Development: cranes, wrecking balls, and renovations, one every few months.
-  // `busy` tracks each lot's state month by month as it's planned.
+  // `lotFree` tracks when each lot is free to build on, as it's planned.
   const dev = [];
   const lotFree = new Map(lots.map((_, k) => [k, occupied.has(k) ? Infinity : 0])); // free from this month
   const booked = new Set(); // units with a pending demolition or renovation
@@ -363,7 +355,7 @@ export function playReader(session, cfg = REALTY, { delay = 1 } = {}) {
 
 /**
  * What each tier stands to gain by holding from month m and selling at the
- * best moment, as known `delay` months after each trend's chip flipped: the peak of
+ * best moment, as known `delay` ticks after each trend's chip flipped: the peak of
  * the announced moves still to come, in log price (0 if it only goes down).
  * [low, mid, high].
  */
@@ -393,8 +385,8 @@ function knownStep(session, ti, k, seen) {
 /**
  * The trend reader's moves this month, in order: sell what has nothing good
  * coming, buy the trophy if it's affordable, else buy the priciest listed unit
- * in whichever tier has the best news ahead. Also the debug hint (the smoke
- * test plays by it). It ignores renovations and new builds; a human can do better.
+ * in whichever tier has the best news ahead. The fairness check plays by it
+ * (playReader). It ignores renovations and new builds; a human can do better.
  */
 export function readerMoves(session, acct, m, { delay = 0, cfg = REALTY } = {}) {
   const { prices, listed, units, trophy } = session;

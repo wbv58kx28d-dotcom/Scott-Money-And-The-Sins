@@ -21,7 +21,7 @@ export class PhoneBadge {
 
   refresh() {
     const n = socialNews();
-    const str = n > 9 ? '9+' : String(n);
+    const str = badgeLabel(n);
     const r = 15;
     this.g.clear().setVisible(n > 0);
     this.text.setText(str).setVisible(n > 0);
@@ -29,8 +29,7 @@ export class PhoneBadge {
     this.g.fillStyle(0x0d0820, 1).fillCircle(this.x, this.y, r + 3).fillStyle(0xe0245e, 1).fillCircle(this.x, this.y, r);
     this.text.setPosition(Math.round(this.x), Math.round(this.y + 1));
   }
-
-  get count() {
-    return socialNews();
-  }
 }
+
+/** A count as a badge shows it. */
+export const badgeLabel = (n) => (n > 9 ? '9+' : String(n));

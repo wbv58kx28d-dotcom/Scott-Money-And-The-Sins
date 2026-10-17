@@ -43,16 +43,6 @@ export default {
   },
 };
 
-/** Shuffled copy (so the right reply isn't always first). */
-function shuffled(list) {
-  const out = [...list];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = rng.int(0, i);
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
 export class SocialScene extends Phaser.Scene {
   constructor() {
     super(KEY);
@@ -254,9 +244,9 @@ export class SocialScene extends Phaser.Scene {
         const w = 150;
         const h = 44;
         const x = GAME_W - 24 - w;
-        const g = f(this.add.graphics().fillStyle(PINK, 1).fillRoundedRect(x, y - 10, w, h, 22));
+        f(this.add.graphics().fillStyle(PINK, 1).fillRoundedRect(x, y - 10, w, h, 22));
         f(label(this, x + w / 2, y + 12, 'REPLY', 14, { color: '#0d0820', strokeThickness: 0 }).setOrigin(0.5));
-        this.hits.push({ x, y: y - 16, w, h: h + 12, text: 'REPLY', post: item.post, g, fn: () => this.openReply(item.post) });
+        this.hits.push({ x, y: y - 16, w, h: h + 12, text: 'REPLY', post: item.post, fn: () => this.openReply(item.post) });
         y += 44;
       } else {
         y += 40;
@@ -338,7 +328,8 @@ export class SocialScene extends Phaser.Scene {
     t.setText(fitWrapped(t, feedPost.text, { maxWidth: s.w - CARD_INSET - 28, maxHeight: 160, maxSize: 30, minSize: 22 }));
     keep(label(this, s.x + CARD_INSET, s.y + 280, 'YOUR REPLY', 14, { color: PINK_CSS }));
 
-    const options = shuffled(feedPost.reply.options.map((text, i) => ({ text, right: i === 0 })));
+    // Shuffled, so the right reply isn't always first.
+    const options = rng.shuffled(feedPost.reply.options.map((text, i) => ({ text, right: i === 0 })));
     this.sheetOpen.options = options.map((o, i) => {
       const r = { x: s.x + 24, y: s.y + 316 + i * 150, w: s.w - 48, h: 134 };
       const g = keep(this.add.graphics().fillStyle(0x1a1030, 1).fillRoundedRect(r.x, r.y, r.w, r.h, 18).lineStyle(3, 0x4a3a7a, 1).strokeRoundedRect(r.x, r.y, r.w, r.h, 18));

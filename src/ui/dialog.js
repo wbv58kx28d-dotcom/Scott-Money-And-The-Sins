@@ -37,17 +37,7 @@ export class DialogBox {
    * @param {object} opts  color: text color
    */
   say(text, speaker = null, { color = COLORS.text } = {}) {
-    const str = Array.isArray(text) ? text.join('\n') : text;
-    this.visible(true);
-    this.speaker.setText(speaker ?? '').setVisible(!!speaker);
-    this.text.setColor(color);
-    const wrapped = fitWrapped(this.text, str, {
-      maxWidth: this.box.w,
-      maxHeight: this.box.h,
-      maxSize: 36,
-      minSize: 24,
-    });
-    this.arrow.setVisible(false);
+    const wrapped = this.layout(text, speaker, color);
 
     return new Promise((resolve) => {
       let shown = 0;
@@ -80,12 +70,17 @@ export class DialogBox {
 
   /** Show a line without waiting for a tap (e.g. "DEREK fires back..."). */
   show(text, speaker = null) {
+    this.text.setText(this.layout(text, speaker, COLORS.text));
+  }
+
+  /** Put up the box for a line: speaker, color, no arrow yet. Returns the text wrapped to fit. */
+  layout(text, speaker, color) {
     this.visible(true);
     this.speaker.setText(speaker ?? '').setVisible(!!speaker);
-    this.text.setColor(COLORS.text);
-    const wrapped = fitWrapped(this.text, text, { maxWidth: this.box.w, maxHeight: this.box.h, maxSize: 36, minSize: 24 });
-    this.text.setText(wrapped);
+    this.text.setColor(color);
     this.arrow.setVisible(false);
+    const str = Array.isArray(text) ? text.join('\n') : text;
+    return fitWrapped(this.text, str, { maxWidth: this.box.w, maxHeight: this.box.h, maxSize: 36, minSize: 24 });
   }
 
   visible(on) {

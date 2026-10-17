@@ -33,7 +33,7 @@ import { Save } from '../systems/save.js';
 import { Audio } from '../systems/audio.js';
 import { DEBUG } from '../systems/debug.js';
 import { Terrain, hash } from '../systems/terrain.js';
-import { buildRegionGrid } from '../systems/mapcheck.js';
+import { buildRegionGrid, inRect } from '../systems/mapcheck.js';
 import { present, secretSpots, secretKey, signal, heading } from '../systems/secrets.js';
 import { revealLines } from '../systems/intel.js';
 import { formatClout, fillIn } from '../systems/social.js';
@@ -69,11 +69,14 @@ const QUESTION_CARD = { x: 16, y: 930, w: 688, h: 116 };
 // The tap area around an NPC's body, and around the follower's (she's a kitten).
 const NPC_HIT = { w: 100, h: 140 };
 const FOLLOWER_HIT = { w: 90, h: 90 };
+const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 // How long an emote bubble stays up, and how far over the head it floats.
 const EMOTE_MS = 1300;
 const EMOTE_GAP = 6;
 
 const worldDepth = (y) => y - WORLD_DEPTH;
+/** Is (x, y) on a body standing at `s` (its feet), in a hit box this big? */
+const onBody = (x, y, s, box) => Math.abs(x - s.x) <= box.w / 2 && y <= s.y + 10 && y >= s.y - box.h;
 
 export default class RegionScene extends Phaser.Scene {
   constructor() {
@@ -107,7 +110,10 @@ export default class RegionScene extends Phaser.Scene {
     this.pendingNpc = null;
     this.dragging = false;
     this.lastAim = 0;
-    this.emoting = null; // the scene restarts through doors: no bubble carries over
+    // The scene object is reused (doors restart it; the phone's MAP app stops it), so nothing carries over.
+    this.emoting = null;
+    this.revealing = null;
+    this.quizAnswer = null;
     this.pinning = false;
     const onAdded = (obj) => {
       if (this.pinning) obj.setScrollFactor?.(0);
@@ -147,6 +153,8 @@ export default class RegionScene extends Phaser.Scene {
     // The ground, drawn from the layout's terrain grid (CLAUDE.md §6.11).
     this.terrain = new Terrain(map.layout.terrain, tilesetOf(this, map.tileset));
     this.ground = new TerrainView(this, this.terrain, { set: map.tileset, bridges: map.bridges, depth: -WORLD_DEPTH * 2, id: `region_${map.id}` });
+    // Its chunks are textures of their own (a big map's run to tens of MB): free them on the way out.
+    this.events.once('shutdown', () => this.ground.destroy());
     this.addBubbles();
 
     // Props tagged with a secret show once it's found; a `cover` shows until then (systems/secrets.js).
@@ -156,7 +164,7 @@ export default class RegionScene extends Phaser.Scene {
       const tag = p.label ? signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5) : null;
       if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });
     }
-    this.found = new Set(Object.keys(map.secrets ?? {}).filter((id) => Save.isFound(secretKey(this.region.id, id))));
+    this.found = new Set(Object.keys(map.secrets).filter((id) => Save.isFound(secretKey(this.region.id, id))));
     this.showSecrets();
 
     const cleared = Save.cleared.has(this.region.id);
@@ -164,7 +172,7 @@ export default class RegionScene extends Phaser.Scene {
       const sprite = this.add.sprite(n.x, n.y, n.sprite).setOrigin(0.5, 1).setDepth(worldDepth(n.y));
       this.face(sprite, n.facing);
       // A bouncing "!" over a villain you haven't beaten, "?" over a challenge you haven't won.
-      const mark = n.fight && !cleared ? ['!', '#ffd166'] : n.challenge && !Save.hasWon(this.challengeId(n)) ? ['?', INTEL_CSS] : null;
+      const mark = n.fight && !cleared ? ['!', '#ffd166'] : n.challenge && !Save.hasWon(this.npcKey(n)) ? ['?', INTEL_CSS] : null;
       let alert = null;
       if (mark) {
         alert = label(this, 0, 0, mark[0], 28, { color: mark[1], strokeThickness: 8 }).setDepth(-1);
@@ -248,7 +256,7 @@ export default class RegionScene extends Phaser.Scene {
     const cy = door.y + door.h / 2;
     const dx = this.map.size.w / 2 - cx;
     const dy = this.map.size.h / 2 - cy;
-    const side = door.arrive ?? (Math.abs(dy) >= Math.abs(dx) ? (dy > 0 ? 'down' : 'up') : dx > 0 ? 'right' : 'left');
+    const side = door.arrive ?? facingOf(dx, dy) ?? 'up';
     const at = {
       down: { x: cx, y: door.y + door.h + gap },
       up: { x: cx, y: door.y - gap },
@@ -292,7 +300,7 @@ export default class RegionScene extends Phaser.Scene {
       const sub = ENEMIES[fighter] ? `${TIER_NAMES[this.region.tier]} · find ${ENEMIES[fighter].name}` : TIER_NAMES[this.region.tier];
       fitWidth(body(this, c.x + CARD_INSET, c.y + 44, sub, 28, { color: '#e2d9ff' }), c.w - CARD_INSET - 12, 16);
 
-      // The phone holds the map, settings (sound), stonks and the shop (scenes/PhoneScene.js).
+      // The phone is the in-game menu (scenes/PhoneScene.js).
       const b = FIELD.buttons;
       const phoneW = 124;
       new Button(this, {
@@ -393,7 +401,7 @@ export default class RegionScene extends Phaser.Scene {
   }
 
   npcAt(x, y) {
-    return this.npcs.find((n) => Math.abs(x - n.x) <= NPC_HIT.w / 2 && y <= n.y + 10 && y >= n.y - NPC_HIT.h);
+    return this.npcs.find((n) => onBody(x, y, n, NPC_HIT));
   }
 
   walkTo(x, y, { quiet = false } = {}) {
@@ -460,7 +468,8 @@ export default class RegionScene extends Phaser.Scene {
       }
     }
     this.player.setDepth(worldDepth(this.player.y));
-    if (mx || my) this.walkAnim(Math.abs(mx) > Math.abs(my) ? (mx < 0 ? 'left' : 'right') : my < 0 ? 'up' : 'down');
+    const facing = facingOf(mx, my);
+    if (facing) this.walkAnim(facing);
 
     const exit = this.exitAt();
     if (exit) return this.leave(exit);
@@ -493,7 +502,7 @@ export default class RegionScene extends Phaser.Scene {
       }
     }
     this.player.setDepth(worldDepth(this.player.y));
-    this.walkAnim(Math.abs(v.x) > Math.abs(v.y) ? (v.x < 0 ? 'left' : 'right') : v.y < 0 ? 'up' : 'down');
+    this.walkAnim(facingOf(v.x, v.y) ?? this.facing);
     const exit = this.exitAt();
     if (exit) this.leave(exit);
   }
@@ -501,7 +510,7 @@ export default class RegionScene extends Phaser.Scene {
   /** The exit $cott is standing in, or null. A secret exit (Derek's cellar) only works once it's found. */
   exitAt() {
     return this.map.exits.find((e) => present(e, (id) => this.found.has(id))
-      && Phaser.Geom.Rectangle.Contains(new Phaser.Geom.Rectangle(e.x, e.y, e.w, e.h), this.player.x, this.player.y)) ?? null;
+      && inRect(this.player.x, this.player.y, e)) ?? null;
   }
 
   // ---- Secrets (systems/secrets.js) -------------------------------------------------
@@ -517,7 +526,7 @@ export default class RegionScene extends Phaser.Scene {
   /** For the WIFI app: this map's hidden networks, their signal at $cott's spot, and which way to go. */
   wifiNetworks() {
     const spots = secretSpots(this.map);
-    return Object.entries(this.map.secrets ?? {}).filter(([id, s]) => s.app === 'wifi' && spots[id]).map(([id, s]) => {
+    return Object.entries(this.map.secrets).filter(([id, s]) => s.app === 'wifi' && spots[id]).map(([id, s]) => {
       const at = spots[id];
       const { bars, trace } = signal(Phaser.Math.Distance.Between(this.player.x, this.player.y, at.x, at.y));
       return { id, ssid: s.ssid, bars, trace, heading: heading(this.player, at), found: this.found.has(id) };
@@ -546,25 +555,35 @@ export default class RegionScene extends Phaser.Scene {
     Audio.sfx('crit');
     const lines = this.map.secrets[id]?.found ?? [];
     if (lines.length) {
-      this.stick.setVisible(false);
-      this.talkButton.setVisible(false);
-      this.panel.setVisible(true);
-      await this.sayAll(lines);
-      this.dialog.hide();
-      this.panel.setVisible(false);
-      this.stick.setVisible(true);
-      this.talkButton.setVisible(true);
+      this.controls(false);
+      await this.converse(lines);
+      this.controls(true);
     }
     this.mode = 'explore';
   }
 
-  walkAnim(facing) {
+  /** The joystick and TALK button: hidden while someone's talking. */
+  controls(on) {
+    this.stick.setVisible(on);
+    this.talkButton.setVisible(on);
+  }
+
+  /** Say some lines in the bottom panel, then put it away. */
+  async converse(lines) {
+    this.panel.setVisible(true);
+    await this.sayAll(lines);
+    this.dialog.hide();
+    this.panel.setVisible(false);
+  }
+
+  /** Play a walker's walk cycle for a facing (play() leaves it alone if it's already running). */
+  playWalk(sprite, sheet, facing) {
     const { view, flip } = facingFrame(facing);
-    const key = `field_scott_walk_${view}`;
-    this.player.setFlipX(flip);
-    if (this.facing !== facing || this.player.anims.currentAnim?.key !== key || !this.player.anims.isPlaying) {
-      this.player.play(key, true);
-    }
+    sprite.setFlipX(flip).play(`${sheet}_walk_${view}`, true);
+  }
+
+  walkAnim(facing) {
+    this.playWalk(this.player, 'field_scott', facing);
     this.facing = facing;
   }
 
@@ -588,11 +607,8 @@ export default class RegionScene extends Phaser.Scene {
     if (!data || !this.textures.exists(data.sprite)) return;
     walkerAnims(this, data.sprite);
     // She starts right behind him, on the side he's facing away from (through a door, that's the doorway).
-    const trail = new Trail(data.gap, this.player, { facing: this.facing });
-    const at = trail.position();
-    const x = Phaser.Math.Clamp(at.x, 0, this.map.size.w);
-    const y = Phaser.Math.Clamp(at.y, 0, this.map.size.h);
-    trail.points[0] = { x, y };
+    const trail = new Trail(data.gap, this.player, { facing: this.facing, bounds: this.map.size });
+    const { x, y } = trail.position();
     const sprite = this.add.sprite(Math.round(x), Math.round(y), data.sprite).setOrigin(0.5, 1).setDepth(worldDepth(y));
     this.face(sprite, this.facing);
     this.follower = { id, data, trail, sprite, facing: this.facing, moving: false, stillMs: 0 };
@@ -607,10 +623,7 @@ export default class RegionScene extends Phaser.Scene {
     const facing = facingOf(at.x - f.sprite.x, at.y - f.sprite.y);
     if (facing) {
       f.sprite.setPosition(at.x, at.y).setDepth(worldDepth(at.y));
-      const { view, flip } = facingFrame(facing);
-      const key = `${f.data.sprite}_walk_${view}`;
-      f.sprite.setFlipX(flip);
-      if (f.sprite.anims.currentAnim?.key !== key || !f.sprite.anims.isPlaying) f.sprite.play(key, true);
+      this.playWalk(f.sprite, f.data.sprite, facing);
       f.facing = facing;
       f.moving = true;
       f.stillMs = 0;
@@ -629,7 +642,7 @@ export default class RegionScene extends Phaser.Scene {
 
   followerAt(x, y) {
     const s = this.follower?.sprite;
-    return !!s && Math.abs(x - s.x) <= FOLLOWER_HIT.w / 2 && y <= s.y + 10 && y >= s.y - FOLLOWER_HIT.h;
+    return !!s && onBody(x, y, s, FOLLOWER_HIT);
   }
 
   /** Her mood right now (data/followers.js `moods`). */
@@ -650,28 +663,22 @@ export default class RegionScene extends Phaser.Scene {
   async talkToFollower() {
     const f = this.follower;
     this.mode = 'talk';
-    this.stick.setVisible(false);
-    this.talkButton.setVisible(false);
+    this.controls(false);
     Audio.sfx('blip');
     this.facing = facingOf(f.sprite.x - this.player.x, f.sprite.y - this.player.y) ?? this.facing;
     this.stop();
-    const opposite = { left: 'right', right: 'left', up: 'down', down: 'up' };
-    this.face(f.sprite, opposite[this.facing]);
-    f.facing = opposite[this.facing];
+    f.facing = OPPOSITE[this.facing];
+    this.face(f.sprite, f.facing);
 
     const mood = this.followerMood();
     this.emote(mood.emote);
     const near = this.nearbyNpc()?.id ?? null;
     const lines = followerLines(f.data, { first: Save.brag(`follower:${f.id}`), near, map: this.map.id, mood: mood.id }, (n) => rng.int(0, n - 1));
-    this.panel.setVisible(true);
-    await this.sayAll(lines.map((l) => ({ speaker: f.data.speaker, ...l })));
-    this.dialog.hide();
-    this.panel.setVisible(false);
+    await this.converse(lines.map((l) => ({ speaker: f.data.speaker, ...l })));
     if (Save.jealousy(f.id) > 0) this.emote('heart');
     Save.setJealousy(f.id, 0);
     f.stillMs = 0;
-    this.stick.setVisible(true);
-    this.talkButton.setVisible(true);
+    this.controls(true);
     this.mode = 'explore';
   }
 
@@ -705,25 +712,21 @@ export default class RegionScene extends Phaser.Scene {
 
   async talkTo(npc) {
     this.mode = 'talk';
-    this.stick.setVisible(false);
-    this.talkButton.setVisible(false);
+    this.controls(false);
     // Face each other.
-    const dx = npc.x - this.player.x;
-    const dy = npc.y - this.player.y;
-    this.facing = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : dy < 0 ? 'up' : 'down';
+    this.facing = facingOf(npc.x - this.player.x, npc.y - this.player.y) ?? this.facing;
     this.stop();
-    const opposite = { left: 'right', right: 'left', up: 'down', down: 'up' };
-    this.face(npc.sprite, opposite[this.facing]);
+    this.face(npc.sprite, OPPOSITE[this.facing]);
 
     this.panel.setVisible(true);
     const cleared = Save.cleared.has(this.region.id);
-    const won = npc.challenge && Save.hasWon(this.challengeId(npc));
-    const metBefore = Save.socialState.met.has(this.challengeId(npc));
+    const won = npc.challenge && Save.hasWon(this.npcKey(npc));
+    const metBefore = Save.socialState.met.has(this.npcKey(npc));
     const gate = this.gates.find((g) => g.bouncer === npc.id);
     if (!(gate?.open)) {
       await this.sayAll((won && npc.talkWon) || (cleared && npc.talkCleared) || (metBefore && npc.talkAgain) || npc.talk);
     }
-    Save.meet(this.challengeId(npc));
+    Save.meet(this.npcKey(npc));
     this.badge.refresh();
     if (gate) await this.atTheRope(gate);
     await this.afterTalk(npc);
@@ -740,8 +743,7 @@ export default class RegionScene extends Phaser.Scene {
     }
     this.panel.setVisible(false);
     this.face(npc.sprite, npc.facing);
-    this.stick.setVisible(true);
-    this.talkButton.setVisible(true);
+    this.controls(true);
     this.mode = 'explore';
     this.makeJealous();
   }
@@ -758,7 +760,7 @@ export default class RegionScene extends Phaser.Scene {
       Audio.sfx('good');
       await this.dialog.say('NEW DRAFT: that conversation gave $cott an idea for a classic post.\nIt\'s waiting in his phone, in Y.', null, { color: SOCIAL_CSS });
     }
-    if (npc.gift && Save.brag(`gift:${this.challengeId(npc)}`)) await this.giveGift(npc.gift);
+    if (npc.gift && Save.brag(`gift:${this.npcKey(npc)}`)) await this.giveGift(npc.gift);
   }
 
   /** Hand over a gift: cash, stash items, and phone apps (the WIFI app). */
@@ -801,7 +803,8 @@ export default class RegionScene extends Phaser.Scene {
     this.badge.refresh();
   }
 
-  challengeId(npc) {
+  /** An NPC's save key (challenges won, who he's met, gifts given). */
+  npcKey(npc) {
     return `${this.region.id}:${npc.id}`;
   }
 
@@ -825,11 +828,11 @@ export default class RegionScene extends Phaser.Scene {
     }
     Audio.sfx('good');
     await this.sayAll(c.win);
-    Save.winChallenge(this.challengeId(npc), c.reveal);
+    Save.winChallenge(this.npcKey(npc), c.reveal);
     npc.alert?.destroy();
     npc.alert = null;
     if (c.reveal) for (const line of revealLines(ENEMIES[c.reveal.enemy], c.reveal)) await this.dialog.say(line.text, null, { color: INTEL_CSS });
-    if (c.gift && Save.brag(`gift:${this.challengeId(npc)}:won`)) await this.giveGift(c.gift);
+    if (c.gift && Save.brag(`gift:${this.npcKey(npc)}:won`)) await this.giveGift(c.gift);
     this.dialog.hide();
   }
 
@@ -850,11 +853,7 @@ export default class RegionScene extends Phaser.Scene {
   /** Quiz challenge: each question's first answer is the right one (they're shuffled on screen). */
   async runQuiz(c) {
     for (const q of c.questions) {
-      const answers = q.answers.map((text, i) => ({ text, right: i === 0 }));
-      for (let i = answers.length - 1; i > 0; i--) {
-        const j = rng.int(0, i);
-        [answers[i], answers[j]] = [answers[j], answers[i]];
-      }
+      const answers = rng.shuffled(q.answers.map((text, i) => ({ text, right: i === 0 })));
       this.quizAnswer = q.answers[0];
       const card = this.ui(() => this.questionCard(q.q));
       const pick = await this.ui(() => this.menu.choose(
@@ -912,8 +911,7 @@ export default class RegionScene extends Phaser.Scene {
   leave(exit = null) {
     if (this.mode === 'leaving') return;
     this.mode = 'leaving';
-    this.stick.setVisible(false);
-    this.talkButton.setVisible(false);
+    this.controls(false);
     this.stop();
     this.cameras.main.fadeOut(250, 0, 0, 0);
     const door = exit && exit.to !== 'map' && MAPS[exit.to] ? exit.to : null;
@@ -938,7 +936,7 @@ export default class RegionScene extends Phaser.Scene {
       talkButton: { ...FIELD.talkButton, ready: this.talkButton.ready, near: this.nearbyNpc()?.id ?? null },
       player: { x: Math.round(this.player.x), y: Math.round(this.player.y), facing: this.facing },
       npcs: this.npcs.map((n) => ({
-        id: n.id, tap: screen(n.x, n.y - 60), challenge: !!n.challenge, won: !!n.challenge && Save.hasWon(this.challengeId(n)),
+        id: n.id, tap: screen(n.x, n.y - 60), challenge: !!n.challenge, won: !!n.challenge && Save.hasWon(this.npcKey(n)),
       })),
       quizAnswer: this.quizAnswer ?? null,
       clout: Save.clout,

@@ -99,7 +99,10 @@ export default class OverworldScene extends Phaser.Scene {
     });
     const pb = MAP.phoneButton;
     this.badge = new PhoneBadge(this, pb.x + pb.w / 2 - 4, pb.y - pb.h / 2 + 2, 31);
-    this.events.on('resume', () => this.badge.refresh());
+    // Off again at shutdown: the scene object is reused, and listeners on its events would pile up.
+    const refresh = () => this.badge.refresh();
+    this.events.on('resume', refresh);
+    this.events.once('shutdown', () => this.events.off('resume', refresh));
 
     this.input.on('pointerup', (pointer, over) => this.onTap(pointer, over));
     this.cameras.main.fadeIn(250, 0, 0, 0);
@@ -132,7 +135,8 @@ export default class OverworldScene extends Phaser.Scene {
       g.lineBetween(-1, 4, 6, -4);
     }
     pin.add(g);
-    if (status === 'open') this.tweens.add({ targets: pin, scale: 1.25, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // A pin the fog is about to lift off pops in first (reveal()), then pulses.
+    if (status === 'open' && !hidden) this.pulsePin(pin);
 
     let name = null;
     if (status !== 'locked') {
@@ -150,6 +154,11 @@ export default class OverworldScene extends Phaser.Scene {
       name?.setAlpha(0);
     }
     return { pin, name };
+  }
+
+  /** An open region's pin breathes, to say "go here". */
+  pulsePin(pin) {
+    this.tweens.add({ targets: pin, scale: 1.25, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   /** $cott's token: a gold coin with a $, bobbing above the pin. */
@@ -230,7 +239,7 @@ export default class OverworldScene extends Phaser.Scene {
     if (status === 'locked') {
       return { text: `LOCKED: clear ${TIER_NAMES[frontierTier(Save.cleared)]} first`, color: '#ff5c8a' };
     }
-    if (status === 'cleared') return { text: 'CLEARED', color: '#7cf29c' };
+    if (status === 'cleared') return { text: 'CLEARED', color: COLORS.textGood };
     if (!villain) return { text: "COMING SOON: this villain isn't written yet", color: COLORS.textDim };
     return { text: MAPS[region.id] ? 'OPEN. Tap ENTER to explore.' : 'OPEN. Tap ENTER to fight.', color: '#ffd166' };
   }
@@ -271,7 +280,7 @@ export default class OverworldScene extends Phaser.Scene {
 
   /** Walk the token to the region, then go in (or straight to its fight if it has no map yet). */
   enter(region) {
-    if (this.travelling) return;
+    if (this.travelling || this.revealing) return;
     this.travelling = true;
     Save.moveTo(region.id);
     const [x, y] = this.geo[region.id].node;
@@ -316,7 +325,7 @@ export default class OverworldScene extends Phaser.Scene {
         this.drawRoute();
         for (const id of opened) {
           const { pin, name } = this.pins[id];
-          this.tweens.add({ targets: pin, scale: 1, duration: 260, ease: 'Back.easeOut' });
+          this.tweens.add({ targets: pin, scale: 1, duration: 260, ease: 'Back.easeOut', onComplete: () => this.pulsePin(pin) });
           if (name) this.tweens.add({ targets: name, alpha: 1, duration: 260 });
           this.pulse(this.masks[id]);
         }

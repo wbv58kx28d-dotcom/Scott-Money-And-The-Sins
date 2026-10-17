@@ -32,8 +32,8 @@ const UP = 0x3ddc84;
 const DOWN = 0xff5c5c;
 const FLAT = 0x6a5fa0;
 const NEWS = 0xff8c42;
-const UP_CSS = '#7cf29c';
-const DOWN_CSS = '#ff6b6b';
+const UP_CSS = COLORS.textGood;
+const DOWN_CSS = COLORS.textBad;
 
 // Cards, top to bottom. The main button sits in the usual bottom panel (LAYOUT.panel).
 const HEADER = { x: 16, y: 120, w: 688, h: 116 };
@@ -75,6 +75,7 @@ export class TradeScene extends Phaser.Scene {
     this.tick = 0;
     this.price = this.market.open;
     this.newsIndex = 0;
+    this.newsLegs = this.market.legs.filter((l) => l.news);
     this.markers = [];
     const open = this.market.open;
     this.range = { lo: open * 0.85, hi: open * 1.15 };
@@ -184,17 +185,23 @@ export class TradeScene extends Phaser.Scene {
       this.say(`Bought ${acct.shares.toFixed(2)} ${cfg.ticker} at ${money(price, true)}.`, COLORS.text);
       Audio.sfx('ok');
     } else {
-      const before = acct.trades[acct.trades.length - 1].buyPrice;
-      const cost = acct.shares * before;
-      sell(acct, price, tick);
-      this.cashOut(acct.cash - cost, price >= before);
+      this.sellOut();
     }
     this.refresh();
   }
 
+  /** Sell everything held at the current price. */
+  sellOut() {
+    const { acct, price, tick } = this;
+    const cost = acct.shares * acct.trades[acct.trades.length - 1].buyPrice;
+    sell(acct, price, tick);
+    this.cashOut(acct.cash - cost);
+  }
+
   /** The SELL marker, a floating profit number, and the line under the chart. */
-  cashOut(profit, up) {
+  cashOut(profit) {
     const { tick, price } = this;
+    const up = profit >= 0;
     const m = this.addMarker('S', up ? UP : DOWN, tick, price);
     const pop = label(this, m.x, m.y - 30, `${profit >= 0 ? '+' : ''}${money(profit)}`, 18, { color: up ? UP_CSS : DOWN_CSS })
       .setOrigin(0.5).setDepth(11);
@@ -229,7 +236,7 @@ export class TradeScene extends Phaser.Scene {
     this.seen.hi = Math.max(this.seen.hi, this.price);
 
     // Headlines land a few ticks before their move.
-    const news = this.market.legs.filter((l) => l.news);
+    const news = this.newsLegs;
     while (this.newsIndex < news.length && news[this.newsIndex].announce <= this.tick) this.breakNews(news[this.newsIndex++]);
 
     // Ease the vertical scale toward what's been seen (plus the entry line).
@@ -257,10 +264,7 @@ export class TradeScene extends Phaser.Scene {
     this.tick = market.prices.length - 1;
     this.price = market.prices[this.tick];
     if (holding(acct)) {
-      const before = acct.trades[acct.trades.length - 1].buyPrice;
-      const cost = acct.shares * before;
-      sell(acct, this.price, this.tick);
-      this.cashOut(acct.cash - cost, this.price >= before);
+      this.sellOut();
       this.status.setText(`${this.status.text}\nThe bell sold it for you.`);
     }
     const gain = gainOf(acct, this.price);

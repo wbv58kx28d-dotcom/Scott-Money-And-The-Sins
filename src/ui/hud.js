@@ -5,17 +5,15 @@
 
 import { COLORS, LAYOUT, egoColor } from '../config.js';
 import { DISS_TYPES } from '../data/types.js';
-import { ITEMS } from '../data/items.js';
+import { bagLine } from '../data/items.js';
 import { StatBar } from './bars.js';
 import { label, body, fitWidth } from './text.js';
-import { drawCard, CARD_INSET, EDGE_W, RIBBON_GOLD } from './ribbon.js';
-
-const hex = (css) => Phaser.Display.Color.HexStringToColor(css).color;
+import { drawCard, hex, CARD_INSET, EDGE_W, RIBBON_GOLD } from './ribbon.js';
 
 /** A row of status tags, e.g. "MOONING 3", each in its status color. */
 class StatusTags {
-  constructor(scene, x, y, { align = 'left', maxWidth = 300, size = 26 } = {}) {
-    Object.assign(this, { scene, x, y, align, maxWidth, size });
+  constructor(scene, x, y, { maxWidth = 300, size = 26 } = {}) {
+    Object.assign(this, { scene, x, y, maxWidth, size });
     this.texts = [];
   }
 
@@ -34,7 +32,7 @@ class StatusTags {
       for (const t of this.texts) t.destroy();
       size -= 2;
     }
-    let cursor = this.align === 'right' ? this.x - total : this.x;
+    let cursor = this.x;
     for (const t of this.texts) {
       t.setX(Math.round(cursor));
       cursor += t.width + gap;
@@ -150,8 +148,7 @@ export class ScottHud {
     this.ego.set(scott.ego, scott.maxEgo, animate);
     this.flow.set(scott.flow, scott.maxFlow, animate);
     this.tags.refresh(scott.statuses);
-    const items = Object.entries(scott.items).map(([id, n]) => `${ITEMS[id].short} x${n}`);
-    this.items.setText(items.join('  '));
+    this.items.setText(bagLine(scott.items));
     fitWidth(this.items.setFontSize(24), LAYOUT.scottHud.w - BAR.left - BAR.right, 16);
   }
 }

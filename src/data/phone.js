@@ -10,7 +10,7 @@ export const PHONES = {
 };
 
 // Home-screen apps, in grid order. `icon` names a bitmap in ui/phoneIcons.js;
-// `color` is the smartphone tile (the flip phone's LCD is one color).
+// `color` is the smartphone's tile and the app's accent on its pages (header, buttons) on both models.
 export const APPS = [
   { id: 'map', name: 'MAP', icon: 'map', color: 0x3a9d5d },
   { id: 'social', name: 'Y', icon: 'y', color: 0xe0245e }, // $cott's social app (scenes/SocialScene.js)

@@ -106,8 +106,6 @@ export default {
       },
     },
 
-    // The Swamp Yacht Club: an island behind a velvet rope (`gates` below).
-    // Vinny holds the rope; Wendy is the party inside.
     // The rest of the hot-tub crew: the subreddit's lower ranks. Nobody's seen
     // where Derek actually lives; they point $cott at the pros in the tower.
     floyd: {
@@ -143,6 +141,8 @@ export default {
       ],
     },
 
+    // The Swamp Yacht Club: an island behind a velvet rope (`gates` below).
+    // Vinny holds the rope; Wendy is the party inside.
     vinny: {
       name: 'VELVET VINNY',
       talk: [

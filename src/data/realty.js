@@ -3,7 +3,7 @@
 // one of the cheapest homes and has to flip his way up to the trophy property
 // before the clock runs out. Each tier (the village, midtown, the skyline)
 // moves in trends that last a few months; a trend chip per tier shows where
-// it's heading a month before each trend starts. Headlines on the ticker are
+// it's heading half a month before each trend starts. Headlines on the ticker are
 // flavor that matches the trends. Price paths come from systems/realty.js.
 //
 // Prices are in dollars. A headline's `fx` says which way it points each tier,
@@ -65,13 +65,11 @@ export const REALTY = {
   dev: { every: [3, 4], first: [2, 4], build: [3, 5], notice: 2, reno: 1.25, weights: { build: 0.45, demolish: 0.2, renovate: 0.35 }, minAge: 8 },
   zones: { low: 'THE VILLAGE', mid: 'MIDTOWN', high: 'THE SKYLINE' },
   // Ticker lines for development ({name}, {zone}). They don't move tier prices.
+  // A crane going up shows on the map instead; a new build is announced when it opens.
   devNews: {
-    build: 'CRANES GO UP IN {zone}',
     open: 'NOW OPEN: {name}. UNITS LISTED.',
     demolish: 'WRECKING BALL BOOKED FOR {name}',
-    gone: '{name} IS RUBBLE NOW',
     renovate: 'PERMITS FILED: {name} GETTING A GLOW-UP',
-    renovated: '{name} UNVEILS ITS GLOW-UP',
   },
 
   // Within a month, lots update one at a time (each on its own day of the
@@ -138,7 +136,6 @@ export const CITIES = [
     name: 'TOKYO',
     blurb: 'Towers over a village of old wooden homes.',
     sky: [0x1b1036, 0x6a2c70], // dusk, top to horizon
-    ground: 0x2a2438,
     accent: 0xff5c8a,
     tiers: {
       low: {
@@ -179,7 +176,6 @@ export const CITIES = [
     name: 'LOS ANGELES',
     blurb: 'Bungalows, stucco villas, and a mansion on the hill.',
     sky: [0x2a1a4a, 0xff8c42], // sunset
-    ground: 0x3a2a30,
     accent: 0xffb347,
     tiers: {
       low: {
@@ -213,7 +209,6 @@ export const CITIES = [
     name: 'SEATTLE',
     blurb: 'Craftsman houses, condos, and glass towers in the rain.',
     sky: [0x1d2b3a, 0x5d7a8c], // overcast
-    ground: 0x26302e,
     accent: 0x7cf29c,
     tiers: {
       low: {

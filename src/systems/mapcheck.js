@@ -13,10 +13,10 @@ import { FIELD } from '../config.js';
 import { WalkGrid } from './walkGrid.js';
 
 const footprint = (x, y, b) => ({ x: x - b.w / 2, y: y - b.h / 2, w: b.w, h: b.h });
-const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+export const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
 /** Is a world point walkable ground: not water or reeds, or on a bridge or an exit? */
-export function groundWalkable(map, terrain, x, y) {
+function groundWalkable(map, terrain, x, y) {
   if (map.bridges.some((b) => inRect(x, y, b)) || map.exits.some((e) => inRect(x, y, e))) return true;
   return !terrain.blocksAt(x, y);
 }
@@ -89,8 +89,9 @@ function canEnter(grid, seen, rect) {
 
 /**
  * Check a map. Returns { problems: [{ level: 'error' | 'warn', msg, x, y }],
- * open, closed } where open / closed are the cells reachable from the spawn
- * with every rope down / up (the editor shades them).
+ * open, closed, grid } where open / closed are the cells reachable from the
+ * spawn with every rope down / up (the editor shades them), and grid is the
+ * walk grid with every rope down.
  */
 export function checkMap(map, terrain) {
   const problems = [];

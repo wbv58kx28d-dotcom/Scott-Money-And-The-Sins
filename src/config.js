@@ -50,7 +50,7 @@ export const LAYOUT = {
   // art", CLAUDE.md §8.1). Set back to 1 when the new file lands.
   scottScale: 1.3,
 
-  // Lunges move toward the opponent. All art faces left.
+  // Lunges move toward the opponent: $cott up-left, the enemy down-right.
   scottLunge: { dx: -56, dy: -40 },
   enemyLunge: { dx: 56, dy: 40 },
 

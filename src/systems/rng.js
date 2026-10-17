@@ -33,6 +33,15 @@ export function createRng(seed) {
     /** True with probability p. */
     chance: (p) => next() < p,
     pick: (list) => list[Math.floor(next() * list.length)],
+    /** A shuffled copy of a list (Fisher-Yates). */
+    shuffled(list) {
+      const out = [...list];
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = api.int(0, i);
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    },
     /** Pick from a list using each item's numeric `weight` (or weightOf(item)). */
     weighted(list, weightOf = (item) => item.weight) {
       const total = list.reduce((sum, item) => sum + weightOf(item), 0);

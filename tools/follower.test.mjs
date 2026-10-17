@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 import { Trail, facingOf, moodOf, followerLines } from '../src/systems/follower.js';
 import { FOLLOWERS, MAX_JEALOUSY } from '../src/data/followers.js';
+import { EMOTES } from '../src/ui/emote.js';
 import { MAPS } from '../src/data/maps/index.js';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -91,9 +92,10 @@ test("Lil' Turnt's moods climb with jealousy, and each has an emote and lines", 
   }
   assert.equal(moodOf(moods, MAX_JEALOUSY).id, moods.at(-1).id);
   for (const m of moods) {
-    assert.ok(['heart', 'note', 'dots', 'anger', 'bang'].includes(m.emote), m.id);
+    assert.ok(EMOTES.includes(m.emote), m.id);
     assert.ok(m.lines.length > 0, m.id);
   }
+  for (const e of FOLLOWERS.lilturnt.idle.emotes) assert.ok(EMOTES.includes(e), e);
 });
 
 test('her lines: the intro first, then whoever is nearby, else the map or her mood', () => {

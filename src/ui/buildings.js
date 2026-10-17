@@ -7,7 +7,7 @@
 const P = 4;
 const OUTLINE = 0x120d1c;
 
-// Walls (left, right), roof, window lit/dark, and how tall each tier stands (px).
+// Walls (left, right), roof, and window lit/dark.
 const LOOKS = {
   machiya: { left: 0x6a4a34, right: 0x52382a, roof: 0x3a3d4a, lit: 0xffd98a, dark: 0x3b2e28, roofPeak: true },
   apartment: { left: 0xb8a888, right: 0x968a70, roof: 0xd8ccb0, lit: 0xffd98a, dark: 0x4a4a5a },
@@ -20,7 +20,7 @@ const LOOKS = {
   glass: { left: 0x5aa0b8, right: 0x46829a, roof: 0x7fc4d8, lit: 0xe8fbff, dark: 0x3a7a90 },
 };
 export const STANDIN_HEIGHT = { low: 40, mid: 76, high: 150, trophy: 230 };
-export const STANDIN_SIZE = { w: 128, pad: 40 }; // texture is w × (height + pad + plot)
+export const STANDIN_SIZE = { w: 128, pad: 40, plot: 36 }; // texture is w × (height + pad + plot)
 
 /** A small deterministic hash, so a building's lit windows stay put. */
 function lit(seed, i) {
@@ -30,12 +30,12 @@ function lit(seed, i) {
 
 /**
  * Draw a stand-in into graphics `g`, in a texture of STANDIN_SIZE.w ×
- * (h + pad + 36): plot at the bottom, building `h` px tall above it.
+ * (h + pad + plot): plot at the bottom, building `h` px tall above it.
  */
 export function drawIsoBuilding(g, kind, { h, seed = 1, trophy = false }) {
   const look = LOOKS[kind] ?? LOOKS.apartment;
   const W = STANDIN_SIZE.w;
-  const H = h + STANDIN_SIZE.pad + 36;
+  const H = h + STANDIN_SIZE.pad + STANDIN_SIZE.plot;
   const cx = W / 2;
   // The plot: a diamond 112 × 56 at the bottom, with a slab edge.
   const plotY = H - 32; // plot center

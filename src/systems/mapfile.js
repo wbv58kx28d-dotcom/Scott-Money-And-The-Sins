@@ -50,7 +50,7 @@ export function mergeMap(layout, content = {}) {
 
 // Single quotes like the rest of the code, unless the string has one.
 const quote = (v) => (v.includes("'") || v.includes('\\') ? JSON.stringify(v) : `'${v}'`);
-const num = (v) => (Number.isInteger(v) ? String(v) : String(Math.round(v)));
+const num = (v) => String(Math.round(v));
 
 /** One object on one line, keys in a fixed order, so diffs stay readable. */
 function inline(obj, order) {
@@ -103,5 +103,5 @@ ${layout.terrain.map((r) => `    '${r}',`).join('\n')}
 `;
 }
 
-/** A deep copy of a layout (for undo snapshots and drafts). */
+/** A deep copy of a layout, or of one thing in it. */
 export const cloneLayout = (layout) => JSON.parse(JSON.stringify(layout));

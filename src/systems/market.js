@@ -83,10 +83,12 @@ export function swingReturn({ prices, legs }) {
   return legs.filter((l) => l.dir > 0).reduce((m, l) => (m * prices[l.end]) / prices[l.start], 1);
 }
 
-/** Should $cott be holding at this tick? True inside an up leg (the debug hint uses it). */
+/** The leg a tick falls in (the last one past the end). */
+const legAt = (legs, t) => legs.find((l) => t >= l.start && t < l.end) ?? legs[legs.length - 1];
+
+/** Should $cott be holding at this tick? True inside an up leg. */
 export function shouldHold({ legs }, tick) {
-  const leg = legs.find((l) => tick >= l.start && tick < l.end) ?? legs[legs.length - 1];
-  return leg.dir > 0;
+  return legAt(legs, tick).dir > 0;
 }
 
 /**
@@ -96,7 +98,7 @@ export function shouldHold({ legs }, tick) {
  */
 export function hintHold(market, tick, { lead = 10, minRun = 14 } = {}) {
   const t = tick + lead;
-  const leg = market.legs.find((l) => t >= l.start && t < l.end) ?? market.legs[market.legs.length - 1];
+  const leg = legAt(market.legs, t);
   return leg.end - t < minRun ? null : leg.dir > 0;
 }
 

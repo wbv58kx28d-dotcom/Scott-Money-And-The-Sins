@@ -1,9 +1,9 @@
 // $cott's property ladder: an isometric city neighborhood of homes,
 // apartments, and towers, some listed for sale. He starts with enough for a
-// starter home, the bank lends half of anything but the trophy, and the clock
+// starter home, the bank lends 60% of anything but the trophy, and the clock
 // runs a month every few seconds. Each kind of property (the village, midtown,
 // the skyline) moves in trends a few months long; a chip per kind shows where
-// it's heading a month before each trend starts, and headlines on the ticker
+// it's heading half a month before each trend starts, and headlines on the ticker
 // are flavor that match the big ones. Lots update one at a time, each on its
 // own day of the month, so changes ripple across the map. Meanwhile the city keeps changing:
 // cranes go up on empty lots and open as new listings, the wrecking ball takes
@@ -28,7 +28,7 @@
 import { GAME_W, GAME_H, COLORS, LAYOUT } from '../config.js';
 import { REALTY, CITIES, TIERS } from '../data/realty.js';
 import {
-  generateSession, createAccount, canBuy, buyUnit, sellUnit, saleProceeds, downPayment, gradeFor, readerMoves,
+  generateSession, createAccount, canBuy, buyUnit, sellUnit, saleProceeds, downPayment, gradeFor,
   price, lotState, variantAt, settle, trendAt, standingAt,
 } from '../systems/realty.js';
 import { rng } from '../systems/rng.js';
@@ -36,7 +36,7 @@ import { DEBUG } from '../systems/debug.js';
 import { Audio } from '../systems/audio.js';
 import { Button } from '../ui/button.js';
 import { StatBar } from '../ui/bars.js';
-import { drawCard, drawRibbonPanel, CARD_INSET, RIBBON_GOLD } from '../ui/ribbon.js';
+import { drawCard, drawRibbonPanel, hex, CARD_INSET, RIBBON_GOLD } from '../ui/ribbon.js';
 import { label, body, fitWidth } from '../ui/text.js';
 import { drawIsoBuilding, STANDIN_HEIGHT, STANDIN_SIZE } from '../ui/buildings.js';
 import { pixelIcon } from '../ui/phoneIcons.js';
@@ -45,8 +45,8 @@ const KEY = 'Realty';
 
 const UP = 0x3ddc84;
 const DOWN = 0xff5c5c;
-const UP_CSS = '#7cf29c';
-const DOWN_CSS = '#ff6b6b';
+const UP_CSS = COLORS.textGood;
+const DOWN_CSS = COLORS.textBad;
 const NEWS = 0xff8c42;
 const TAGS = {
   breaking: { text: 'BREAKING', bg: '#ff8c42', color: '#ffffff' },
@@ -116,12 +116,12 @@ export class RealtyScene extends Phaser.Scene {
     this.phase = 'ready'; // ready | open | closed
     this.perMonth = this.session.perMonth;
     this.month = 0; // the current tick: the clock, rounded down
-    this.t = 0; // the clock, in months
+    this.t = 0; // the clock, in ticks
     this.selected = null; // a lot index
     this.result = null;
     this.crawl = null;
     this.queue = []; // ticker items waiting: { text, kind }
-    this.seenNews = [];
+    this.lastHeadline = null; // rerun on the ticker between filler
     this.fillerIndex = 0;
     // Each lot updates on its own day of the month (a cosmetic shuffle), so
     // changes ripple across the map one building at a time.
@@ -416,7 +416,7 @@ export class RealtyScene extends Phaser.Scene {
   standIn(kind, tier, variant, trophy) {
     const key = `realty_standin_${kind}_${trophy ? 'trophy' : tier}_${variant}`;
     const h = trophy ? STANDIN_HEIGHT.trophy : kind === 'site' ? 40 : STANDIN_HEIGHT[tier] + (variant - 1) * 12;
-    this.bake(key, STANDIN_SIZE.w, h + STANDIN_SIZE.pad + 36, (g) => drawIsoBuilding(g, kind === 'site' ? 'condo' : kind, { h, seed: variant + 1, trophy }));
+    this.bake(key, STANDIN_SIZE.w, h + STANDIN_SIZE.pad + STANDIN_SIZE.plot, (g) => drawIsoBuilding(g, kind === 'site' ? 'condo' : kind, { h, seed: variant + 1, trophy }));
     return key;
   }
 
@@ -440,18 +440,25 @@ export class RealtyScene extends Phaser.Scene {
   openMarket() {
     this.phase = 'open';
     Audio.sfx('buff');
-    this.nextCrawl();
+    // The opening trends' chips are already up; their headlines air as the bell rings.
+    this.headlinesAt(0);
+    if (!this.crawl) this.nextCrawl();
     this.refresh();
   }
 
-  /** The calendar turns: chips, flavor headlines, and development bookings. */
-  monthTick(m) {
+  /** Headlines only for the big trends, as flavor, when their chips flip. */
+  headlinesAt(m) {
     const { session, cfg } = this;
-    this.month = m;
-    // Headlines only for the big trends, as flavor.
     for (const e of session.events) {
       if (e.announce === m && e.headline && Math.abs(e.fx[e.tier]) >= cfg.trend.strong) this.news(e.headline, 'breaking');
     }
+  }
+
+  /** The clock reaches a new tick: chips, flavor headlines, and development bookings. */
+  monthTick(m) {
+    const { session } = this;
+    this.month = m;
+    this.headlinesAt(m);
     // Development: bookings when they're made (what's built shows on the map).
     for (const e of session.dev) {
       if (e.announce === m && e.type !== 'build') this.news(this.devLine(e.type, e), 'local');
@@ -474,7 +481,8 @@ export class RealtyScene extends Phaser.Scene {
     const gone = session.units.find((u) => u.lot === k && u.gone === mk);
     if (gone) {
       for (const out of settle(this.acct, session, mk, gone.id)) {
-        this.flash(this.lotViews[k], `BOUGHT OUT +${price(Math.max(0, out.proceeds))}`, '#ffd166');
+        const p = out.proceeds;
+        this.flash(this.lotViews[k], `BOUGHT OUT ${p >= 0 ? '+' : '-'}${price(Math.abs(p))}`, p >= 0 ? '#ffd166' : DOWN_CSS);
         this.news('DEVELOPER BUYS OUT $COTT MONEY. "PLEASURE DOING BUSINESS."', 'local');
         Audio.sfx('good');
       }
@@ -502,9 +510,8 @@ export class RealtyScene extends Phaser.Scene {
   }
 
   sell(u) {
-    const proceeds = sellUnit(this.acct, this.session, u, this.unitMonth(u));
-    const last = this.acct.history[this.acct.history.length - 1];
-    const profit = proceeds - (last.paid - last.loan);
+    const { paid, loan } = this.acct.owned.get(u);
+    const profit = sellUnit(this.acct, this.session, u, this.unitMonth(u)) - (paid - loan);
     Audio.sfx(profit >= 0 ? 'good' : 'bad');
     this.flash(this.lotViews[this.session.units[u].lot], `${profit >= 0 ? '+' : '-'}${price(Math.abs(profit))}`, profit >= 0 ? UP_CSS : DOWN_CSS);
     this.refresh();
@@ -530,7 +537,7 @@ export class RealtyScene extends Phaser.Scene {
     const grade = gradeFor(acct, session.months, cfg.grades);
     const worth = this.worth();
     this.result = {
-      grade: grade.id, score: Math.round((worth / acct.start) * 100) / 100, value: worth, won: this.monthOf(acct.won), city: this.city.id,
+      grade: grade.id, score: Math.round((worth / acct.start) * 100) / 100, value: worth, won: this.monthOf(acct.won),
     };
     if (acct.won !== null) this.selected = session.units[session.trophy].lot;
 
@@ -567,7 +574,7 @@ export class RealtyScene extends Phaser.Scene {
   /** Queue a ticker item. Breaking news jumps the queue and cuts in over anything but other news. */
   news(text, kind) {
     if (kind === 'breaking') {
-      this.seenNews.push(text);
+      this.lastHeadline = text;
       const firstLocal = this.queue.findIndex((q) => q.kind !== 'breaking');
       this.queue.splice(firstLocal < 0 ? this.queue.length : firstLocal, 0, { text, kind });
       Audio.sfx('crit');
@@ -582,9 +589,9 @@ export class RealtyScene extends Phaser.Scene {
     this.crawl?.text.destroy();
     let item = this.queue.shift();
     if (!item) {
-      const rerun = this.seenNews.length && this.fillerIndex % 2 === 1;
+      const rerun = this.lastHeadline && this.fillerIndex % 2 === 1;
       const text = rerun
-        ? `EARLIER: ${this.seenNews[this.seenNews.length - 1]}`
+        ? `EARLIER: ${this.lastHeadline}`
         : this.cfg.filler[Math.floor(this.fillerIndex / 2) % this.cfg.filler.length];
       this.fillerIndex += 1;
       item = { text, kind: 'filler' };
@@ -603,7 +610,7 @@ export class RealtyScene extends Phaser.Scene {
 
   update(time, delta) {
     if (this.phase !== 'open') return;
-    // The clock: the calendar turns at whole months; each lot follows on its own day.
+    // The clock turns at whole ticks; each lot follows on its own moment within the tick.
     this.t += delta / this.monthMs;
     const months = this.session.months;
     const m = Math.min(months, Math.floor(this.t));
@@ -665,7 +672,7 @@ export class RealtyScene extends Phaser.Scene {
       }
       if (!n) c.icons.push(this.ui(this.add.rectangle(c.x + c.w - 36, CHIPS.y + 25, 20, 4, 0xc8c2d8).setOrigin(0, 0.5)));
       c.g.clear().fillStyle(0x000000, 0.55).fillRect(c.x, CHIPS.y, c.w, CHIPS.h)
-        .fillStyle(Phaser.Display.Color.HexStringToColor(look.color).color, 1).fillRect(c.x, CHIPS.y, 4, CHIPS.h);
+        .fillStyle(hex(look.color), 1).fillRect(c.x, CHIPS.y, 4, CHIPS.h);
       if (animate) {
         c.text.setScale(1.2);
         this.tweens.add({ targets: c.text, scale: 1, duration: 300, ease: 'Back.easeOut' });
@@ -783,7 +790,7 @@ export class RealtyScene extends Phaser.Scene {
       const site = session.dev.find((e) => e.type === 'build' && e.lot === this.selected && m >= e.announce && m < e.at);
       if (site) {
         const u = session.units[site.unit];
-        set('CONSTRUCTION SITE', `${cfg.zones[lot.zone]}`, [`Opens in month ${Math.ceil(site.at / this.perMonth)} as ${u.name}.`, 'New builds list the day they open.']);
+        set('CONSTRUCTION SITE', `${cfg.zones[lot.zone]}`, [`Opens in month ${this.monthOf(site.at)} as ${u.name}.`, 'New builds list the day they open.']);
       } else if (st.rubble) set('RUBBLE', `${cfg.zones[lot.zone]}`, ['The wrecking ball came through.', 'Cleared for a new build.']);
       else set('EMPTY LOT', `${cfg.zones[lot.zone]}`, ['Nothing here yet.', 'Watch for cranes.']);
       return;
@@ -854,10 +861,10 @@ export class RealtyScene extends Phaser.Scene {
     if (this.phase !== 'open') return;
     const { acct, session, cfg } = this;
     const u = this.selectedUnit();
-    const m = this.selected === null ? this.month : this.lotMonth(this.selected);
     const off = (text, sub) => this.main.setText(text).setSub(sub).setAccent(0x3a3550, COLORS.textDim).setEnabled(false);
     if (this.selected === null) return off('PICK A PROPERTY', 'Tap a building on the map.');
     if (u === null) return off('NOTHING TO BUY', 'Pick a building.');
+    const m = this.lotMonth(this.selected);
     const unit = session.units[u];
     if (acct.owned.has(u)) {
       const back = saleProceeds(acct, session, u, m, cfg);
@@ -874,24 +881,6 @@ export class RealtyScene extends Phaser.Scene {
     }
   }
 
-  /** Where on screen a tap lands on this lot's building (a pixel nothing in front covers), or null. */
-  tapPoint(v) {
-    const s = v.sprite;
-    if (!s.visible) return null;
-    const cam = this.mapCam;
-    for (let fy = 0.15; fy < 0.95; fy += 0.1) {
-      for (const fx of [0.5, 0.4, 0.6, 0.3, 0.7]) {
-        const wx = Math.round(s.x - s.width / 2 + s.width * fx);
-        const wy = Math.round(s.y - s.height + s.height * fy);
-        const sx = wx - cam.scrollX + MAP.x;
-        const sy = wy - cam.scrollY + MAP.y;
-        if (sx < MAP.x + 4 || sx > MAP.x + MAP.w - 4 || sy < MAP.y + 4 || sy > MAP.y + MAP.h - 4) continue;
-        if (this.pickTag(wx, wy) === null && this.pick(wx, wy) === v.k) return { x: sx, y: sy };
-      }
-    }
-    return null;
-  }
-
   /** Where on screen to tap this lot's price tag (its center, if it's showing, frontmost there, and in view), or null. */
   tagPoint(v) {
     if (!v.tag.visible) return null;
@@ -904,18 +893,16 @@ export class RealtyScene extends Phaser.Scene {
     return this.pickTag(wx, wy) === v.k ? { x: sx, y: sy } : null;
   }
 
-  /** Read by the debug hook / smoke test: the news reader's next move, and where to tap each unit. */
+  /** Read by the debug hook / smoke test: where to tap each unit's price tag. */
   debugState() {
-    const move = this.phase === 'open' ? readerMoves(this.session, this.acct, this.month)[0] ?? null : null;
     const units = [];
     for (const v of this.lotViews) {
       const mk = this.lotMonth(v.k);
       const u = lotState(this.session, v.k, mk).unit;
       if (u === undefined) continue;
-      const at = this.tapPoint(v);
       const tag = this.tagPoint(v);
       units.push({
-        id: u, lot: v.k, x: at?.x ?? null, y: at?.y ?? null, onScreen: !!at, tagX: tag?.x ?? null, tagY: tag?.y ?? null,
+        id: u, lot: v.k, tagX: tag?.x ?? null, tagY: tag?.y ?? null,
         buyable: this.phase === 'open' && canBuy(this.acct, this.session, u, mk),
       });
     }
@@ -926,7 +913,6 @@ export class RealtyScene extends Phaser.Scene {
         scroll: { x: this.mapCam.scrollX, y: this.mapCam.scrollY },
         chips: this.chips.map((c) => c.last),
       },
-      realtyMove: move,
       realtyUnits: units,
       realtyAnswer: this.phase === 'ready' || (this.phase === 'closed' && this.main.enabled) ? this.main.text : null,
     };

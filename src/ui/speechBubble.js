@@ -18,6 +18,7 @@ import { Audio } from '../systems/audio.js';
 import { rng } from '../systems/rng.js';
 import { label } from './text.js';
 import { glyph, prewarmGlyphs } from './glyphs.js';
+import { hex } from './ribbon.js';
 
 const RIBBON = {
   fill: 0x0d0820,
@@ -93,7 +94,7 @@ export function spitBars(scene, bus, { couplet, speaker, character, side, tagCol
   const layer = scene.add.container(tip.x, tip.y).setDepth(35);
   const ox = left - tip.x;
   const oy = top - tip.y;
-  const accent = Phaser.Display.Color.HexStringToColor(tagColor).color;
+  const accent = hex(tagColor);
   const nearIndex = side === 'right' ? blocks.length - 1 : 0;
   blocks.forEach((b, i) => {
     const rect = { x: ox + b.x, y: oy + b.y, w: b.w, h: b.h };

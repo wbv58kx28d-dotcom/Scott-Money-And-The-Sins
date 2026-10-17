@@ -147,7 +147,7 @@ test('the save: Clout only goes up, posts refill after a fight, classics post on
   assert.equal(Save.clout, 120);
   for (let i = 0; i < SOCIAL.postsPerFight; i++) assert.ok(Save.usePost());
   assert.equal(Save.usePost(), false);
-  Save.refillTrades();
+  Save.refillAfterFight();
   assert.equal(Save.posts, SOCIAL.postsPerFight);
   assert.ok(Save.unlockClassic('c_lambo'));
   assert.equal(Save.unlockClassic('c_lambo'), false);
