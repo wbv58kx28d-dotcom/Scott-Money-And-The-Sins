@@ -734,7 +734,7 @@ export default class PhoneScene extends Phaser.Scene {
     const accent = APPS.find((a) => a.id === 'settings').color;
     this.header('SETTINGS', accent);
     const top = c.y + (this.flip ? 28 : 100);
-    const rowH = this.flip ? 56 : 110;
+    const rowH = this.flip ? 48 : 110;
     const gap = this.flip ? 6 : 16;
     this.button(c.x, top, c.w, rowH, Audio.muted ? 'SOUND: OFF' : 'SOUND: ON', () => {
       Audio.toggleMute();
@@ -754,7 +754,16 @@ export default class PhoneScene extends Phaser.Scene {
     this.button(c.x, top + (rowH + gap) * 2, c.w, rowH, this.flip ? 'TRY SMARTPHONE' : 'TRY FLIP PHONE', () => this.swapPhone(other), {
       accent: 0x3a3550, sub: this.flip ? 'TEST TOGGLE' : 'Test toggle while the phone is in progress.',
     });
-    const info = top + (rowH + gap) * 3 + (this.flip ? 6 : 20);
+    // Work in progress: Lil' Turnt following him around before she's recruited (data/followers.js).
+    let rows = 3;
+    if (Save.followIsTrial) {
+      const on = Save.data.tryFollow;
+      this.button(c.x, top + (rowH + gap) * rows++, c.w, rowH, on ? 'SEND TURNT HOME' : "TRY LIL' TURNT", () => {
+        Save.setTryFollow(!on);
+        this.settings();
+      }, { accent: 0x3a3550, sub: this.flip ? 'TEST TOGGLE' : on ? 'She stops following you.' : 'She follows you before she\'s recruited.' });
+    }
+    const info = top + (rowH + gap) * rows + (this.flip ? 6 : 20);
     this.text(c.x + c.w / 2, info, PHONES[this.model].name, { size: 's', align: 'center', font: 'body' });
     this.text(c.x + c.w / 2, info + (this.flip ? 16 : 36), `V${VERSION}`, { size: 's', align: 'center', font: 'body' });
   }

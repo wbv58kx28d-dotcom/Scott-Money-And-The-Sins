@@ -14,6 +14,11 @@
 // app (data/social.js), and a velvet rope (map `gates`) blocks a side area
 // until he has the Clout; its bouncer lets him through, and it stays open.
 //
+// A recruited Sin can walk behind him on his own trail, Pikachu style
+// (data/followers.js, systems/follower.js): Lil' Turnt, for now. Tap her (or
+// press TALK with nobody else around) to hear what she thinks; she gets
+// jealous when he talks to anyone else.
+//
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
 // everything in the world sits below the UI's ordinary depths. UI is created
 // inside ui(), which pins it to the screen.
@@ -35,6 +40,8 @@ import { formatClout, fillIn } from '../systems/social.js';
 import { money } from '../systems/market.js';
 import { ITEMS } from '../data/items.js';
 import { APPS } from '../data/phone.js';
+import { FOLLOWERS } from '../data/followers.js';
+import { Trail, facingOf, moodOf, followerLines } from '../systems/follower.js';
 import { PhoneBadge } from '../ui/badge.js';
 import { rng, createRng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
@@ -47,6 +54,7 @@ import { Button } from '../ui/button.js';
 import { TimingBar } from '../ui/timingBar.js';
 import { Joystick } from '../ui/joystick.js';
 import { InteractButton } from '../ui/interactButton.js';
+import { emoteBubble } from '../ui/emote.js';
 import { pixelText, pixelTextWidth, signLabel } from '../ui/pixelFont.js';
 import { drawCard, drawRibbonPanel, RIBBON_GOLD, CARD_INSET } from '../ui/ribbon.js';
 import { label, body, fitWidth, fitWrapped, snapCenter } from '../ui/text.js';
@@ -58,8 +66,12 @@ const INTEL_CSS = '#9fdcff';
 const SOCIAL_CSS = '#ff8ad8'; // social app news (unlocked posts, Clout)
 // The quiz question's card, above the menu's prompt tag.
 const QUESTION_CARD = { x: 16, y: 930, w: 688, h: 116 };
-// The tap area around an NPC's body.
+// The tap area around an NPC's body, and around the follower's (she's a kitten).
 const NPC_HIT = { w: 100, h: 140 };
+const FOLLOWER_HIT = { w: 90, h: 90 };
+// How long an emote bubble stays up, and how far over the head it floats.
+const EMOTE_MS = 1300;
+const EMOTE_GAP = 6;
 
 const worldDepth = (y) => y - WORLD_DEPTH;
 
@@ -95,6 +107,7 @@ export default class RegionScene extends Phaser.Scene {
     this.pendingNpc = null;
     this.dragging = false;
     this.lastAim = 0;
+    this.emoting = null; // the scene restarts through doors: no bubble carries over
     this.pinning = false;
     const onAdded = (obj) => {
       if (this.pinning) obj.setScrollFactor?.(0);
@@ -186,6 +199,9 @@ export default class RegionScene extends Phaser.Scene {
     cam.setBounds((map.size.w - bw) / 2, (map.size.h - bh) / 2, bw, bh);
     cam.startFollow(this.player, true, FIELD.cameraLerp, FIELD.cameraLerp);
     cam.setFollowOffset(0, FIELD.frame.h / 2);
+
+    this.follower = null;
+    this.syncFollower();
   }
 
   /**
@@ -297,6 +313,7 @@ export default class RegionScene extends Phaser.Scene {
       // listener would refresh the last visit's (destroyed) badge.
       const refresh = () => {
         this.badge.refresh();
+        this.syncFollower(); // SETTINGS can switch her on or off
         if (this.revealing) this.revealSecret(this.revealing);
       };
       this.events.on('resume', refresh);
@@ -328,6 +345,7 @@ export default class RegionScene extends Phaser.Scene {
     this.lastAim = this.time.now;
     const npc = this.npcAt(pointer.worldX, pointer.worldY);
     if (npc) this.approach(npc);
+    else if (this.followerAt(pointer.worldX, pointer.worldY)) this.talkToFollower();
     else this.walkTo(pointer.worldX, pointer.worldY);
   }
 
@@ -353,9 +371,11 @@ export default class RegionScene extends Phaser.Scene {
   interact() {
     this.talkButton.pulse(this);
     const npc = this.nearbyNpc();
-    if (!npc) return Audio.sfx('blip');
     this.stick.release();
-    this.approach(npc);
+    if (npc) return this.approach(npc);
+    // Nobody else around: the follower's always close.
+    if (this.follower) return this.talkToFollower();
+    Audio.sfx('blip');
   }
 
   /** The nearest NPC within the TALK button's range of $cott, or null. */
@@ -407,10 +427,17 @@ export default class RegionScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    this.placeEmote();
     if (this.mode !== 'explore') return;
     this.talkButton.setReady(!!this.nearbyNpc());
-    if (this.stick.active) return this.steer(delta);
-    if (!this.path.length) return;
+    if (this.stick.active) this.steer(delta);
+    else if (this.path.length) this.walkPath(delta);
+    else if (this.follower) this.follower.stillMs += delta;
+    this.moveFollower();
+  }
+
+  /** Tap-to-walk: follow the path, then leave, talk, or stop at its end. */
+  walkPath(delta) {
     let step = (FIELD.speed * delta) / 1000;
     let mx = 0;
     let my = 0;
@@ -449,6 +476,7 @@ export default class RegionScene extends Phaser.Scene {
     const v = this.stick.vector();
     if (!v) {
       if (this.player.anims.isPlaying) this.face(this.player, this.facing);
+      if (this.follower) this.follower.stillMs += delta;
       return;
     }
     const { minSpeed } = FIELD.stick;
@@ -547,6 +575,132 @@ export default class RegionScene extends Phaser.Scene {
     this.face(this.player, this.facing);
   }
 
+  // ---- The follower (data/followers.js, systems/follower.js) -------------------------
+
+  /** Bring the follower in or send her home to match the save (SETTINGS' test toggle can change it). */
+  syncFollower() {
+    const id = Save.follower;
+    if ((this.follower?.id ?? null) === id) return;
+    this.follower?.sprite.destroy();
+    this.follower = null;
+    this.clearEmote();
+    const data = FOLLOWERS[id];
+    if (!data || !this.textures.exists(data.sprite)) return;
+    walkerAnims(this, data.sprite);
+    // She starts right behind him, on the side he's facing away from (through a door, that's the doorway).
+    const trail = new Trail(data.gap, this.player, { facing: this.facing });
+    const at = trail.position();
+    const x = Phaser.Math.Clamp(at.x, 0, this.map.size.w);
+    const y = Phaser.Math.Clamp(at.y, 0, this.map.size.h);
+    trail.points[0] = { x, y };
+    const sprite = this.add.sprite(Math.round(x), Math.round(y), data.sprite).setOrigin(0.5, 1).setDepth(worldDepth(y));
+    this.face(sprite, this.facing);
+    this.follower = { id, data, trail, sprite, facing: this.facing, moving: false, stillMs: 0 };
+  }
+
+  /** She walks $cott's trail, `gap` px behind him, and pops an emote now and then when he stands still. */
+  moveFollower() {
+    const f = this.follower;
+    if (!f) return;
+    f.trail.record(this.player.x, this.player.y);
+    const at = f.trail.position();
+    const facing = facingOf(at.x - f.sprite.x, at.y - f.sprite.y);
+    if (facing) {
+      f.sprite.setPosition(at.x, at.y).setDepth(worldDepth(at.y));
+      const { view, flip } = facingFrame(facing);
+      const key = `${f.data.sprite}_walk_${view}`;
+      f.sprite.setFlipX(flip);
+      if (f.sprite.anims.currentAnim?.key !== key || !f.sprite.anims.isPlaying) f.sprite.play(key, true);
+      f.facing = facing;
+      f.moving = true;
+      f.stillMs = 0;
+      return;
+    }
+    if (f.moving) {
+      f.moving = false;
+      this.face(f.sprite, f.facing);
+    }
+    const idle = f.data.idle;
+    if (idle && f.stillMs >= idle.afterMs) {
+      f.stillMs = 0;
+      this.emote(idle.emotes[rng.int(0, idle.emotes.length - 1)]);
+    }
+  }
+
+  followerAt(x, y) {
+    const s = this.follower?.sprite;
+    return !!s && Math.abs(x - s.x) <= FOLLOWER_HIT.w / 2 && y <= s.y + 10 && y >= s.y - FOLLOWER_HIT.h;
+  }
+
+  /** Her mood right now (data/followers.js `moods`). */
+  followerMood() {
+    const f = this.follower;
+    return moodOf(f.data.moods, Save.jealousy(f.id));
+  }
+
+  /** $cott talked to someone else: she noticed. */
+  makeJealous() {
+    const f = this.follower;
+    if (!f) return;
+    Save.setJealousy(f.id, Save.jealousy(f.id) + 1);
+    this.emote(this.followerMood().emote);
+  }
+
+  /** Talk to her: they face each other, her mood pops over her head, and she says her piece. Then she's happy again. */
+  async talkToFollower() {
+    const f = this.follower;
+    this.mode = 'talk';
+    this.stick.setVisible(false);
+    this.talkButton.setVisible(false);
+    Audio.sfx('blip');
+    this.facing = facingOf(f.sprite.x - this.player.x, f.sprite.y - this.player.y) ?? this.facing;
+    this.stop();
+    const opposite = { left: 'right', right: 'left', up: 'down', down: 'up' };
+    this.face(f.sprite, opposite[this.facing]);
+    f.facing = opposite[this.facing];
+
+    const mood = this.followerMood();
+    this.emote(mood.emote);
+    const near = this.nearbyNpc()?.id ?? null;
+    const lines = followerLines(f.data, { first: Save.brag(`follower:${f.id}`), near, map: this.map.id, mood: mood.id }, (n) => rng.int(0, n - 1));
+    this.panel.setVisible(true);
+    await this.sayAll(lines.map((l) => ({ speaker: f.data.speaker, ...l })));
+    this.dialog.hide();
+    this.panel.setVisible(false);
+    if (Save.jealousy(f.id) > 0) this.emote('heart');
+    Save.setJealousy(f.id, 0);
+    f.stillMs = 0;
+    this.stick.setVisible(true);
+    this.talkButton.setVisible(true);
+    this.mode = 'explore';
+  }
+
+  // ---- Emotes (ui/emote.js) ------------------------------------------------------------
+
+  /** Pop an emote bubble over the follower's head for a moment (one at a time). */
+  emote(id) {
+    this.clearEmote();
+    const g = emoteBubble(this, id).setDepth(-1).setAlpha(0);
+    this.emoting = { id, g, until: this.time.now + EMOTE_MS };
+    this.placeEmote();
+    this.tweens.add({ targets: g, alpha: 1, duration: 120 });
+    Audio.sfx(id === 'anger' ? 'bad' : 'blip');
+  }
+
+  /** Keep the bubble over her head (she may be walking), and take it down when its time's up. */
+  placeEmote() {
+    const e = this.emoting;
+    if (!e) return;
+    const f = this.follower;
+    if (!f || this.time.now >= e.until) return this.clearEmote();
+    e.g.setPosition(Math.round(f.sprite.x), Math.round(f.sprite.y - f.data.head - EMOTE_GAP));
+  }
+
+  clearEmote() {
+    this.emoting?.g.destroy();
+    this.emoting = null;
+  }
+
   // ---- Talking, fighting, leaving -------------------------------------------------
 
   async talkTo(npc) {
@@ -589,6 +743,7 @@ export default class RegionScene extends Phaser.Scene {
     this.stick.setVisible(true);
     this.talkButton.setVisible(true);
     this.mode = 'explore';
+    this.makeJealous();
   }
 
   sayAll(lines = [], vars = null) {
@@ -792,6 +947,17 @@ export default class RegionScene extends Phaser.Scene {
       exits: this.map.exits.map((e) => ({ to: e.to, open: present(e, (id) => this.found.has(id)), tap: screen(e.x + e.w / 2, e.y + e.h / 2) })),
       secrets: this.wifiNetworks(),
       apps: APPS.filter((x) => x.gift && Save.hasApp(x.id)).map((x) => x.id),
+      follower: this.follower && {
+        id: this.follower.id,
+        x: Math.round(this.follower.sprite.x),
+        y: Math.round(this.follower.sprite.y),
+        facing: this.follower.facing,
+        moving: this.follower.moving,
+        jealousy: Save.jealousy(this.follower.id),
+        mood: this.followerMood().id,
+        tap: screen(this.follower.sprite.x, this.follower.sprite.y - 30),
+      },
+      emote: this.emoting?.id ?? null,
     };
   }
 }
