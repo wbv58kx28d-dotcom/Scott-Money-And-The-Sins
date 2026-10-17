@@ -11,8 +11,8 @@ import SCOTT from '../data/scott.js';
 import { ENEMIES, DEFAULT_ENEMY } from '../data/enemies/index.js';
 import { regionById } from '../data/regions.js';
 import { Save } from '../systems/save.js';
-import { DISS_TYPES, HIT_KINDS, TARGET_INFO } from '../data/types.js';
-import { ITEMS } from '../data/items.js';
+import { DISS_TYPES, TARGET_INFO } from '../data/types.js';
+import { ITEMS, bagLine } from '../data/items.js';
 import { STATUSES } from '../data/statuses.js';
 import { CROWD, DAMAGE } from '../data/rules.js';
 import { HIT_TEXT } from '../data/battleText.js';
@@ -24,6 +24,7 @@ import { chooseEnemyMove } from '../systems/ai.js';
 import { seedDiscovered, scoutingLine } from '../systems/intel.js';
 import { money } from '../systems/market.js';
 import { MOMENTS } from '../data/social.js';
+import { fillIn, momentPost } from '../systems/social.js';
 import { Crowd } from '../systems/crowd.js';
 import { rng } from '../systems/rng.js';
 import { Audio } from '../systems/audio.js';
@@ -36,13 +37,11 @@ import { TimingBar } from '../ui/timingBar.js';
 import { EnemyHud, ScottHud, CrowdMeter } from '../ui/hud.js';
 import { showHowTo } from '../ui/howTo.js';
 import { spitBars } from '../ui/speechBubble.js';
-import { drawRibbonPanel } from '../ui/ribbon.js';
+import { drawRibbonPanel, hex } from '../ui/ribbon.js';
 import { lunge, hitFx, reTint, wait } from '../ui/fx.js';
 import { label, body } from '../ui/text.js';
 
 const GOLD = 0xffd166;
-const fill = (template, vars) => template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
-const hexColor = (css) => Phaser.Display.Color.HexStringToColor(css).color;
 
 export default class BattleScene extends Phaser.Scene {
   constructor() {
@@ -178,9 +177,9 @@ export default class BattleScene extends Phaser.Scene {
     }
   }
 
-  say(text, speaker = null, opts) {
+  say(text, speaker = null) {
     this.phase = 'dialog';
-    return this.dialog.say(text, speaker, opts);
+    return this.dialog.say(text, speaker);
   }
 
   sayLine(line) {
@@ -303,11 +302,11 @@ export default class BattleScene extends Phaser.Scene {
     const title = `$COTT SPITS ${move.name}!${target ? ` · ${target}` : ''}`;
     const rating = await this.timing.play({ speed: move.speed, title, perfect: DEBUG.perfect });
     this.phase = 'anim';
-    this.dialog.show(`$COTT spits ${move.name}!${target ? `\nTarget: ${target}` : ''}`);
+    this.dialog.show(`$COTT MONEY spits ${move.name}!${target ? `\nTarget: ${target}` : ''}`);
     await lunge(this, this.scottChar, LAYOUT.scottLunge);
     await this.spit(scottBarsFor(def, move, target, rng.fx), 'scott');
 
-    const hit = isMic ? { ...HIT_KINDS.normal, softSpot: null } : resolveHit(enemy, move.type, target);
+    const hit = resolveHit(enemy, move.type, target); // the mic has no type: a plain hit
     const dmg = rollDamage({
       power: move.power, timingMult: rating.mult, hitMult: hit.mult,
       attacker: scott, defender: enemy, variance: DAMAGE.scottVariance, rng,
@@ -325,7 +324,7 @@ export default class BattleScene extends Phaser.Scene {
     discover(enemy, move.type, hit);
     this.enemyHud.refresh();
 
-    const msg = isMic ? null : this.hitMessage(HIT_TEXT.onEnemy, def, move.type, target, hit);
+    const msg = this.hitMessage(HIT_TEXT.onEnemy, def, move.type, target, hit);
     if (msg) await this.say(msg);
     else await wait(this, 550);
     if (isMic && enemy.ego > 0) await this.say(SCOTT.lines.micDropped);
@@ -377,7 +376,7 @@ export default class BattleScene extends Phaser.Scene {
       const ready = crowd.full;
       const affordable = SCOTT.moves.some((m) => scott.flow >= m.cost);
       const hasItems = Object.values(scott.items).some((n) => n > 0);
-      const bag = SCOTT.items.map((id) => `${ITEMS[id].short} x${scott.items[id]}`).join('  ');
+      const bag = bagLine(scott.items);
       const options = [
         { id: 'diss', text: 'DISS', sub: 'Spit some bars', accent: GOLD, textColor: '#ffd166' },
         { id: 'bag', text: 'BAG', sub: bag, accent: 0x4cc9f0, textColor: '#4cc9f0' },
@@ -416,7 +415,7 @@ export default class BattleScene extends Phaser.Scene {
           text: m.name,
           sub: `${m.type}${m.applyStatus ? ' (buff)' : ''} · ${m.cost} Flow`,
           subColor: type.color,
-          accent: hexColor(type.color),
+          accent: hex(type.color),
           enabled: flow >= m.cost,
           disabledMsg: SCOTT.lines.noFlow,
         };
@@ -443,7 +442,7 @@ export default class BattleScene extends Phaser.Scene {
         sub: soft ? 'Soft spot' : TARGET_INFO[t],
         textColor: soft ? '#ffd166' : COLORS.text,
         subColor: soft ? '#ffd166' : '#cfc3ef',
-        accent: soft ? GOLD : hexColor(type.color),
+        accent: soft ? GOLD : hex(type.color),
       };
     });
     options.push({ id: 'back', text: 'BACK' });
@@ -459,7 +458,7 @@ export default class BattleScene extends Phaser.Scene {
         text: `${item.name.toUpperCase()} x${this.scott.items[id]}`,
         sub: item.desc,
         textColor: item.color,
-        accent: hexColor(item.color),
+        accent: hex(item.color),
         enabled: this.scott.items[id] > 0,
         disabledMsg: item.emptyMsg,
       };
@@ -477,7 +476,7 @@ export default class BattleScene extends Phaser.Scene {
     if (hit.id === 'resisted') return defenderDef.resistMsg?.[type] ?? templates.resisted;
     const template = templates[hit.id];
     const text = Array.isArray(template) ? rng.fx.pick(template) : template;
-    return fill(text, {
+    return fillIn(text, {
       enemy: this.def.short,
       target,
       targetLower: target?.toLowerCase(),
@@ -508,7 +507,7 @@ export default class BattleScene extends Phaser.Scene {
     for (const line of won ? this.def.script.victory : this.def.script.defeat) await this.sayLine(line);
     this.dialog.hide();
     if (won && this.regionId) Save.clearRegion(this.regionId);
-    // A win pays out (full on a first clear, less on a rematch); any fight reopens the market.
+    // A win pays out (full on a first clear, less on a rematch); any fight refills Stonks trades and Y posts.
     const reward = this.def.reward ?? {};
     this.cashWon = won ? (this.firstClear ? reward.cash : reward.rematch) ?? 0 : 0;
     if (this.cashWon) Save.earn(this.cashWon);
@@ -516,11 +515,9 @@ export default class BattleScene extends Phaser.Scene {
     this.cloutWon = won ? (this.firstClear ? reward.clout : reward.cloutRematch) ?? 0 : 0;
     if (this.cloutWon) Save.addClout(this.cloutWon);
     if (won && this.firstClear && this.cloutWon) {
-      const likes = this.cloutWon * 24;
-      Save.addMine({
-        text: fill(MOMENTS.fight, { enemy: this.def.name }), tag: null, gain: this.cloutWon, label: 'BIG MOMENT',
-        likes, reposts: Math.round(likes * 0.2), replies: Math.round(likes * 0.05), reactions: [{ handle: '@apestrong', text: 'he is SO back' }],
-      });
+      Save.addMine(momentPost(fillIn(MOMENTS.fight, { enemy: this.def.name }), this.cloutWon, this.cloutWon * 24, {
+        reactions: [{ handle: '@apestrong', text: 'he is SO back' }],
+      }));
     }
     Save.refillTrades();
     this.showEndScreen(won);
@@ -534,7 +531,7 @@ export default class BattleScene extends Phaser.Scene {
       color: won ? '#ffd166' : '#ff5c8a',
       strokeThickness: 12,
     }).setOrigin(0.5).setDepth(51);
-    const text = fill(screen.body, {
+    const text = fillIn(screen.body, {
       soft: this.enemy.discovered.softSpots.size, softTotal: this.def.softSpots.length, cash: money(this.cashWon), clout: this.cloutWon,
     });
     body(this, GAME_W / 2, 444, text, 44, { color: '#f2eaff', align: 'center', wordWrap: { width: 632 } })

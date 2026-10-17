@@ -27,6 +27,7 @@ import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { signLabel } from '../ui/pixelFont.js';
 import { Button } from '../ui/button.js';
 import { label, body, fitWidth } from '../ui/text.js';
+import { hex } from '../ui/ribbon.js';
 
 const TOP = 112; // the top bar
 const BOTTOM = 1000; // the tool panel starts here
@@ -435,7 +436,7 @@ export default class EditorScene extends Phaser.Scene {
     if (this.tab !== 'PAINT') return;
     const { i, j } = this.cornerAt(w);
     const cell = this.terrain.cell;
-    const color = Phaser.Display.Color.HexStringToColor(this.terrain.tileset.terrains[this.paintWith].color).color;
+    const color = hex(this.terrain.tileset.terrains[this.paintWith].color);
     g.lineStyle(3, 0xffffff, 0.9).strokeCircle(i * cell, j * cell, Math.max(8, (this.brush - 0.5) * cell));
     g.fillStyle(color, 0.5).fillCircle(i * cell, j * cell, 8);
   }
@@ -632,7 +633,7 @@ export default class EditorScene extends Phaser.Scene {
     terrains.forEach(([code, t], i) => {
       const x = 8 + i * (w + gap);
       const on = code === this.paintWith;
-      const color = Phaser.Display.Color.HexStringToColor(t.color).color;
+      const color = hex(t.color);
       const g = this.add.graphics();
       g.fillStyle(color, 1).fillRoundedRect(x, ys - 40, w, 80, 12);
       g.lineStyle(on ? 6 : 2, on ? SEL : 0x000000, 1).strokeRoundedRect(x, ys - 40, w, 80, 12);

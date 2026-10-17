@@ -23,7 +23,7 @@ import { money, pct } from '../systems/market.js';
 import trade from '../minigames/trade.js';
 import realty from '../minigames/realty.js';
 import social from './SocialScene.js';
-import { formatClout, fillIn } from '../systems/social.js';
+import { formatClout, fillIn, momentPost } from '../systems/social.js';
 import { SOCIAL, MOMENTS } from '../data/social.js';
 import { socialNews } from '../ui/badge.js';
 import { REALTY, CITIES } from '../data/realty.js';
@@ -459,10 +459,7 @@ export default class PhoneScene extends Phaser.Scene {
   brag(text, gain, tag) {
     if (!gain) return;
     Save.addClout(gain);
-    const likes = gain * rng.int(18, 30);
-    Save.addMine({
-      text, tag, gain, label: 'BIG MOMENT', likes, reposts: Math.round(likes * 0.2), replies: Math.round(likes * 0.05), reactions: [],
-    });
+    Save.addMine(momentPost(text, gain, gain * rng.int(18, 30), { tag }));
   }
 
   // ---- STONKS ---------------------------------------------------------------------------

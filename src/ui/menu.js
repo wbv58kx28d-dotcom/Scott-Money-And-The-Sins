@@ -53,6 +53,9 @@ export class Menu {
           enabled: item.enabled !== false,
           size,
           onPress: () => {
+            // Two fingers can press two buttons at once: only the first counts (the second
+            // would clear whatever menu the first one's answer put up next).
+            if (!this.buttons.includes(button)) return;
             this.clear();
             resolve(item.id);
           },

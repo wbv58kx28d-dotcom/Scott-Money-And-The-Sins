@@ -1,6 +1,9 @@
 // Battle items (CLAUDE.md §5.8). `perFight` is how many $cott starts each
 // fight with. Using an item takes his turn.
 
+/** What's in the bag, for a HUD line: "BREW x2  VOICEMAIL x1". */
+export const bagLine = (counts) => Object.entries(counts).map(([id, n]) => `${ITEMS[id].short} x${n}`).join('  ');
+
 export const ITEMS = {
   coldBrew: {
     id: 'coldBrew',

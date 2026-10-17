@@ -4,6 +4,9 @@
 
 export const RIBBON_FILL = 0x0d0820;
 export const RIBBON_GOLD = 0xffd166;
+
+/** A CSS color ('#ffd166') as a number for Graphics (0xffd166). */
+export const hex = (css) => Phaser.Display.Color.HexStringToColor(css).color;
 const NEUTRAL = 0x8a80a8;
 const DISABLED_EDGE = 0x4a3a7a;
 const CARD_SKEW = 12;

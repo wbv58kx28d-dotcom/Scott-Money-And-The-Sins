@@ -5,9 +5,8 @@ import { GAME_W, GAME_H, COLORS } from '../config.js';
 import { DISS_TYPES } from '../data/types.js';
 import { HOW_TO } from '../data/battleText.js';
 import { label, body } from './text.js';
-import { drawCard, RIBBON_GOLD } from './ribbon.js';
+import { drawCard, hex, RIBBON_GOLD } from './ribbon.js';
 
-const hex = (css) => Phaser.Display.Color.HexStringToColor(css).color;
 
 export function showHowTo(scene, onClose) {
   const layer = scene.add.container(0, 0).setDepth(70);

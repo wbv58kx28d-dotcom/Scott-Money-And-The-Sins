@@ -36,7 +36,7 @@ import { DEBUG } from '../systems/debug.js';
 import { Audio } from '../systems/audio.js';
 import { Button } from '../ui/button.js';
 import { StatBar } from '../ui/bars.js';
-import { drawCard, drawRibbonPanel, CARD_INSET, RIBBON_GOLD } from '../ui/ribbon.js';
+import { drawCard, drawRibbonPanel, hex, CARD_INSET, RIBBON_GOLD } from '../ui/ribbon.js';
 import { label, body, fitWidth } from '../ui/text.js';
 import { drawIsoBuilding, STANDIN_HEIGHT, STANDIN_SIZE } from '../ui/buildings.js';
 import { pixelIcon } from '../ui/phoneIcons.js';
@@ -672,7 +672,7 @@ export class RealtyScene extends Phaser.Scene {
       }
       if (!n) c.icons.push(this.ui(this.add.rectangle(c.x + c.w - 36, CHIPS.y + 25, 20, 4, 0xc8c2d8).setOrigin(0, 0.5)));
       c.g.clear().fillStyle(0x000000, 0.55).fillRect(c.x, CHIPS.y, c.w, CHIPS.h)
-        .fillStyle(Phaser.Display.Color.HexStringToColor(look.color).color, 1).fillRect(c.x, CHIPS.y, 4, CHIPS.h);
+        .fillStyle(hex(look.color), 1).fillRect(c.x, CHIPS.y, 4, CHIPS.h);
       if (animate) {
         c.text.setScale(1.2);
         this.tweens.add({ targets: c.text, scale: 1, duration: 300, ease: 'Back.easeOut' });

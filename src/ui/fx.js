@@ -60,8 +60,7 @@ export function hitFx(scene, character, battler, dmg, hit) {
     callback: () => {
       n += 1;
       if (n % 2) character.sprite.setTintFill(0xffffff);
-      else reTint(character, battler);
-      if (n >= 6) reTint(character, battler);
+      else reTint(character, battler); // the last flash (n = 6) ends on the real tint
     },
   });
   if (big) scene.cameras.main.shake(hit.id === 'crit' ? 320 : 220, hit.id === 'crit' ? 0.02 : 0.012);
