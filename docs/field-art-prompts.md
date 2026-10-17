@@ -1,6 +1,8 @@
 # Field art: prompts and tools
 
-Starter prompts and a workflow for the walkable-region art (`CLAUDE.md` §6.6, §8.4): walking sprites, the painted ground, and props. The look to aim for is *Chained Echoes*: a steep 3/4 top-down view, crisp 16-bit-style pixels, bright hue-shifted color.
+Starter prompts and a workflow for the walkable-region art (`CLAUDE.md` §6.6, §8.4): walking sprites, ground tiles, and props. The look to aim for is *Chained Echoes*: a steep 3/4 top-down view, crisp 16-bit-style pixels, bright hue-shifted color.
+
+> **The ground is no longer one painted image.** It's PixelLab terrain tiles, placed cell by cell in the map editor (`CLAUDE.md` §6.11) and drawn by the game. Prompt 3 (a painted ground) and the layout guides in `docs/art/` (`start-ground.png`, `start-walkmask.png`, `start-layout.png`) predate that and are kept only for reference: a painted ground can't be used as-is anymore. For a new region's ground, make a tileset (see "Ground and props" below).
 
 ## Files in `docs/art/`
 
@@ -12,7 +14,7 @@ Starter prompts and a workflow for the walkable-region art (`CLAUDE.md` §6.6, �
 | `field-sheet-template.png` | The walker sheet grid: 5 columns × 3 rows of 96×144 frames. The red line is the feet; the blue line is the head height (~126 px). |
 | `field-sheet-example.png` | The placeholder $cott sheet in the game now: same grid, filled in. |
 
-Keep the layout and the game's positions for props and characters stay valid. A different layout is fine too; the map data just gets redone to match.
+(Historical: these guides matched the swamp's first, shape-based layout. The live layout is `src/data/maps/start.layout.js`; open it in the map editor to see it.)
 
 ## Which tool for what
 
