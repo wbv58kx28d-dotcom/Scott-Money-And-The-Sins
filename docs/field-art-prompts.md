@@ -50,7 +50,7 @@ PixelLab characters, for adding animations later (a talk pose, say): $cott is `9
 
 ### Ground and props (how the Subreddit Swamps was made)
 
-- **Ground:** three standard (not pro) PixelLab top-down tilesets at 16 px, chained through the grass base tile so the grass matches: water↔grass, dirt↔grass, grass↔reeds. The pro tilesets came out flat and striped. `tools/region-art/compose.py <region>` places them by the map's `placeholder` shapes (pools, path, clearing, border), tones them down to sit under the props (`art.json`), scatters 16 px decals from one `create_image_pro` call (64 candidates), lays the boardwalk, and writes `base.webp` and `walk.png`. Sources live in `tools/region-art/<region>/`.
+- **Ground:** three standard (not pro) PixelLab top-down tilesets at 16 px, chained through the grass base tile so the grass matches: water↔grass, dirt↔grass, grass↔reeds. The pro tilesets came out flat and striped. `tools/region-art/tileset.py swamp` tones them down to sit under the props (`art.json`) and packs them, the 16 px decals (from one `create_image_pro` call, 64 candidates), and the boardwalk into `assets/regions/swamp/` for the game, which draws each cell from the map layout's terrain grid (CLAUDE.md §6.11). Shape the ground in the map editor. Sources live in `tools/region-art/swamp/`.
 - **Props:** `create_image_pro` with $cott's idle frame as the style image (outline, detail, shading), at the art size you want (a cypress is 96×128). Put the picks in `tools/region-art/props/<texture key>.png` and run `tools/region-art/props.py`. Sign boards need to be wide (72×48) or the in-game label shrinks to nothing. The velvet rope (`prop_rope`, 64×40) and Wendy's lounge chair (`prop_lounge`, 72×48) came from the same recipe with the sign as the style reference; `prop_rope_open` is the rope sprite with the rope unhooked by hand (it hangs from the left post).
 
 ## Prompts
@@ -156,8 +156,7 @@ Finished files go here, under the names the game already uses. Each one replaces
 |---|---|---|
 | $cott walker sheet | `assets/field/field_scott.png` | 480×432: 5×3 frames of 96×144, in the template's layout |
 | Derek walker sheet | `assets/field/field_derek.png` | Same grid. Fill only the idle column (down and left) and leave the rest blank. |
-| Ground | `assets/regions/start/base.webp` | Any portrait size; the map data gets fit to it |
-| Walk mask | `assets/regions/start/walk.png` | White is walkable; any size at the ground's aspect ratio |
+| Ground tiles | `tools/region-art/<set>/tiles/`, then `tileset.py <set>` | PixelLab top-down Wang tilesets, one per terrain pair; the ground itself is painted in the map editor (CLAUDE.md §6.11) |
 | Props | `assets/props/prop_cypress.png`, `prop_snag.png`, `prop_sign.png`, `prop_setup.png`, `prop_tent.png` | One prop per file, trimmed, with feet at the bottom center. Extra variants (a second cypress, reeds) are welcome; they get new names. |
 
 All of these use the same cleanup as the battle sprites: a true pixel grid, the shared palette, and a dark outline of 1 art pixel on characters and props. Ground and props use 3 screen px per art pixel. Walker sheets use 2 (48×72 art pixels per frame), so characters aren't chibi; see `CLAUDE.md` §8.4.

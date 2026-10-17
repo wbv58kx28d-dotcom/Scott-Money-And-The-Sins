@@ -39,7 +39,8 @@ export default class PreloadScene extends Phaser.Scene {
       console.info(`[$cott] using placeholders for missing art: ${this.missing.join(', ')}`);
     }
 
-    if (DEBUG.battle) this.scene.start('Battle', { enemy: DEBUG.battle });
+    if (DEBUG.edit) this.scene.start('Editor', { id: DEBUG.edit });
+    else if (DEBUG.battle) this.scene.start('Battle', { enemy: DEBUG.battle });
     else if (DEBUG.region) this.scene.start('Region', { region: DEBUG.region });
     else if (DEBUG.enabled && !DEBUG.title) this.scene.start('Overworld');
     else this.scene.start('Title');

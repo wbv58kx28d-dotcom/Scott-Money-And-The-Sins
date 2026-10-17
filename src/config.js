@@ -103,9 +103,10 @@ export const OUTLINE_PX = 3;
 // Walkable regions (scenes/RegionScene.js, CLAUDE.md §6.6, §8.4).
 export const FIELD = {
   frame: { w: 96, h: 144 }, // one frame of a walker sprite sheet; feet at the bottom center
-  artPx: 5, // screen px per art pixel in the placeholder region art
+  artPx: 5, // screen px per art pixel in the placeholder walkers and props (when art is missing)
   cell: 10, // walk-grid cell, in world px
   clearance: 2, // cells kept free between $cott's feet and a wall
+  npcBlock: { w: 70, h: 30 }, // an NPC's own footprint, centered on the feet
   speed: 320, // walking speed, px per second
   walkFps: 8,
   talkRange: 110, // $cott stops this close to an NPC to talk

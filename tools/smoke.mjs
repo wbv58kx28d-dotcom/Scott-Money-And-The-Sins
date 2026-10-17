@@ -644,6 +644,58 @@ async function main() {
       await page.context().close();
     }
 
+    // 5c. The map editor: paint, add an NPC, undo, check, grow, export, playtest, and back.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&canvas=1&fast=1&edit=start`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Editor', null, { timeout: 20_000 });
+      await sleep(600);
+      const ed = async () => (await state(page)).editor;
+      const press = async (text) => {
+        const b = (await state(page)).buttons.find((x) => x.text === text && x.enabled);
+        if (!b) throw new Error(`editor: no "${text}" to press`);
+        await tapGame(page, b.x, b.y);
+        await sleep(300);
+      };
+      const before = await ed();
+      if (before.dirty || before.cols !== 34) failures.push(`editor: should open the saved swamp (${JSON.stringify({ dirty: before.dirty, cols: before.cols })})`);
+      await page.screenshot({ path: path.join(SHOTS, '19-editor.png') });
+      // PAINT is the starting tool, with WATER picked: paint a stroke across the middle of the view.
+      await touchDrag(page, { x: 200, y: 500 }, { x: 520, y: 520 }, 200);
+      await sleep(300);
+      let e = await ed();
+      if (!e.dirty || JSON.stringify(e.terrain) === JSON.stringify(before.terrain)) failures.push('editor: a paint stroke should change the terrain');
+      await press('ADD');
+      await press('NPC');
+      e = await ed();
+      if (e.counts.npcs !== before.counts.npcs + 1 || e.tab !== 'SELECT') failures.push(`editor: ADD > NPC should add one and select it (${JSON.stringify(e.counts)})`);
+      await press('UNDO');
+      if ((await ed()).counts.npcs !== before.counts.npcs) failures.push('editor: UNDO should take the NPC back out');
+      await press('CHECK');
+      const notes = (await ed()).problems;
+      // The water stroke across the middle cut Derek's camp off: CHECK should say so.
+      if (!notes.some((n) => /^error: DEREK can't be reached/.test(n))) failures.push(`editor: CHECK should catch the stroke cutting Derek off (${JSON.stringify(notes)})`);
+      await page.screenshot({ path: path.join(SHOTS, '19b-editor-check.png') });
+      await press('MAP');
+      await press('+ RIGHT');
+      if ((await ed()).cols !== 38) failures.push('editor: + RIGHT should grow the map 4 cells');
+      await press('EXPORT');
+      e = await ed();
+      if (!/^\/\/ Region 'start'[\s\S]*export default \{[\s\S]*cols: 38,/.test(e.export ?? '')) failures.push('editor: EXPORT should write the layout file');
+      await press('PLAYTEST');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Region', null, { timeout: 10_000 }).catch(() => failures.push('editor: PLAYTEST should open the region'));
+      await sleep(600);
+      await page.screenshot({ path: path.join(SHOTS, '19c-editor-playtest.png') });
+      await press('EDIT');
+      await page.waitForFunction(() => window.__smm.state().scene === 'Editor', null, { timeout: 10_000 }).catch(() => failures.push('editor: EDIT should come back from the playtest'));
+      e = await ed();
+      if (e && (e.cols !== 38 || !e.dirty)) failures.push('editor: the draft should survive a playtest');
+      console.log(`editor: painted, added and undid an NPC, CHECK listed ${notes.length} notes, grew to ${e?.cols} cols, exported, playtested, came back`);
+      failures.push(...errors.map((x) => `editor: ${x}`));
+      await page.context().close();
+    }
+
     // 6. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
     {
       const errors = [];

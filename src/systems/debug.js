@@ -16,6 +16,8 @@
 //   &phone=smart         preset the phone model: flip or smart (in memory only)
 //   &title=1             show the title screen anyway (to test CONTINUE / START FRESH)
 //   &speed=4             run minigame clocks (day trade, property ladder) 4× faster
+//   &edit=start          open the map editor on that region's map (CLAUDE.md §6.11);
+//                        progress stays in memory while you playtest
 //   &canvas=1            use the Canvas renderer instead of WebGL (fast without a GPU)
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
@@ -51,5 +53,6 @@ export const DEBUG = Object.freeze({
   clout: enabled && /^\d+$/.test(params.get('clout') ?? '') ? Number(params.get('clout')) : null,
   title: flag('title'),
   canvas: flag('canvas'),
+  edit: enabled ? params.get('edit') : null,
   speed: enabled && /^\d+(\.\d+)?$/.test(params.get('speed') ?? '') ? Math.max(0.1, Number(params.get('speed'))) : 1,
 });

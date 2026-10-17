@@ -66,3 +66,17 @@ export function pixelText(scene, x, y, str, { px = 2, color = '#2a1a10' } = {}) 
   }
   return scene.add.image(x, y, key).setOrigin(0, 0);
 }
+
+/**
+ * A sign prop's lettering (map prop `label`), painted on the board ~59% up
+ * from the feet, on the sign's own 2 px art grid so it doesn't shimmer when
+ * the camera moves. `img` is the sign's image (feet origin). Returns the text image.
+ */
+export function signLabel(scene, p, img) {
+  const px = pixelTextWidth(p.label, 2) <= img.width - 22 ? 2 : 1;
+  const left = p.x - img.width / 2;
+  const onGrid = (v, origin) => origin + Math.round((v - origin) / px) * px;
+  const x = onGrid(p.x - pixelTextWidth(p.label, px) / 2, left);
+  const y = onGrid(p.y - img.height * 0.59 - (5 * px) / 2, p.y - img.height);
+  return pixelText(scene, x, y, p.label, { px });
+}

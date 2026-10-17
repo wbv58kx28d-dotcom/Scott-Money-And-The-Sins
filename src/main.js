@@ -14,6 +14,7 @@ import { TradeScene } from './minigames/trade.js';
 import { RealtyScene } from './minigames/realty.js';
 import { SocialScene } from './scenes/SocialScene.js';
 import { PostScene } from './minigames/post.js';
+import EditorScene from './scenes/EditorScene.js';
 import { DEBUG } from './systems/debug.js';
 
 const FONT_TIMEOUT_MS = 2500;
@@ -45,6 +46,6 @@ waitForFonts().then(() => {
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { activePointers: 2 }, // a thumb on the region joystick plus a press on the TALK button
     // Overlays (the phone, minigames) are listed last so they draw on top.
-    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene, PhoneScene, TradeScene, RealtyScene, SocialScene, PostScene],
+    scene: [BootScene, PreloadScene, TitleScene, OverworldScene, RegionScene, BattleScene, EditorScene, PhoneScene, TradeScene, RealtyScene, SocialScene, PostScene],
   });
 });
