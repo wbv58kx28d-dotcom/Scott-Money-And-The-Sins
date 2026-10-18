@@ -21,7 +21,10 @@
 // has an opinion on, she sometimes barks a line in a bubble over her head.
 //
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
-// everything in the world sits below the UI's ordinary depths. UI is created
+// everything in the world sits below the UI's ordinary depths. The map's look
+// (data/looks.js) grades and lights it, with shadows under everyone (ui/atmosphere.js);
+// outdoors the light follows the time of day, and the weather comes and goes.
+// The clock runs while he's in a region (not while the phone's open). UI is created
 // inside ui(), which pins it to the screen.
 
 import { FIELD, LAYOUT, GAME_W, GAME_H } from '../config.js';
@@ -48,6 +51,9 @@ import { rng, createRng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
 import { bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
+import { Atmosphere } from '../ui/atmosphere.js';
+import { LOOKS, DEFAULT_LOOK, DAY } from '../data/looks.js';
+import { hourOf, parseTime, weatherAt, WEATHER_KINDS, DAY_MINUTES } from '../systems/sky.js';
 import { TapBus } from '../ui/tapBus.js';
 import { DialogBox } from '../ui/dialog.js';
 import { Menu } from '../ui/menu.js';
@@ -61,6 +67,11 @@ import { drawCard, drawRibbonPanel, RIBBON_GOLD, CARD_INSET } from '../ui/ribbon
 import { label, body, fitWidth, fitWrapped, snapCenter } from '../ui/text.js';
 
 const WORLD_DEPTH = 100000;
+// The map's atmosphere (ui/atmosphere.js) sits over the world, under overhead bubbles (-1) and the UI.
+const OVER_WORLD = -20;
+const PROP_DEFS = Object.fromEntries(PROP_IMAGES.map((p) => [p.key, p]));
+// The clock is saved this often while it runs (ms).
+const CLOCK_SAVE_MS = 10000;
 const GOLD = 0xffd166;
 const INTEL = 0x9fdcff; // challenges and the intel they reveal
 const INTEL_CSS = '#9fdcff';
@@ -159,12 +170,19 @@ export default class RegionScene extends Phaser.Scene {
     // Its chunks are textures of their own (a big map's run to tens of MB): free them on the way out.
     this.events.once('shutdown', () => this.ground.destroy());
     this.addBubbles();
+    this.look = DEBUG.look === 'none' ? {} : LOOKS[DEBUG.look] ?? LOOKS[map.look] ?? LOOKS[DEFAULT_LOOK];
+    this.fixedClock = parseTime(DEBUG.time); // debug: the clock stands still
+    this.clockSavedAt = 0;
+    this.atmo = new Atmosphere(this, this.look, {
+      ground: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain, hour: this.hour(), weather: this.weatherNow(),
+    });
 
     // Props tagged with a secret show once it's found; a `cover` shows until then (systems/secrets.js).
     this.secretProps = [];
     for (const p of map.props) {
       const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
       const tag = p.label ? signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5) : null;
+      this.atmo.addProp(img, PROP_DEFS[p.texture]);
       if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });
     }
     this.found = new Set(Object.keys(map.secrets).filter((id) => Save.isFound(secretKey(this.region.id, id))));
@@ -174,6 +192,7 @@ export default class RegionScene extends Phaser.Scene {
     this.npcs = map.npcs.map((n) => {
       const sprite = this.add.sprite(n.x, n.y, n.sprite).setOrigin(0.5, 1).setDepth(worldDepth(n.y));
       this.face(sprite, n.facing);
+      this.atmo.follow(sprite);
       // A bouncing "!" over a villain you haven't beaten, "?" over a challenge you haven't won.
       const mark = n.fight && !cleared ? ['!', '#ffd166'] : n.challenge && !Save.hasWon(this.npcKey(n)) ? ['?', INTEL_CSS] : null;
       let alert = null;
@@ -200,6 +219,7 @@ export default class RegionScene extends Phaser.Scene {
     this.player = this.add.sprite(spawn.x, spawn.y, 'field_scott').setOrigin(0.5, 1).setDepth(worldDepth(spawn.y));
     this.facing = spawn.facing;
     this.face(this.player, this.facing);
+    this.atmo.follow(this.player);
 
     this.tapMark = this.add.ellipse(0, 0, 36, 16).setStrokeStyle(3, 0xffffff, 0.9).setDepth(-WORLD_DEPTH * 2 + 1).setVisible(false);
 
@@ -438,6 +458,8 @@ export default class RegionScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    this.tickClock(time, delta);
+    this.atmo.update(time, delta, { hour: this.hour(), weather: this.weatherNow(), fade: DAY.fadeSeconds });
     this.placeEmote();
     if (this.mode !== 'explore') return;
     this.talkButton.setReady(!!this.nearbyNpc());
@@ -446,6 +468,33 @@ export default class RegionScene extends Phaser.Scene {
     else if (this.follower) this.follower.stillMs += delta;
     this.moveFollower();
     this.checkBarks();
+  }
+
+  // ---- The clock and the weather (systems/sky.js) -------------------------------
+
+  /** The hour of the day (0..24). */
+  hour() {
+    return hourOf(this.fixedClock ?? Save.clock);
+  }
+
+  /** A whole day takes DAY.realMinutes; the save keeps up every CLOCK_SAVE_MS. */
+  tickClock(time, delta) {
+    if (this.fixedClock !== null) return;
+    const flush = time - this.clockSavedAt > CLOCK_SAVE_MS;
+    if (flush) this.clockSavedAt = time;
+    Save.setClock(Save.clock + (delta / 1000) * (DAY_MINUTES / (DAY.realMinutes * 60)), flush);
+  }
+
+  /** The weather now: debug's, or the saved weather while it lasts, then a new roll. Only outdoors. */
+  weatherNow() {
+    const spec = this.look.weather;
+    if (!spec) return 'clear';
+    if (WEATHER_KINDS.includes(DEBUG.weather)) return DEBUG.weather;
+    const clock = this.fixedClock ?? Save.clock;
+    let roll = null; // only made when the weather changes
+    const now = weatherAt(Save.weather, clock, spec, () => (roll ??= createRng(Math.floor(clock)).random)());
+    if (now !== Save.weather) Save.setWeather(now);
+    return now.kind;
   }
 
   /** Tap-to-walk: follow the path, then leave, talk, or stop at its end. */
@@ -605,7 +654,10 @@ export default class RegionScene extends Phaser.Scene {
   syncFollower() {
     const id = Save.follower;
     if ((this.follower?.id ?? null) === id) return;
-    this.follower?.sprite.destroy();
+    if (this.follower) {
+      this.atmo.unfollow(this.follower.sprite);
+      this.follower.sprite.destroy();
+    }
     this.follower = null;
     this.clearEmote();
     const data = FOLLOWERS[id];
@@ -616,6 +668,7 @@ export default class RegionScene extends Phaser.Scene {
     const { x, y } = trail.position();
     const sprite = this.add.sprite(Math.round(x), Math.round(y), data.sprite).setOrigin(0.5, 1).setDepth(worldDepth(y));
     this.face(sprite, this.facing);
+    this.atmo.follow(sprite, 34);
     const barker = data.barks ? new Barker(data.barks, { now: this.time.now }) : null;
     this.follower = { id, data, trail, sprite, barker, facing: this.facing, moving: false, stillMs: 0 };
     this.buildBarkTargets();

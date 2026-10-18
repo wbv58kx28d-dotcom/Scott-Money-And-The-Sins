@@ -4,6 +4,7 @@
 // other map). WHERE everything stands is in ./start_lair.layout.js.
 
 export default {
+  look: 'basement', // its light and air (data/looks.js)
   region: 'start',
   name: "Derek's Basement",
   npcs: {

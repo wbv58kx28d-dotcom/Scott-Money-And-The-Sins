@@ -8,7 +8,8 @@
 // the feed's posts arrived in, the velvet ropes he's opened, and the big
 // moments he's already bragged about; plus the phone apps people gave him
 // (the WIFI app) and the secrets he's found with them (Derek's hidden cellar);
-// and the Sin who walks behind him: the test toggle, and her jealousy (data/followers.js).
+// and the Sin who walks behind him: the test toggle, and her jealousy (data/followers.js);
+// and the regions' clock and weather (systems/sky.js).
 //
 // localStorage can be missing or throw (private browsing, blocked storage), so
 // every access is guarded and the game falls back to an in-memory save.
@@ -21,6 +22,7 @@ import { emptyIntel, mergeIntel } from './intel.js';
 import { PHONES, ECONOMY } from '../data/phone.js';
 import { SOCIAL } from '../data/social.js';
 import { FOLLOWERS, MAX_JEALOUSY } from '../data/followers.js';
+import { DAY } from '../data/looks.js';
 
 const KEY = 'scottmoney.save';
 const VERSION = 1;
@@ -33,6 +35,7 @@ const fresh = () => ({
   seq: 0, feedSeq: {}, mine: [], gates: [], bragged: [],
   apps: [], found: [],
   tryFollow: false, jealousy: {},
+  clock: DAY.startHour * 60, weather: null, // game minutes since the first day began; { kind, until }
 });
 const MINE_MAX = 40; // $cott's own posts kept in the feed
 
@@ -130,6 +133,28 @@ class SaveGame {
 
   setJealousy(id, n) {
     this.data.jealousy[id] = Math.max(0, Math.min(MAX_JEALOUSY, n));
+    this.flush();
+  }
+
+  // ---- The clock and the weather (systems/sky.js) -------------------------------------
+
+  /** Game minutes since the first day began; it runs while $cott walks a region. */
+  get clock() {
+    return this.data.clock;
+  }
+
+  /** Move the clock on. Saved now and then (`flush`), not every frame. */
+  setClock(minutes, flush = false) {
+    this.data.clock = minutes;
+    if (flush) this.flush();
+  }
+
+  get weather() {
+    return this.data.weather;
+  }
+
+  setWeather(state) {
+    this.data.weather = state;
     this.flush();
   }
 

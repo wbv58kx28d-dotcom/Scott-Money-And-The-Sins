@@ -59,5 +59,8 @@ export const DEBUG = Object.freeze({
   title: flag('title'),
   canvas: flag('canvas'),
   edit: enabled ? params.get('edit') : null,
+  look: enabled ? params.get('look') : null,
+  time: enabled ? params.get('time') : null, // '18:30': the clock stands still at this hour
+  weather: enabled ? params.get('weather') : null, // clear | fog | rain | storm, for good
   speed: enabled && /^\d+(\.\d+)?$/.test(params.get('speed') ?? '') ? Math.max(0.1, Number(params.get('speed'))) : 1,
 });
