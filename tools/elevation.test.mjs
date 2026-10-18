@@ -149,3 +149,32 @@ test('painting keeps terraces stacked: higher ground and the high path sit on hi
   drawable(d);
   assert.equal(d.at(10, 10), 'H');
 });
+
+test('a drop is nothing to stand on: no tile, a rim, and a crater shows its far wall', () => {
+  assert.ok(swamp.terrains.v?.void && swamp.terrains.v.blocks);
+  assert.equal(swamp.terrains.v.level, -2);
+  // A grass map with a hole (a crater) in rows 6..12, columns 6..13, and the top two rows dropping away (a cliff edge).
+  const rows = [];
+  for (let j = 0; j <= 20; j++) {
+    let r = '';
+    for (let i = 0; i <= 20; i++) r += j <= 1 || (i >= 6 && i <= 13 && j >= 6 && j <= 12) ? 'v' : 'g';
+    rows.push(r);
+  }
+  const t = new Terrain(rows, swamp);
+  const c = t.cell;
+  for (let j = 0; j < t.rows; j++) for (let i = 0; i < t.cols; i++) assert.ok(t.drawable(i, j), t.key(i, j));
+  assert.equal(t.tileFor(10, 9), null, 'nothing drawn in the hole');
+  assert.ok(t.tileFor(5, 6), 'its edge is drawn as ground (cut later)');
+  assert.equal(t.levelAt(10 * c, 9 * c), -2);
+  assert.ok(t.blocksAt(10 * c, 9 * c), "can't walk into it");
+  assert.ok(t.blocksAt(10 * c, 12.5 * c + 4), 'or onto its rim');
+  assert.ok(!t.blocksAt(10 * c, 16 * c), 'the ground past it is fine');
+  // Looking down a column through the crater: its north rim drops two levels, so its far wall is a double face.
+  const faces = t.facesAt(10 * c, 2 * c, 20 * c);
+  assert.equal(faces.length, 1);
+  assert.equal(faces[0].full, t.face * 2);
+  assert.ok(Math.abs(faces[0].top - 5.5 * c) <= 4, `the wall hangs from the crater's north rim (${faces[0].top})`);
+  // The map's top edge drops away from the camera: no face hangs there.
+  assert.equal(t.facesAt(3 * c, 0, 4 * c).length, 0);
+  assert.ok(t.voidAt(3 * c, 0) > 0.9 && t.voidAt(3 * c, 4 * c) === 0);
+});

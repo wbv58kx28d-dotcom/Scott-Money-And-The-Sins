@@ -16,6 +16,13 @@
 // face; stairs (a boardwalk of kind 'stairs', always walkable) are the way up
 // and down. A raised terrain's `under` is what it gives way to (H and p sit
 // on h), so terraces stack: painting H on grass rings it with h.
+//
+// Drops: a terrain marked `void` (the swamp's 'v') is nothing at all: no tile,
+// so whatever lies beyond shows through (the map's vista, ui/vista.js). The
+// ground's edge into it is cut ragged with a dark lip (ui/terrainView.js). Its
+// `level` is below the ground's, so the far side of a hole shows a tall cliff
+// face down into it, like a crater; at the map's top edge nothing hangs. Any
+// terrain can meet it; cells mixing ground and void are drawn as the ground.
 
 /** A small integer hash, so tile variants and decals stay put when nearby corners change. */
 export function hash(i, j, salt = 0) {
@@ -58,13 +65,15 @@ export class Terrain {
     this.cols = this.grid[0].length - 1;
     this.pairs = new Set(tileset.pairs.flatMap((p) => [p, [...p].reverse().join('')]));
     this.blocking = new Set(Object.entries(tileset.terrains).filter(([, t]) => t.blocks).map(([c]) => c));
+    this.voids = new Set(Object.entries(tileset.terrains).filter(([, t]) => t.void).map(([c]) => c));
     this.levels = Object.fromEntries(Object.entries(tileset.terrains).map(([c, t]) => [c, t.level ?? 0]));
     this.maxLevel = Math.max(0, ...Object.values(this.levels));
+    this.minLevel = Math.min(0, ...Object.values(this.levels));
     // atLeast[L]: the terrains at level L or higher.
-    this.atLeast = [];
-    for (let L = 1; L <= this.maxLevel; L++) this.atLeast[L] = new Set(Object.keys(this.levels).filter((c) => this.levels[c] >= L));
-    this.face = this.maxLevel ? (tileset.cliff?.face ?? 48) : 0; // per level dropped
-    this.maxFace = this.face * this.maxLevel;
+    this.atLeast = {};
+    for (let L = this.minLevel + 1; L <= this.maxLevel; L++) this.atLeast[L] = new Set(Object.keys(this.levels).filter((c) => this.levels[c] >= L));
+    this.face = this.maxLevel > this.minLevel ? (tileset.cliff?.face ?? 48) : 0; // per level dropped
+    this.maxFace = this.face * (this.maxLevel - this.minLevel);
   }
 
   get width() {
@@ -91,6 +100,7 @@ export class Terrain {
 
   /** Can these terrains share a cell? (Only the pairs a tileset was drawn for.) */
   allowed(kinds) {
+    if (this.voids.size) kinds = new Set([...kinds].filter((k) => !this.voids.has(k))); // anything can meet a drop
     if (kinds.size <= 1) return true;
     if (kinds.size > 2) return false;
     return this.pairs.has([...kinds].join(''));
@@ -204,9 +214,14 @@ export class Terrain {
 
   /** How many levels up world point (x, y) is: 0 on the ground, 1 on high ground, and so on. */
   levelAt(x, y) {
-    let lv = 0;
+    let lv = this.minLevel;
     while (lv < this.maxLevel && this.shareAt(this.atLeast[lv + 1], x, y) > 0.5) lv++;
     return lv;
+  }
+
+  /** How much of world point (x, y) is a drop, 0..1 (blended like the tiles). */
+  voidAt(x, y) {
+    return this.voids.size ? this.shareAt(this.voids, x, y) : 0;
   }
 
   /** Is world point (x, y) on raised ground? */
@@ -292,8 +307,23 @@ export class Terrain {
   }
 
   /** The tile for a cell: { frame, flip }, picked from its variants by position. */
-  tileFor(i, j) {
+  /** The tile key a cell is drawn with: a drop's corners take the ground's (the edge is cut later); null if it's all drop. */
+  drawnKey(i, j) {
     const key = this.key(i, j);
+    if (!this.voids.size || ![...key].some((c) => this.voids.has(c))) return key;
+    const ground = [...key].find((c) => !this.voids.has(c));
+    return ground ? [...key].map((c) => (this.voids.has(c) ? ground : c)).join('') : null;
+  }
+
+  /** Does the tileset have a tile for this cell (or is it all drop, drawn as nothing)? */
+  drawable(i, j) {
+    const key = this.drawnKey(i, j);
+    return key === null || !!this.tileset.tiles[key];
+  }
+
+  tileFor(i, j) {
+    const key = this.drawnKey(i, j);
+    if (key === null) return null;
     const frames = this.tileset.tiles[key] ?? this.tileset.tiles[this.tileset.base.repeat(4)];
     const frame = frames[Math.floor(hash(i, j, 1) * frames.length)];
     return { frame, flip: isSolid(key) && hash(i, j, 2) < 0.5 };

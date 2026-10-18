@@ -27,7 +27,7 @@ test('every committed terrain grid is drawable and matches its size', () => {
     assert.ok(layout.terrain.every((r) => r.length === layout.cols + 1), 'every row is cols + 1 corners');
     const terrain = new Terrain(layout.terrain, ts);
     for (let j = 0; j < terrain.rows; j++) {
-      for (let i = 0; i < terrain.cols; i++) assert.ok(ts.tiles[terrain.key(i, j)], `${layout.id}: no tile for ${terrain.key(i, j)} at ${i},${j}`);
+      for (let i = 0; i < terrain.cols; i++) assert.ok(terrain.drawable(i, j), `${layout.id}: no tile for ${terrain.key(i, j)} at ${i},${j}`);
     }
     assert.ok(Object.keys(CONTENT[layout.id].npcs).every((id) => layout.npcs.some((n) => n.id === id)), 'no content for NPCs missing from the layout');
   }
@@ -46,7 +46,7 @@ test('painting keeps every cell drawable: what meets with no tile between gives 
   const t = new Terrain(LAYOUTS.start.terrain, ts);
   // A dirt path straight across water: every cell must still have a tile.
   for (let i = 4; i < 20; i++) t.paint(i, 30, 2, 'd');
-  for (let j = 0; j < t.rows; j++) for (let i = 0; i < t.cols; i++) assert.ok(ts.tiles[t.key(i, j)], t.key(i, j));
+  for (let j = 0; j < t.rows; j++) for (let i = 0; i < t.cols; i++) assert.ok(t.drawable(i, j), t.key(i, j));
   assert.equal(t.at(10, 30), 'd', 'the painted terrain wins');
   // Growing the map keeps the old corners and shifts objects by whole cells.
   const before = t.at(5, 5);
