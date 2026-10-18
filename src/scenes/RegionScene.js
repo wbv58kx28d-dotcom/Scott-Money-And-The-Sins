@@ -25,7 +25,10 @@
 // (data/looks.js) grades and lights it, with shadows under everyone (ui/atmosphere.js);
 // outdoors the light follows the time of day, and the weather comes and goes.
 // The clock runs while he's in a region (not while the phone's open). Trees and
-// reeds sway in the wind, and everyone standing still breathes (ui/motion.js). UI is created
+// reeds sway in the wind, and everyone standing still breathes (ui/motion.js).
+// Trees and buildings go see-through when $cott walks behind them, and dark
+// out-of-focus branches and reeds drift across the screen's edges in front of
+// everything (ui/seeThrough.js, ui/foreground.js). UI is created
 // inside ui(), which pins it to the screen.
 
 import { FIELD, LAYOUT, GAME_W, GAME_H } from '../config.js';
@@ -55,6 +58,8 @@ import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { Atmosphere } from '../ui/atmosphere.js';
 import { Motion, swaySheet } from '../ui/motion.js';
 import { Vista } from '../ui/vista.js';
+import { Foreground } from '../ui/foreground.js';
+import { SeeThrough } from '../ui/seeThrough.js';
 import { LOOKS, DEFAULT_LOOK, DAY } from '../data/looks.js';
 import { hourOf, parseTime, weatherAt, WEATHER_KINDS, DAY_MINUTES } from '../systems/sky.js';
 import { TapBus } from '../ui/tapBus.js';
@@ -188,14 +193,20 @@ export default class RegionScene extends Phaser.Scene {
 
     // Props tagged with a secret show once it's found; a `cover` shows until then (systems/secrets.js).
     this.secretProps = [];
+    const propImages = [];
     for (const p of map.props) {
       const sway = PROP_DEFS[p.texture]?.sway;
       const img = this.add.image(p.x, p.y, sway ? swaySheet(this, p.texture, sway) : p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
       if (sway) this.motion.sway(img);
+      propImages.push(img);
       const tag = p.label ? signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5) : null;
       this.atmo.addProp(img, PROP_DEFS[p.texture]);
       if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });
     }
+    this.seeThrough = new SeeThrough(this, propImages);
+    this.foreground = this.look.foreground
+      ? new Foreground(this, this.look.foreground, { depth: OVER_WORLD - 0.5, props: map.props, terrain: this.terrain })
+      : null;
     this.found = new Set(Object.keys(map.secrets).filter((id) => Save.isFound(secretKey(this.region.id, id))));
     this.showSecrets();
 
@@ -483,6 +494,8 @@ export default class RegionScene extends Phaser.Scene {
     this.atmo.update(time, delta, { hour: this.hour(), weather: this.weatherNow(), fade: DAY.fadeSeconds });
     this.motion.update(time, this.atmo.light.wind);
     this.vista?.update(this.atmo.light);
+    this.seeThrough.update(delta, this.player);
+    this.foreground?.update();
     this.placeEmote();
     if (this.mode !== 'explore') return;
     this.talkButton.setReady(!!this.nearbyNpc());

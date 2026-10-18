@@ -292,7 +292,7 @@ export class Atmosphere {
     });
     for (const s of this.shadows) s.obj.setPosition(s.sprite.x, s.sprite.y - 2).setVisible(s.sprite.visible).setAlpha(L.shadows);
     for (const a of this.attached) {
-      const shown = a.owner.visible && a.owner.alpha > 0.5;
+      const shown = a.owner.visible && a.owner.alpha > 0.3; // a see-through tree keeps its glow (ui/seeThrough.js)
       a.obj.setVisible(shown);
       if (!shown) continue;
       if (a.shadow) {

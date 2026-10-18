@@ -82,6 +82,14 @@ export const LOOKS = {
     // afford, over misty hills and the swamp's own treeline (ui/vista.js). `depth` is how
     // fast a layer moves with the ground, `rise` how far above the cliff edge its skyline
     // sits with the camera at the top, `haze` how far its color fades toward the sky's.
+    // Dark, out-of-focus things in front of the camera (ui/foreground.js): cypress branches
+    // hanging in at the top near some trees, reed tufts at the bottom along some shores.
+    // `depth` is how much faster than the ground they slide past.
+    foreground: {
+      depth: 1.4, color: 0x120a1a, alpha: 0.9, reach: 560, top: 40,
+      branches: { near: /cypress/, chance: 0.22 },
+      reeds: { on: 'w', chance: 0.03 },
+    },
     vista: {
       extendTop: 420, // how far past the map's top the camera may look
       layers: [
