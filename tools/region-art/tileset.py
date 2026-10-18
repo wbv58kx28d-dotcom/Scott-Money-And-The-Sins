@@ -167,6 +167,8 @@ def main(name):
     }
     if 'cliff' in spec:
         tileset['cliff'] = {'face': spec['cliff']['face'] * ART_PX}
+    if 'patches' in spec:
+        tileset['patches'] = [{**p, 'on': [code[t] for t in p['on']]} for p in spec['patches']]
     if 'bubbles' in spec:
         tileset['bubbles'] = {**spec['bubbles'], 'on': code[spec['bubbles']['on']]}
     json.dump(tileset, open(os.path.join(out, 'tileset.json'), 'w'), separators=(',', ':'))

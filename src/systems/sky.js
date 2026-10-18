@@ -23,6 +23,7 @@ const LIGHT = {
   fog: 0, // fog drifting over everything
   rain: 0,
   lightning: 0,
+  wind: 0.35, // how far trees and reeds lean as they sway (0..1, ui/motion.js)
 };
 const COLORS = new Set(['grade', 'color']);
 
@@ -94,6 +95,7 @@ const WEATHER = {
     spores: Math.max(l.spores, 0.6 * m),
     mist: l.mist + (0.3 - l.mist) * m,
     fog: Math.max(l.fog, m),
+    wind: l.wind * (1 - 0.7 * m), // fog lies on still air
   }),
   // Rain: grey-blue and flat, streaks falling, no fireflies.
   rain: (l, m) => ({
@@ -104,11 +106,15 @@ const WEATHER = {
     shadows: l.shadows * (1 - 0.7 * m),
     fireflies: l.fireflies * (1 - m),
     rain: Math.max(l.rain, m),
+    wind: l.wind + (0.7 - l.wind) * m,
   }),
 };
 WEATHER.storm = (l, m) => {
   const wet = WEATHER.rain(l, m);
-  return { ...wet, grade: lerpColor(wet.grade, 0x7c84a0, 0.3 * m), rain: Math.max(wet.rain, m * 1.4), lightning: Math.max(wet.lightning, m) };
+  return {
+    ...wet, grade: lerpColor(wet.grade, 0x7c84a0, 0.3 * m), rain: Math.max(wet.rain, m * 1.4), lightning: Math.max(wet.lightning, m),
+    wind: wet.wind + (1 - wet.wind) * m,
+  };
 };
 export const WEATHER_KINDS = ['clear', ...Object.keys(WEATHER)];
 

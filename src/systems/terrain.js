@@ -24,6 +24,21 @@ export function hash(i, j, salt = 0) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** Smooth value noise, 0..1, on a lattice one unit apart (two octaves). */
+export function noise(x, y, salt = 0) {
+  const one = (x, y, s) => {
+    const i = Math.floor(x);
+    const j = Math.floor(y);
+    const ease = (t) => t * t * (3 - 2 * t);
+    const u = ease(x - i);
+    const v = ease(y - j);
+    const top = hash(i, j, s) * (1 - u) + hash(i + 1, j, s) * u;
+    const bottom = hash(i, j + 1, s) * (1 - u) + hash(i + 1, j + 1, s) * u;
+    return top * (1 - v) + bottom * v;
+  };
+  return 0.65 * one(x, y, salt) + 0.35 * one(x * 2.3 + 17, y * 2.3 + 5, salt + 1);
+}
+
 // How close to the edge of high ground counts as its rim (can't stand there), px.
 const RIM = 8;
 
@@ -254,6 +269,28 @@ export class Terrain {
     return out;
   }
 
+  /**
+   * Is world point (x, y) inside one of the tileset's `patches` (soft blotches
+   * that break up big fields of one terrain: moss on grass, deep water mid-pool)?
+   * 0 no, 1 its soft edge, 2 inside. Patches thin out toward other terrains,
+   * so they never spill over a bank.
+   */
+  patchAt(patch, k, x, y) {
+    const share = this.shareAt(patch.set ??= new Set(patch.on), x, y);
+    if (share < 0.75) return 0;
+    const n = noise(x / (patch.scale * this.cell), y / (patch.scale * this.cell), 500 + k * 7) - (1 - share) * 2;
+    return n > patch.cut + 0.05 ? 2 : n > patch.cut ? 1 : 0;
+  }
+
+  /** Are all the cells from (i, j) out to w × h px from its corner this one solid `key`? */
+  solidUnder(i, j, w, h, key) {
+    const i1 = i + Math.ceil(w / this.cell) - 1;
+    const j1 = j + Math.ceil(h / this.cell) - 1;
+    if (i1 >= this.cols || j1 >= this.rows) return false;
+    for (let cj = j; cj <= j1; cj++) for (let ci = i; ci <= i1; ci++) if (this.key(ci, cj) !== key) return false;
+    return true;
+  }
+
   /** The tile for a cell: { frame, flip }, picked from its variants by position. */
   tileFor(i, j) {
     const key = this.key(i, j);
@@ -262,7 +299,11 @@ export class Terrain {
     return { frame, flip: isSolid(key) && hash(i, j, 2) < 0.5 };
   }
 
-  /** Little details scattered on a solid cell: [{ frame, x, y }] in px from the cell's corner. */
+  /**
+   * Details scattered on a solid cell: [{ frame, x, y }] in px from the cell's
+   * corner. One bigger than a cell spills right and down, and only lands where
+   * every cell it covers is the same solid terrain (no lily pad over a bank).
+   */
   decalsFor(i, j) {
     const key = this.key(i, j);
     if (!isSolid(key)) return [];
@@ -275,11 +316,10 @@ export class Terrain {
         const frame = s.frames[Math.floor(hash(i, j, 100 + k * 7 + m) * s.frames.length)];
         const [, , w, h] = frames[frame];
         const snap = (v) => Math.floor(v / 2) * 2; // on the 2 px art grid
-        out.push({
-          frame,
-          x: snap(hash(i, j, 200 + k * 7 + m) * Math.max(0, this.cell - w)),
-          y: snap(hash(i, j, 300 + k * 7 + m) * Math.max(0, this.cell - h)),
-        });
+        const x = snap(hash(i, j, 200 + k * 7 + m) * Math.max(0, this.cell - w));
+        const y = snap(hash(i, j, 300 + k * 7 + m) * Math.max(0, this.cell - h));
+        if (!this.solidUnder(i, j, x + w, y + h, key)) continue;
+        out.push({ frame, x, y });
       }
     });
     return out;
