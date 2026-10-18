@@ -638,7 +638,7 @@ export default class EditorScene extends Phaser.Scene {
       g.fillStyle(color, 1).fillRoundedRect(x, ys - 40, w, 80, 12);
       g.lineStyle(on ? 6 : 2, on ? SEL : 0x000000, 1).strokeRoundedRect(x, ys - 40, w, 80, 12);
       this.panel.add(g);
-      this.panel.add(label(this, x + w / 2, ys, t.label ?? t.name, 14, { color: '#ffffff' }).setOrigin(0.5));
+      this.panel.add(label(this, x + w / 2, ys, t.label ?? t.name, 14, { color: '#ffffff', align: 'center', wordWrap: { width: w - 8 } }).setOrigin(0.5));
       const zone = this.add.zone(x, ys - 40, w, 80).setOrigin(0).setInteractive().on('pointerup', () => {
         Audio.sfx('blip');
         this.paintWith = code;
@@ -701,7 +701,14 @@ export default class EditorScene extends Phaser.Scene {
         const region = CONTENT[this.mapId]?.region ?? this.mapId;
         const dests = ['map', ...Object.keys(LAYOUTS).filter((id) => id !== this.mapId && (CONTENT[id]?.region ?? id) === region)];
         rows.push([['LEADS TO ▶', () => this.edit(() => { r.to = cycle(dests, r.to); })], dup, del]);
-      } else rows.push([dup, del]);
+      } else {
+        // A boardwalk can be stairs instead: steps up a cliff to high ground.
+        const stairs = r.kind === 'stairs';
+        rows.push([[stairs ? 'MAKE BOARDWALK' : 'MAKE STAIRS', () => this.edit(() => {
+          if (stairs) delete r.kind;
+          else r.kind = 'stairs';
+        })], dup, del]);
+      }
     } else if (t.kind === 'spawn') {
       rows.push([['FACE ▶', () => this.edit(() => { r.facing = cycle(FACINGS, r.facing); })]]);
     }
@@ -717,7 +724,7 @@ export default class EditorScene extends Phaser.Scene {
       prop: () => `${r.texture.replace('prop_', '').toUpperCase()}${r.label ? ` "${r.label}"` : ''}`,
       npc: () => `NPC ${r.id} (${r.sprite.replace('field_', '')}, faces ${r.facing})${CONTENT[this.mapId]?.npcs?.[r.id] ? '' : ' · no lines yet'}`,
       gate: () => `ROPE ${r.id} · bouncer ${r.bouncer ?? 'none'} · ${CONTENT[this.mapId]?.gates?.[r.id]?.clout ?? '?'} Clout`,
-      bridge: () => `BOARDWALK ${r.w}×${r.h}`,
+      bridge: () => `${r.kind === 'stairs' ? 'STAIRS' : 'BOARDWALK'} ${r.w}×${r.h}`,
       exit: () => `EXIT to ${r.to} ${r.w}×${r.h}`,
       spawn: () => `$COTT STARTS HERE (faces ${r.facing})`,
     }[t.kind]();

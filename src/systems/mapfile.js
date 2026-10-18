@@ -68,7 +68,7 @@ function inline(obj, order) {
 const ORDER = {
   spawn: ['x', 'y', 'facing'],
   exits: ['to', 'x', 'y', 'w', 'h'],
-  bridges: ['x', 'y', 'w', 'h'],
+  bridges: ['x', 'y', 'w', 'h', 'kind'],
   props: ['texture', 'x', 'y', 'block', 'label'],
   npcs: ['id', 'sprite', 'x', 'y', 'facing'],
   gates: ['id', 'x', 'y', 'block', 'bouncer'],

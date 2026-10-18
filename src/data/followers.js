@@ -102,6 +102,11 @@ export const FOLLOWERS = {
       },
       props: {
         prop_hottub: { range: 260, lines: ['Hot tub? Cats don\'t do water.', 'Everyone in there is a bagholder.'] },
+        prop_cb_mansion: { range: 260, lines: ['Is that... cardboard? Iconic.', 'An estate. Of boxes. I want it.'] },
+        prop_cb_mansion_b: { range: 260, lines: ['Duct tape is not a load-bearing wall.', 'Best box I ever saw. And I know boxes.'] },
+        prop_cb_bank: { range: 240, lines: ['Ape Capital. A bank with one wall.', "It's a sign on a stick, darling."] },
+        prop_cb_condo: { range: 240, lines: ['Luxury condos. Four boxes and a dream.', 'One sneeze and that helipad is gone.'] },
+        prop_cb_garage: ["That Lambo is a box. I'd still sit in it.", 'Leased. Of course it\'s leased.'],
         prop_tower: { range: 300, lines: ['Glass tower. Finally, my aesthetic.', 'That\'s where the money lives.'] },
         prop_tarp: ['That tarp is hiding something.', 'Something smells like basement.'],
         prop_house: { range: 260, lines: ['Who lives HERE? Gross.', 'This house needs a cat. Badly.'] },

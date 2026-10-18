@@ -67,6 +67,12 @@ export const PROP_IMAGES = [
   { key: 'prop_hottub', path: 'assets/props/prop_hottub.png', name: 'HOT TUB', block: { w: 150, h: 40 } },
   { key: 'prop_cooler', path: 'assets/props/prop_cooler.png', name: 'COOLER', block: { w: 56, h: 18 } },
   { key: 'prop_tiki', path: 'assets/props/prop_tiki.png', name: 'TIKI TORCH', block: { w: 18, h: 10 } },
+  // The hub's cardboard neighborhood: fake luxury for broke, over-leveraged stonk bros.
+  { key: 'prop_cb_mansion', path: 'assets/props/prop_cb_mansion.png', name: 'BOX MANSION', block: { w: 240, h: 90 } },
+  { key: 'prop_cb_mansion_b', path: 'assets/props/prop_cb_mansion_b.png', name: 'BOX MANSION 2', block: { w: 240, h: 90 } },
+  { key: 'prop_cb_bank', path: 'assets/props/prop_cb_bank.png', name: 'APE CAPITAL', block: { w: 200, h: 60 } },
+  { key: 'prop_cb_condo', path: 'assets/props/prop_cb_condo.png', name: 'BOX CONDOS', block: { w: 150, h: 50 } },
+  { key: 'prop_cb_garage', path: 'assets/props/prop_cb_garage.png', name: 'BOX LAMBO', block: { w: 160, h: 60 } },
   // The trading firm's tower; its door is an exit just in front of its footprint.
   { key: 'prop_tower', path: 'assets/props/prop_tower.png', name: 'OFFICE TOWER', block: { w: 230, h: 24 } },
   { key: 'prop_plant', path: 'assets/props/prop_plant.png', name: 'PLANT', block: { w: 30, h: 14 } },

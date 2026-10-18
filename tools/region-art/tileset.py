@@ -14,7 +14,9 @@ Reads `tools/region-art/<set>/`:
 
 and writes `assets/regions/<set>/`: tiles.png (every tile, color-graded, at the
 game's 2 screen px per art pixel), decals.png (the decals, packed), bridge.png
-(a boardwalk to stretch over water), and tileset.json, which the game
+(a boardwalk to stretch over water), cliff.png (the face hung below high
+ground, from cliff.py) and stairs.png (steps up a cliff; both a transparent
+pixel when the set has none), and tileset.json, which the game
 (systems/terrain.js) reads to pick a tile for each cell from its four corners.
 """
 
@@ -142,6 +144,13 @@ def main(name):
 
     bridge = Image.open(os.path.join(src, 'bridge.png')).convert('RGBA')
     up(bridge.crop(bridge.getbbox())).save(os.path.join(out, 'bridge.png'), optimize=True)
+    # The game loads these for every set, so a set without them gets an empty pixel.
+    for part in ('cliff', 'stairs'):
+        path = os.path.join(src, f'{part}.png')
+        im = Image.open(path).convert('RGBA') if os.path.exists(path) else Image.new('RGBA', (1, 1))
+        if part == 'stairs' and im.getbbox():
+            im = im.crop(im.getbbox())
+        up(im).save(os.path.join(out, f'{part}.png'), optimize=True)
 
     tileset = {
         'id': name,
@@ -156,6 +165,8 @@ def main(name):
             'scatter': [{'on': code[s['on']], 'density': s['density'], 'frames': [files.index(f) for f in s['files']]} for s in spec.get('scatter', [])],
         },
     }
+    if 'cliff' in spec:
+        tileset['cliff'] = {'face': spec['cliff']['face'] * ART_PX}
     if 'bubbles' in spec:
         tileset['bubbles'] = {**spec['bubbles'], 'on': code[spec['bubbles']['on']]}
     json.dump(tileset, open(os.path.join(out, 'tileset.json'), 'w'), separators=(',', ':'))
