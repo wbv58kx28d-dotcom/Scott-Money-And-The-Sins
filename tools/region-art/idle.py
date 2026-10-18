@@ -45,20 +45,22 @@ def upscaled(frame):
 
 def placed(frame, ox, oy):
     cell = Image.new('RGBA', (FRAME_W, FRAME_H))
-    cell.alpha_composite(upscaled(frame).crop((0, 0, FRAME_W - ox, FRAME_H - oy)), (ox, oy))
+    big = upscaled(frame)
+    cell.paste(big, (ox, oy), big)  # clipped to the cell either way
     return cell
 
 
 def alignment(idle, cell):
     """
-    The offset (0 or 1 px each way) that puts the clip's idle frame on the sheet's
-    idle cell, and how many pixels still differ. A few edge pixels (and a shade or
-    two of the outline) of PixelLab's frame 0 differ from its input, so it's a best
-    fit, not an exact match.
+    The offset that puts the clip's idle frame on the sheet's idle cell, and how
+    many pixels still differ. A few edge pixels (and a shade or two of the
+    outline) of PixelLab's frame 0 differ from its input, so it's a best fit, not
+    an exact match. It looks a few pixels each way, since tools/region-art/feet.py
+    may have moved the sheet's frames onto the feet line since the strip was made.
     """
     best = None
-    for ox in (0, 1):
-        for oy in (0, 1):
+    for ox in range(-2, 3):
+        for oy in range(-8, 9):
             a = placed(idle, ox, oy).tobytes()
             b = cell.tobytes()
             diff = sum(1 for i in range(3, len(a), 4) if (a[i] > 0) != (b[i] > 0))
