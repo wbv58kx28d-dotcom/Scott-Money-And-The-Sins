@@ -29,6 +29,7 @@ import { socialNews, badgeLabel } from '../ui/badge.js';
 import { REALTY, CITIES } from '../data/realty.js';
 import { price } from '../systems/realty.js';
 import { VERSION } from '../version.js';
+import { clockLabel } from '../systems/sky.js';
 import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
 import { pixelIcon } from '../ui/phoneIcons.js';
 import { label, body, fitWidth } from '../ui/text.js';
@@ -237,7 +238,7 @@ export default class PhoneScene extends Phaser.Scene {
       this.statusRow.add(pixelText(this, lcd.x + lcd.w - 8 - pixelTextWidth(backLabel, 2), lcd.y + lcd.h - 16, backLabel, { px: 2, color: colors.ink }));
     } else {
       const s = SMART.screen;
-      this.statusRow.add(label(this, s.x + 34, s.y + 22, '9:41', 14, { strokeThickness: 0 }));
+      this.statusRow.add(label(this, s.x + 34, s.y + 22, clockLabel(Save.clock), 14, { strokeThickness: 0 }));
       const cash = label(this, 0, s.y + 22, money(Save.cash), 14, { color: '#ffd166', strokeThickness: 0 });
       cash.x = s.x + s.w - 34 - cash.width;
       this.statusRow.add(cash);

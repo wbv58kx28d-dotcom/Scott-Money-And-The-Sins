@@ -1,67 +1,87 @@
-// A map's atmosphere (ui/atmosphere.js): the light and air over its ground.
-// A map's content file names its `look`; debug `&look=<id>` tries another.
-// The world's props bring their own shadows, glows and puffs (`shadow`,
-// `glow`, `puffs` in data/assets.js); a look only says how strong they are.
+// A map's atmosphere (ui/atmosphere.js, systems/sky.js): the light and air
+// over its ground. A map's content file names its `look`; debug `&look=<id>`
+// tries another (`none` turns it off). Props bring their own shadows, glows
+// and puffs (`shadow`, `glow`, `puffs` in data/assets.js); the light says how
+// strong they are.
 //
-//   grade     a color the whole world is multiplied by (white = untouched),
-//             so 0xb8a8d8 is a violet dusk. UI and overhead bubbles sit above it.
-//   haze      { color, alpha }: a flat wash over the world, for murky air.
-//   vignette  { color, alpha }: darkened screen edges.
-//   shadows   how dark shadows on the ground are (0..1).
-//   lights    how strong props' glows are (0 turns them off).
-//   motes     { count, kind: 'firefly' | 'spore', colors }: specks drifting in view.
-//   mist      { density, color, alpha }: low banks of mist over solid water cells.
+// The light (each part optional):
+//   grade      a color the whole world is multiplied by (white = untouched).
+//              UI and overhead bubbles sit above it.
+//   sun        { color, alpha, x }: a low sun's light washing in from the top
+//              of the screen, x 0 from the west (left), 1 from the east.
+//   haze       { color, alpha }: a flat wash over the world.
+//   vignette   how dark the screen's edges get (0..1), in `vignetteColor`.
+//   shadows    how dark shadows on the ground are (0..1).
+//   lights     how strong props' glows are (0 turns them off).
+//   fireflies, spores, mist   how much of each (0..1): fireflies and spores
+//              drift in view (`fireflyColors`, `sporeColors`, `motes` of each),
+//              mist banks lie over solid water cells (`mistDensity`, `mistColor`).
+//
+// Outdoors, `phases` are lights at hours of the day (`at`, 0..24), blended in
+// between, and the clock runs while $cott walks the region (DAY). `weather`
+// gives each kind's odds and how long it lasts; fog, rain and storms fade in
+// over the light (systems/sky.js says what each does).
+
+/** The day's clock: a whole day takes this long in a region; a new game starts at this hour. */
+export const DAY = { realMinutes: 24, startHour: 17, fadeSeconds: 8 };
+
+const NIGHT = {
+  grade: 0x5c6098, sun: { color: 0x7080ff, alpha: 0, x: 0.5 }, vignette: 0.6,
+  shadows: 0.25, lights: 1.5, fireflies: 1, mist: 0.16,
+};
+const DAWN = {
+  grade: 0xdcc2cc, sun: { color: 0xffc890, alpha: 0.38, x: 1 }, vignette: 0.32,
+  shadows: 0.32, lights: 0.5, fireflies: 0.15, mist: 0.32,
+};
+const DAY_LIGHT = {
+  grade: 0xfcf6ee, sun: { color: 0xfff2c8, alpha: 0.06, x: 0.6 }, vignette: 0.18,
+  shadows: 0.34, lights: 0.25, fireflies: 0, mist: 0.08,
+};
+// Golden hour: a warm grade and the sun's light flooding in from the west.
+const SUNSET = {
+  grade: 0xf2cab4, sun: { color: 0xff8a3a, alpha: 0.6, x: 0 }, vignette: 0.32,
+  shadows: 0.42, lights: 0.8, fireflies: 0.3, mist: 0.14,
+};
+// After sundown: violet, the last pink light low in the west, the neon coming on.
+const DUSK = {
+  grade: 0xd6bcd8, sun: { color: 0xff6aa0, alpha: 0.32, x: 0 }, vignette: 0.4,
+  shadows: 0.38, lights: 1.05, fireflies: 0.8, mist: 0.16,
+};
+
+const SWAMP_AIR = {
+  vignetteColor: 0x14081e,
+  fireflyColors: [0xfff07a, 0xc8ff6a, 0xffb0e0],
+  sporeColors: [0xffffff, 0xf0f4ff, 0xffe8f8],
+  motes: 24,
+  mistDensity: 0.03,
+  mistColor: 0xf0eaff,
+};
 
 export const LOOKS = {
-  // Plain daylight: just shadows. Rooms and maps without a look of their own.
+  // The swamp's day: night, dawn, day, golden hour, dusk, and round again; with weather.
+  swamp: {
+    ...SWAMP_AIR,
+    phases: [
+      { at: 0, ...NIGHT },
+      { at: 4.5, ...NIGHT },
+      { at: 6.5, ...DAWN },
+      { at: 9, ...DAY_LIGHT },
+      { at: 16, ...DAY_LIGHT },
+      { at: 18, ...SUNSET },
+      { at: 19.5, ...DUSK },
+      { at: 21.5, ...NIGHT },
+    ],
+    weather: { odds: { clear: 6, fog: 3, rain: 2, storm: 1 }, hours: [2, 5] },
+  },
+
+  // Plain daylight: just shadows. Maps without a look of their own.
   day: { shadows: 0.3, lights: 0.35 },
 
-  // The swamp, take A: a violet toxic dusk, neon glowing, fireflies over the bog.
-  dusk: {
-    grade: 0xc4acd8,
-    vignette: { color: 0x14081e, alpha: 0.5 },
-    shadows: 0.38,
-    lights: 1,
-    motes: { count: 22, kind: 'firefly', colors: [0xfff07a, 0xc8ff6a] },
-    mist: { density: 0.03, color: 0xe8d8ff, alpha: 0.16 },
-  },
-
-  // Take B: a sickly green fog, spores rising, glows muted by the murk.
-  fog: {
-    grade: 0xc8d0b0,
-    haze: { color: 0xc8d8a0, alpha: 0.12 },
-    vignette: { color: 0x101408, alpha: 0.45 },
-    shadows: 0.3,
-    lights: 0.7,
-    motes: { count: 34, kind: 'spore', colors: [0xe8ff9a, 0xffffff, 0xff9ae8] },
-    mist: { density: 0.07, color: 0xe4f0c8, alpha: 0.26 },
-  },
-
-  // Take C: night. Deep blue, the neon and the windows doing all the work.
-  night: {
-    grade: 0x50548c,
-    vignette: { color: 0x05040e, alpha: 0.65 },
-    shadows: 0.45,
-    lights: 1.6,
-    motes: { count: 30, kind: 'firefly', colors: [0xfff07a, 0xc8ff6a, 0xff8ad8] },
-    mist: { density: 0.025, color: 0xa8b0ff, alpha: 0.14 },
-  },
-
   // Derek's basement: a dark room lit by screens, server lights and his neon.
-  basement: {
-    grade: 0x9a90b8,
-    vignette: { color: 0x06040c, alpha: 0.55 },
-    shadows: 0.4,
-    lights: 1.1,
-  },
+  basement: { grade: 0x9a90b8, vignette: 0.55, vignetteColor: 0x06040c, shadows: 0.4, lights: 1.1 },
 
   // The trading floor: bright, clean, a little cool.
-  office: {
-    grade: 0xf0f0ff,
-    vignette: { color: 0x0a0c14, alpha: 0.3 },
-    shadows: 0.3,
-    lights: 0.6,
-  },
+  office: { grade: 0xf0f0ff, vignette: 0.3, vignetteColor: 0x0a0c14, shadows: 0.3, lights: 0.6 },
 };
 
 export const DEFAULT_LOOK = 'day';
