@@ -99,6 +99,23 @@ export function walkerAnims(scene, key) {
   });
 }
 
+/**
+ * A walker's idle action (data/assets.js `idle`): `${key}_idle_${view}` for each
+ * view it has, played once from its `${key}_idle` sheet (rows down, up, left).
+ */
+export function idleActionAnims(scene, key, idle) {
+  for (const view of idle.views) {
+    const anim = `${key}_idle_${view}`;
+    if (scene.anims.exists(anim)) continue;
+    const row = SHEET_VIEWS.indexOf(view);
+    scene.anims.create({
+      key: anim,
+      frames: scene.anims.generateFrameNumbers(`${key}_idle`, { start: row * idle.frames, end: (row + 1) * idle.frames - 1 }),
+      frameRate: idle.fps,
+    });
+  }
+}
+
 /** Sheet frame and mirroring for a facing: right reuses the left row, flipped. */
 export function facingFrame(facing) {
   const view = facing === 'right' ? 'left' : facing;

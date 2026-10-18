@@ -26,18 +26,29 @@ export const IMAGES = [
 // tools/region-art/tileset.py), named by the map's layout; see ui/terrainView.js.
 
 // Walker sprite sheets: FIELD.frame-sized frames; rows down, up, left; columns idle, walk 1–4.
+// `idle` is an idle action: a clip about what they're holding, played now and then while
+// they stand (ui/motion.js), from `${key}_idle` (tools/region-art/idle.py: rows down, up,
+// left, `frames` each) in the `views` it was drawn for. A standee looks the same every way.
+const STANDEE = ['down', 'up', 'left'];
+const idle = (name, views, fps = 8) => ({ path: `assets/field/field_${name}_idle.png`, views, frames: 8, fps });
 export const FIELD_SHEETS = [
   { key: 'field_scott', path: 'assets/field/field_scott.png' },
   { key: 'field_derek', path: 'assets/field/field_derek.png' },
-  { key: 'field_brad', path: 'assets/field/field_brad.png' },
-  { key: 'field_morgan', path: 'assets/field/field_morgan.png' },
-  { key: 'field_chad', path: 'assets/field/field_chad.png' },
-  { key: 'field_vinny', path: 'assets/field/field_vinny.png' },
-  { key: 'field_wendy', path: 'assets/field/field_wendy.png' },
+  { key: 'field_brad', path: 'assets/field/field_brad.png', idle: idle('brad', ['left']) }, // peeks in his shopping bag
+  { key: 'field_morgan', path: 'assets/field/field_morgan.png', idle: idle('morgan', ['down', 'left']) }, // bounces the ban hammer
+  { key: 'field_chad', path: 'assets/field/field_chad.png', idle: idle('chad', ['down', 'left']) }, // sips his iced drink
+  { key: 'field_vinny', path: 'assets/field/field_vinny.png', idle: idle('vinny', ['left']) }, // checks his guest list
+  { key: 'field_wendy', path: 'assets/field/field_wendy.png', idle: idle('wendy', ['down']) }, // sips her champagne
   // Lil' Turnt, who follows $cott around (data/followers.js).
   { key: 'field_lilturnt', path: 'assets/field/field_lilturnt.png' },
   // Idle-only standees (tools/region-art/standee.py): the hot-tub regulars, the doorman, the day traders.
-  ...['floyd', 'lola', 'bob', 'doorman', 'helena', 'quentin', 'bart'].map((n) => ({ key: `field_${n}`, path: `assets/field/field_${n}.png` })),
+  { key: 'field_bob', path: 'assets/field/field_bob.png' },
+  { key: 'field_floyd', path: 'assets/field/field_floyd.png', idle: idle('floyd', STANDEE) }, // chugs his can
+  { key: 'field_lola', path: 'assets/field/field_lola.png', idle: idle('lola', STANDEE) }, // takes a selfie
+  { key: 'field_doorman', path: 'assets/field/field_doorman.png', idle: idle('doorman', STANDEE) }, // writes on his clipboard
+  { key: 'field_helena', path: 'assets/field/field_helena.png', idle: idle('helena', STANDEE) }, // checks her phone
+  { key: 'field_quentin', path: 'assets/field/field_quentin.png', idle: idle('quentin', STANDEE, 7) }, // sips his coffee
+  { key: 'field_bart', path: 'assets/field/field_bart.png', idle: idle('bart', STANDEE) }, // yells into his phone
 ];
 
 // Scenery props, drawn with their feet (bottom center) on the ground. `name` and

@@ -53,7 +53,7 @@ import { Trail, Barker, barkTargets, facingOf, moodOf, followerLines } from '../
 import { PhoneBadge } from '../ui/badge.js';
 import { rng, createRng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
-import { bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
+import { bakeProps, bakeWalkerSheet, walkerAnims, idleActionAnims, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { Atmosphere } from '../ui/atmosphere.js';
 import { Motion, swaySheet } from '../ui/motion.js';
@@ -122,6 +122,7 @@ export default class RegionScene extends Phaser.Scene {
     for (const f of FX_SHEETS) if (!this.textures.exists(f.key)) this.load.spritesheet(f.key, f.path, { frameWidth: f.w, frameHeight: f.h });
     const { w, h } = FIELD.frame;
     for (const s of FIELD_SHEETS) if (s.path) this.load.spritesheet(s.key, s.path, { frameWidth: w, frameHeight: h });
+    for (const s of FIELD_SHEETS) if (s.idle) this.load.spritesheet(`${s.key}_idle`, s.idle.path, { frameWidth: w, frameHeight: h });
     for (const p of PROP_IMAGES) if (p.path) this.load.image(p.key, p.path);
   }
 
@@ -327,15 +328,21 @@ export default class RegionScene extends Phaser.Scene {
     return `${this.region.id}:${gate.id}`;
   }
 
-  /** Show a walker's idle frame for a facing (right mirrors left). */
-  /** A character on the map, feet at (x, y), drawn from walker sheet `sheet`; it breathes while it stands. */
+  /**
+   * A character on the map, feet at (x, y), drawn from walker sheet `sheet`; it breathes while it
+   * stands, and does something with whatever it's holding now and then (its `idle`, data/assets.js).
+   */
   walker(x, y, sheet) {
     const sprite = this.add.sprite(Math.round(x), Math.round(y), sheet).setOrigin(0.5, 1).setDepth(worldDepth(y));
     sprite.sheet = sheet;
-    this.motion.breathe(sprite, sheet, FIELD.frame.w, FIELD.frame.h);
+    let idle = FIELD_SHEETS.find((s) => s.key === sheet)?.idle;
+    if (idle && this.textures.exists(`${sheet}_idle`)) idleActionAnims(this, sheet, idle);
+    else idle = null;
+    this.motion.breathe(sprite, sheet, FIELD.frame.w, FIELD.frame.h, idle);
     return sprite;
   }
 
+  /** Show a walker's idle frame for a facing (right mirrors left). */
   face(sprite, facing) {
     const { row, flip } = facingFrame(facing);
     sprite.anims.stop();
