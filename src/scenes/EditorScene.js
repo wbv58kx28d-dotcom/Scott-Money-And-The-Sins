@@ -638,7 +638,7 @@ export default class EditorScene extends Phaser.Scene {
       g.fillStyle(color, 1).fillRoundedRect(x, ys - 40, w, 80, 12);
       g.lineStyle(on ? 6 : 2, on ? SEL : 0x000000, 1).strokeRoundedRect(x, ys - 40, w, 80, 12);
       this.panel.add(g);
-      this.panel.add(label(this, x + w / 2, ys, t.label ?? t.name, 14, { color: '#ffffff' }).setOrigin(0.5));
+      this.panel.add(label(this, x + w / 2, ys, t.label ?? t.name, 14, { color: '#ffffff', align: 'center', wordWrap: { width: w - 8 } }).setOrigin(0.5));
       const zone = this.add.zone(x, ys - 40, w, 80).setOrigin(0).setInteractive().on('pointerup', () => {
         Audio.sfx('blip');
         this.paintWith = code;

@@ -1,6 +1,8 @@
-// Unit tests for elevation (systems/terrain.js): high ground ('h', a `cliff`
-// terrain) with a cliff face hung below its south edges, a rim $cott can't
-// cross, and stairs (a boardwalk of kind 'stairs') as the way up. Run: npm test
+// Unit tests for elevation (systems/terrain.js): raised terrains (a `level`:
+// 'h' high ground and 'p' high path at 1, 'H' higher ground at 2) with cliff
+// faces hung below their south edges, a rim $cott can't cross, stairs (a
+// boardwalk of kind 'stairs') as the way up, and painting that keeps terraces
+// stacked (H and p sit on h). Run: npm test
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,11 +25,20 @@ function plateau() {
   return rows;
 }
 
-test('the swamp tileset has high ground with a cliff face', () => {
-  assert.ok(swamp.terrains.h?.cliff);
-  assert.ok(swamp.pairs.includes('gh'));
+/** The plateau with a knoll of higher ground on it, rows 6..8, columns 7..12. */
+function terraces() {
+  return plateau().map((r, j) => [...r].map((c, i) => (i >= 7 && i <= 12 && j >= 6 && j <= 8 ? 'H' : c)).join(''));
+}
+
+test('the swamp tileset has high ground, higher ground and a high path, with a cliff face', () => {
+  assert.equal(swamp.terrains.h?.level, 1);
+  assert.equal(swamp.terrains.H?.level, 2);
+  assert.equal(swamp.terrains.p?.level, 1);
+  assert.equal(swamp.terrains.H.under, 'h');
+  assert.equal(swamp.terrains.p.under, 'h');
+  for (const pair of ['gh', 'hH', 'hp']) assert.ok(swamp.pairs.includes(pair), pair);
   assert.ok(swamp.cliff.face >= 32);
-  for (const key of ['hhhh', 'hhgg', 'gghh', 'hghg', 'ghgh']) assert.ok(swamp.tiles[key], key);
+  for (const key of ['hhhh', 'hhgg', 'gghh', 'hghg', 'ghgh', 'HHHH', 'HHhh', 'hhHH', 'pppp', 'pphh', 'hhpp']) assert.ok(swamp.tiles[key], key);
 });
 
 test('high ground, its rim, and the face hanging below its south edge', () => {
@@ -74,4 +85,67 @@ test('maps without high ground are unchanged: no faces, no extra blocking', () =
   const t = new Terrain(rows, swamp);
   assert.deepEqual(t.facesAt(320, 0, 640), []);
   for (let y = 16; y < 640; y += 16) assert.ok(!t.blocksAt(320, y));
+});
+
+test('terraces stack: each level has its own rim and face', () => {
+  const t = new Terrain(terraces(), swamp);
+  const c = t.cell;
+  const mid = 10 * c;
+  assert.equal(t.levelAt(mid, 7 * c), 2, 'on the knoll');
+  assert.equal(t.levelAt(mid, 9.75 * c), 1, 'on the plateau below it');
+  assert.equal(t.levelAt(mid, 14 * c), 0, 'on the ground');
+  assert.ok(t.blocksAt(mid, 8.5 * c), 'the knoll\'s rim blocks');
+  assert.ok(t.blocksAt(5 * c, 7 * c) === false, 'the plateau beside the knoll is open');
+  // Two faces in the column: the knoll's (onto the plateau), then the plateau's (onto the ground).
+  const faces = t.facesAt(mid, 0, 20 * c);
+  assert.equal(faces.length, 2);
+  assert.ok(Math.abs(faces[0].top - 8.5 * c) <= 4, `the knoll's face starts at its rim (${faces[0].top})`);
+  assert.equal(faces[0].full, t.face);
+  assert.ok(Math.abs(faces[1].top - 10.5 * c) <= 4, `the plateau's face starts at its rim (${faces[1].top})`);
+});
+
+test('a drop of two levels hangs a face twice as tall', () => {
+  // Higher ground straight onto grass (no tile for it, but the levels still say what's what).
+  const rows = plateau().map((r) => r.replace(/h/g, 'H'));
+  const t = new Terrain(rows, swamp);
+  const [f] = t.facesAt(10 * t.cell, 0, 20 * t.cell);
+  assert.equal(f.full, t.face * 2);
+  assert.equal(f.height, t.face * 2);
+  assert.ok(t.blocksAt(10 * t.cell, 10.5 * t.cell + t.face * 2 - 4), 'the whole face blocks');
+  assert.ok(!t.blocksAt(10 * t.cell, 10.5 * t.cell + t.face * 2 + 20), 'past its foot is open');
+});
+
+test('painting keeps terraces stacked: higher ground and the high path sit on high ground', () => {
+  const blank = () => new Terrain(plateau().map((r) => r.replace(/h/g, 'g')), swamp);
+  const drawable = (t) => {
+    for (let j = 0; j < t.rows; j++) for (let i = 0; i < t.cols; i++) assert.ok(swamp.tiles[t.key(i, j)], `cell ${i},${j}: ${t.key(i, j)}`);
+  };
+  // Higher ground painted on grass comes with a ring of high ground.
+  const a = blank();
+  a.paint(10, 10, 2, 'H');
+  drawable(a);
+  assert.equal(a.at(10, 10), 'H');
+  assert.equal(a.at(12, 10), 'h', 'the ring');
+  assert.equal(a.at(15, 10), 'g', 'and grass past it');
+  // So does a high path.
+  const b = blank();
+  b.paint(10, 10, 1, 'p');
+  drawable(b);
+  assert.equal(b.at(10, 10), 'p');
+  assert.equal(b.at(11, 10), 'h');
+  // Grass painted over higher ground leaves high ground around it, not a two-level drop.
+  const c = new Terrain(terraces(), swamp);
+  c.paint(9, 7, 1, 'g');
+  drawable(c);
+  assert.equal(c.at(9, 7), 'g');
+  for (let j = 0; j <= c.rows; j++) for (let i = 0; i <= c.cols; i++) {
+    if (c.at(i, j) !== 'H') continue;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) assert.notEqual(c.at(i + di, j + dj), 'g', `H at ${i},${j} touches grass`);
+  }
+  // Dirt painted beside fresh high ground gives way, not the high ground.
+  const d = blank();
+  d.paint(10, 14, 1, 'd');
+  d.paint(10, 10, 2, 'H');
+  drawable(d);
+  assert.equal(d.at(10, 10), 'H');
 });

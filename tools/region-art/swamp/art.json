@@ -21,7 +21,19 @@
     "h": {
       "name": "high",
       "label": "HIGH GROUND",
-      "cliff": true
+      "level": 1
+    },
+    "H": {
+      "name": "higher",
+      "label": "HIGHER GROUND",
+      "level": 2,
+      "under": "h"
+    },
+    "p": {
+      "name": "trail",
+      "label": "HIGH PATH",
+      "level": 1,
+      "under": "h"
     }
   },
   "base": "g",
@@ -29,7 +41,9 @@
     "water_grass",
     "dirt_grass",
     "grass_reeds",
-    "grass_high"
+    "grass_high",
+    "high_higher",
+    "high_trail"
   ],
   "grade": {
     "saturation": 1.0,
@@ -109,6 +123,32 @@
         "bubble_52.png"
       ],
       "density": 0.12
+    },
+    {
+      "on": "higher",
+      "files": [
+        "pebble_33.png",
+        "pebble_34.png",
+        "pebble_35.png",
+        "pebble_37.png",
+        "twig_48.png",
+        "twig_50.png"
+      ],
+      "density": 0.18
+    },
+    {
+      "on": "trail",
+      "files": [
+        "pebble_33.png",
+        "pebble_34.png",
+        "pebble_35.png",
+        "pebble_37.png",
+        "puddle_40.png",
+        "puddle_41.png",
+        "puddle_44.png",
+        "puddle_46.png"
+      ],
+      "density": 0.08
     }
   ],
   "bubbles": {

@@ -8,11 +8,14 @@
 // samples it, the map editor paints it, and the map checks read it
 // (systems/mapcheck.js, unit-tested). `tileset` is assets/regions/<set>/tileset.json.
 //
-// Elevation: a terrain marked `cliff` (the swamp's 'h', high ground) is raised.
-// Its tiles show the top; under every edge of it that faces the camera
-// (south) hangs a cliff face `tileset.cliff.face` px tall, drawn over the
-// ground below. $cott can't step over the rim or onto the face; stairs (a
-// boardwalk of kind 'stairs', always walkable) are the way up and down.
+// Elevation: a terrain with a `level` is raised that many steps (the swamp's
+// 'h' high ground and 'p' high path are 1, 'H' higher ground is 2). Its tiles
+// show the top; under every edge that faces the camera (south) and drops to
+// lower ground hangs a cliff face, `tileset.cliff.face` px tall per level
+// dropped, drawn over the ground below. $cott can't step over a rim or onto a
+// face; stairs (a boardwalk of kind 'stairs', always walkable) are the way up
+// and down. A raised terrain's `under` is what it gives way to (H and p sit
+// on h), so terraces stack: painting H on grass rings it with h.
 
 /** A small integer hash, so tile variants and decals stay put when nearby corners change. */
 export function hash(i, j, salt = 0) {
@@ -40,8 +43,13 @@ export class Terrain {
     this.cols = this.grid[0].length - 1;
     this.pairs = new Set(tileset.pairs.flatMap((p) => [p, [...p].reverse().join('')]));
     this.blocking = new Set(Object.entries(tileset.terrains).filter(([, t]) => t.blocks).map(([c]) => c));
-    this.cliffs = new Set(Object.entries(tileset.terrains).filter(([, t]) => t.cliff).map(([c]) => c));
-    this.face = this.cliffs.size ? (tileset.cliff?.face ?? 48) : 0;
+    this.levels = Object.fromEntries(Object.entries(tileset.terrains).map(([c, t]) => [c, t.level ?? 0]));
+    this.maxLevel = Math.max(0, ...Object.values(this.levels));
+    // atLeast[L]: the terrains at level L or higher.
+    this.atLeast = [];
+    for (let L = 1; L <= this.maxLevel; L++) this.atLeast[L] = new Set(Object.keys(this.levels).filter((c) => this.levels[c] >= L));
+    this.face = this.maxLevel ? (tileset.cliff?.face ?? 48) : 0; // per level dropped
+    this.maxFace = this.face * this.maxLevel;
   }
 
   get width() {
@@ -99,10 +107,19 @@ export class Terrain {
     };
   }
 
-  /** Make every cell drawable. `keep` wins any conflict it's part of. Returns the cell box it touched. */
+  /**
+   * Make every cell drawable. `keep` wins any conflict it's part of: lower
+   * ground around a raised `keep` rises to what it sits on (its `under`), and
+   * otherwise the other terrain gives way to its own `under` (or the base). Returns the cell box it touched.
+   */
   fixup(keep = null) {
-    const base = this.tileset.base;
-    const yields = this.tileset.yields ?? Object.keys(this.tileset.terrains);
+    const { base, terrains } = this.tileset;
+    const order = this.tileset.yields ?? Object.keys(terrains);
+    const lv = this.levels;
+    // Which gives way first: an overlay (one with an `under`), then `yields` order.
+    const rank = (k) => (terrains[k]?.under ? 0 : 100) + order.indexOf(k);
+    const before = (a, b) => rank(a) - rank(b);
+    const raiseTo = keep && terrains[keep]?.under;
     const box = { i0: Infinity, j0: Infinity, i1: -Infinity, j1: -Infinity };
     for (let pass = 0, again = true; again && pass < 50; pass++) {
       again = false;
@@ -111,12 +128,21 @@ export class Terrain {
           const corners = [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]];
           const kinds = new Set(corners.map(([x, y]) => this.grid[y][x]));
           if (this.allowed(kinds)) continue;
-          // Which terrain gives way: not the one being painted, not the base; first in `yields`.
-          const candidates = [...kinds].filter((k) => k !== base && k !== keep);
-          const drop = yields.find((y) => candidates.includes(y)) ?? candidates[0] ?? [...kinds].find((k) => k !== base);
+          let drop;
+          let to;
+          if (raiseTo && kinds.has(keep) && [...kinds].some((k) => lv[k] < lv[keep] && k !== raiseTo)) {
+            // Raised ground being painted: the lower ground beside it comes up to what it sits on.
+            drop = [...kinds].find((k) => lv[k] < lv[keep] && k !== raiseTo);
+            to = raiseTo;
+          } else {
+            // Which terrain gives way: not the one being painted, not the base.
+            const candidates = [...kinds].filter((k) => k !== base && k !== keep).sort(before);
+            drop = candidates[0] ?? [...kinds].find((k) => k !== base);
+            to = terrains[drop]?.under ?? base;
+          }
           for (const [x, y] of corners) {
             if (this.grid[y][x] !== drop) continue;
-            this.grid[y][x] = base;
+            this.grid[y][x] = to;
             again = true;
             box.i0 = Math.min(box.i0, x - 1);
             box.j0 = Math.min(box.j0, y - 1);
@@ -161,9 +187,16 @@ export class Terrain {
     return (b(i, j) * (1 - u) + b(i + 1, j) * u) * (1 - v) + (b(i, j + 1) * (1 - u) + b(i + 1, j + 1) * u) * v;
   }
 
-  /** Is world point (x, y) on high ground (a `cliff` terrain)? */
+  /** How many levels up world point (x, y) is: 0 on the ground, 1 on high ground, and so on. */
+  levelAt(x, y) {
+    let lv = 0;
+    while (lv < this.maxLevel && this.shareAt(this.atLeast[lv + 1], x, y) > 0.5) lv++;
+    return lv;
+  }
+
+  /** Is world point (x, y) on raised ground? */
   highAt(x, y) {
-    return this.cliffs.size > 0 && this.shareAt(this.cliffs, x, y) > 0.5;
+    return this.levelAt(x, y) > 0;
   }
 
   /** Is world point (x, y) on blocking ground: water, reeds, off the map, or a cliff's rim or face? */
@@ -174,38 +207,49 @@ export class Terrain {
   }
 
   /**
-   * Is (x, y) on a cliff: within RIM px of the edge of high ground (any side),
-   * or on the face hanging below a south-facing edge?
+   * Is (x, y) on a cliff: within RIM px of a change of level (any side), or on
+   * a face hanging below a south-facing edge?
    */
   cliffAt(x, y) {
     if (!this.face) return false;
-    const high = this.highAt(x, y);
+    const lv = this.levelAt(x, y);
     for (const [dx, dy] of [[RIM, 0], [-RIM, 0], [0, RIM], [0, -RIM]]) {
-      if (this.highAt(x + dx, y + dy) !== high) return true;
+      if (this.levelAt(x + dx, y + dy) !== lv) return true;
     }
-    if (high) return false;
-    for (let d = 2; d <= this.face; d += 2) if (this.highAt(x, y - d)) return true;
+    if (lv === this.maxLevel || !this.higherAbove(x, y, lv)) return false;
+    return this.facesAt(x, y, y + 1).some((f) => f.top <= y && y < f.top + f.height);
+  }
+
+  /** Is any corner within a face's reach above (x, y) higher than `lv`? (A quick test before scanning.) */
+  higherAbove(x, y, lv) {
+    const i = Math.floor(x / this.cell);
+    const j1 = Math.min(this.rows, Math.floor(y / this.cell) + 1);
+    for (let j = Math.max(0, Math.floor((y - this.maxFace) / this.cell)); j <= j1; j++) {
+      if (this.levels[this.at(i, j)] > lv || this.levels[this.at(i + 1, j)] > lv) return true;
+    }
     return false;
   }
 
   /**
-   * Where cliff faces hang in a column of world x, from y0 to y1: [{ top, height }]
-   * for each south-facing rim (high ground above, low below), its face from
-   * the rim down `face` px (or until it reaches high ground again). On the 2 px art grid.
+   * Where cliff faces hang in a column of world x, from y0 to y1: [{ top,
+   * height, full }] for each south-facing drop (higher ground above, lower
+   * below), its face from the rim down `face` px per level dropped (`full`),
+   * or less where it reaches ground as high again. On the 2 px art grid.
    */
   facesAt(x, y0, y1) {
     const out = [];
     if (!this.face) return out;
-    const start = Math.floor((y0 - this.face) / 2) * 2;
-    let prev = this.highAt(x, start);
+    const start = Math.floor((y0 - this.maxFace) / 2) * 2;
+    let prev = this.levelAt(x, start);
     for (let y = start + 2; y < y1; y += 2) {
-      const high = this.highAt(x, y);
-      if (prev && !high) {
+      const lv = this.levelAt(x, y);
+      if (lv < prev) {
+        const full = this.face * (prev - lv);
         let h = 0;
-        while (h < this.face && !this.highAt(x, y + h)) h += 2;
-        out.push({ top: y, height: h });
+        while (h < full && this.levelAt(x, y + h) < prev) h += 2;
+        out.push({ top: y, height: h, full });
       }
-      prev = high;
+      prev = lv;
     }
     return out;
   }

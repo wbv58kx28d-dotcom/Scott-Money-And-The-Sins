@@ -147,18 +147,22 @@ export class TerrainView {
     // Nothing to draw unless high ground is somewhere in (or just above) this chunk.
     const { cell } = terrain;
     const ci0 = Math.floor(ox / cell);
-    const cj0 = Math.max(0, Math.floor((oy - terrain.face) / cell));
+    const cj0 = Math.max(0, Math.floor((oy - terrain.maxFace) / cell));
     let any = false;
     for (let j = cj0; j <= Math.min(terrain.rows, Math.ceil((oy + h) / cell)) && !any; j++) {
-      for (let i = ci0; i <= Math.min(terrain.cols, ci0 + Math.ceil(w / cell)) && !any; i++) any = terrain.cliffs.has(terrain.grid[j][i]);
+      for (let i = ci0; i <= Math.min(terrain.cols, ci0 + Math.ceil(w / cell)) && !any; i++) any = terrain.levels[terrain.grid[j][i]] > 0;
     }
     if (!any) return;
     for (let x = 0; x < w; x += 2) {
       const wx = ox + x;
       const sx = wx % img.width;
       for (const f of terrain.facesAt(wx + 1, oy, oy + h)) {
-        ctx.drawImage(img, sx, 0, 2, f.height, x, f.top - oy, 2, f.height);
-        if (f.height === terrain.face) {
+        // A drop of more than one level stacks the strip.
+        for (let k = 0; k < f.height; k += img.height) {
+          const sh = Math.min(img.height, f.height - k);
+          ctx.drawImage(img, sx, 0, 2, sh, x, f.top - oy + k, 2, sh);
+        }
+        if (f.height === f.full) {
           ctx.fillStyle = 'rgba(10, 6, 16, 0.28)';
           ctx.fillRect(x, f.top - oy + f.height, 2, 6);
         }
