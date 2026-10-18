@@ -137,8 +137,142 @@
       "density": 0.18
     },
     {
+      "on": "grass",
+      "files": [
+        "flower_17.png",
+        "flower_18.png",
+        "flower_19.png",
+        "flower_20.png",
+        "flower_21.png",
+        "flower_22.png",
+        "flower_26.png",
+        "flower_27.png"
+      ],
+      "density": 0.04
+    },
+    {
+      "on": "grass",
+      "files": [
+        "moss_11.png",
+        "moss_12.png",
+        "moss_13.png",
+        "moss_14.png",
+        "moss_15.png"
+      ],
+      "density": 0.022
+    },
+    {
+      "on": "grass",
+      "files": [
+        "deadflower_57.png",
+        "deadflower_61.png",
+        "deadflower_63.png",
+        "leaves_17.png",
+        "leaves_18.png",
+        "leaves_20.png",
+        "leaves_22.png",
+        "leaves_23.png"
+      ],
+      "density": 0.03
+    },
+    {
+      "on": "grass",
+      "files": [
+        "sludge_02.png",
+        "sludge_03.png",
+        "sludge_06.png",
+        "sludge_07.png"
+      ],
+      "density": 0.007
+    },
+    {
+      "on": "grass",
+      "files": [
+        "bones_45.png",
+        "bones_47.png",
+        "can_24.png",
+        "can_26.png",
+        "can_27.png",
+        "can_29.png",
+        "gpu_50.png",
+        "gpu_54.png",
+        "gpu_55.png",
+        "ticket_33.png",
+        "ticket_36.png",
+        "ticket_39.png"
+      ],
+      "density": 0.007
+    },
+    {
+      "on": "high",
+      "files": [
+        "tuft_01.png",
+        "tuft_02.png",
+        "tuft_03.png",
+        "tuft_04.png",
+        "tuft_05.png",
+        "tuft_06.png",
+        "tuft_07.png",
+        "tuft_08.png",
+        "tuft_09.png",
+        "tuft_10.png",
+        "tuft_11.png",
+        "tuft_12.png",
+        "tuft_13.png",
+        "tuft_14.png",
+        "tuft_15.png"
+      ],
+      "density": 0.25
+    },
+    {
+      "on": "high",
+      "files": [
+        "deadflower_57.png",
+        "deadflower_61.png",
+        "deadflower_63.png",
+        "leaves_17.png",
+        "leaves_18.png",
+        "leaves_20.png",
+        "leaves_22.png",
+        "leaves_23.png",
+        "moss_11.png",
+        "moss_12.png",
+        "moss_13.png",
+        "moss_14.png",
+        "moss_15.png"
+      ],
+      "density": 0.04
+    },
+    {
+      "on": "dirt",
+      "files": [
+        "can_24.png",
+        "can_26.png",
+        "can_27.png",
+        "can_29.png",
+        "leaves_17.png",
+        "leaves_18.png",
+        "leaves_20.png",
+        "leaves_22.png",
+        "leaves_23.png",
+        "ticket_33.png",
+        "ticket_36.png",
+        "ticket_39.png"
+      ],
+      "density": 0.02
+    },
+    {
       "on": "trail",
       "files": [
+        "can_24.png",
+        "can_26.png",
+        "can_27.png",
+        "can_29.png",
+        "leaves_17.png",
+        "leaves_18.png",
+        "leaves_20.png",
+        "leaves_22.png",
+        "leaves_23.png",
         "pebble_33.png",
         "pebble_34.png",
         "pebble_35.png",
@@ -148,7 +282,52 @@
         "puddle_44.png",
         "puddle_46.png"
       ],
-      "density": 0.08
+      "density": 0.06
+    },
+    {
+      "on": "water",
+      "files": [
+        "lilies_01.png",
+        "lilies_09.png",
+        "lilies_17.png",
+        "lilies_25.png",
+        "lilies_41.png",
+        "lily_56.png",
+        "lily_57.png",
+        "lily_58.png",
+        "lily_59.png",
+        "lily_60.png",
+        "lily_61.png",
+        "lily_62.png",
+        "lilypad_00.png",
+        "lilypad_08.png",
+        "lilypad_16.png",
+        "lilypad_40.png",
+        "lilypad_56.png"
+      ],
+      "density": 0.05
+    },
+    {
+      "on": "water",
+      "files": [
+        "bottle_04.png",
+        "bottle_12.png",
+        "duck_02.png",
+        "duck_18.png",
+        "duck_34.png",
+        "log_05.png",
+        "log_21.png",
+        "log_37.png",
+        "log_45.png",
+        "pizza_07.png",
+        "pizza_39.png",
+        "pizza_55.png",
+        "sodacan_03.png",
+        "sodacan_11.png",
+        "sodacan_27.png",
+        "sodacan_35.png"
+      ],
+      "density": 0.01
     }
   ],
   "bubbles": {
@@ -161,5 +340,59 @@
   },
   "cliff": {
     "face": 24
-  }
+  },
+  "patches": [
+    {
+      "on": [
+        "grass",
+        "high"
+      ],
+      "color": "#5a6020",
+      "alpha": 0.45,
+      "blend": "multiply",
+      "scale": 7,
+      "cut": 0.6
+    },
+    {
+      "on": [
+        "grass"
+      ],
+      "color": "#f0e0a0",
+      "alpha": 0.16,
+      "scale": 11,
+      "cut": 0.6
+    },
+    {
+      "on": [
+        "grass",
+        "high"
+      ],
+      "color": "#a06840",
+      "alpha": 0.35,
+      "blend": "multiply",
+      "scale": 4,
+      "cut": 0.66
+    },
+    {
+      "on": [
+        "water"
+      ],
+      "color": "#503070",
+      "alpha": 0.45,
+      "blend": "multiply",
+      "scale": 5,
+      "cut": 0.42
+    },
+    {
+      "on": [
+        "dirt",
+        "trail"
+      ],
+      "color": "#302018",
+      "alpha": 0.4,
+      "blend": "multiply",
+      "scale": 3,
+      "cut": 0.58
+    }
+  ]
 }

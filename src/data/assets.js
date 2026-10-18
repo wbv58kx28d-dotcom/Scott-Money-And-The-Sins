@@ -48,13 +48,14 @@ export const FIELD_SHEETS = [
 //           its width, or { w, x, y } to move it from the feet
 //   glow    lights: [{ x, y (from the feet), r, color, alpha?, flicker? | pulse? }]
 //   puffs   { x, y, kind: 'steam' | 'ember', every (ms), spread? }, rising off it
+//   sway    how far its top leans in a strong wind, px (ui/motion.js); trees, reeds, flames
 export const PROP_IMAGES = [
-  { key: 'prop_cypress', path: 'assets/props/prop_cypress.png', name: 'CYPRESS', block: { w: 64, h: 24 } },
-  { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png', name: 'CYPRESS 2', block: { w: 64, h: 24 } },
-  { key: 'prop_cypress_c', path: 'assets/props/prop_cypress_c.png', name: 'CYPRESS 3', block: { w: 60, h: 24 } },
-  { key: 'prop_cypress_d', path: 'assets/props/prop_cypress_d.png', name: 'CYPRESS 4', block: { w: 64, h: 24 } },
-  { key: 'prop_snag', path: 'assets/props/prop_snag.png', name: 'SNAG', block: { w: 40, h: 18 }, shadow: 50, glow: [{ x: 15, y: -53, r: 40, color: 0xff5ad0, pulse: true }] },
-  { key: 'prop_snag_b', path: 'assets/props/prop_snag_b.png', name: 'SNAG 2', block: { w: 40, h: 18 }, shadow: 50, glow: [{ x: 14, y: -58, r: 40, color: 0xff5ad0, pulse: true }] },
+  { key: 'prop_cypress', path: 'assets/props/prop_cypress.png', name: 'CYPRESS', block: { w: 64, h: 24 }, sway: 6 },
+  { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png', name: 'CYPRESS 2', block: { w: 64, h: 24 }, sway: 6 },
+  { key: 'prop_cypress_c', path: 'assets/props/prop_cypress_c.png', name: 'CYPRESS 3', block: { w: 60, h: 24 }, sway: 6 },
+  { key: 'prop_cypress_d', path: 'assets/props/prop_cypress_d.png', name: 'CYPRESS 4', block: { w: 64, h: 24 }, sway: 6 },
+  { key: 'prop_snag', path: 'assets/props/prop_snag.png', name: 'SNAG', block: { w: 40, h: 18 }, shadow: 50, glow: [{ x: 15, y: -53, r: 40, color: 0xff5ad0, pulse: true }], sway: 4 },
+  { key: 'prop_snag_b', path: 'assets/props/prop_snag_b.png', name: 'SNAG 2', block: { w: 40, h: 18 }, shadow: 50, glow: [{ x: 14, y: -58, r: 40, color: 0xff5ad0, pulse: true }], sway: 4 },
   { key: 'prop_sign', path: 'assets/props/prop_sign.png', name: 'SIGN', block: { w: 90, h: 16 }, label: 'SIGN', shadow: 84 },
   { key: 'prop_setup', path: 'assets/props/prop_setup.png', name: 'DESK', block: { w: 170, h: 50 } },
   { key: 'prop_tent', path: 'assets/props/prop_tent.png', name: 'TENT', block: { w: 160, h: 60 }, shadow: 170 },
@@ -66,12 +67,12 @@ export const PROP_IMAGES = [
   { key: 'prop_stump', path: 'assets/props/prop_stump.png', name: 'STUMP', block: { w: 56, h: 20 }, shadow: 52 },
   { key: 'prop_crystals', path: 'assets/props/prop_crystals.png', name: 'CRYSTALS', block: { w: 44, h: 16 }, shadow: 40, glow: [{ x: -3, y: -30, r: 72, color: 0xff50e0, pulse: true }] },
   { key: 'prop_rig', path: 'assets/props/prop_rig.png', name: 'MINING RIG', block: { w: 70, h: 24 }, shadow: 66 },
-  { key: 'prop_reeds', path: 'assets/props/prop_reeds.png', name: 'REEDS', block: { w: 34, h: 12 } },
+  { key: 'prop_reeds', path: 'assets/props/prop_reeds.png', name: 'REEDS', block: { w: 34, h: 12 }, sway: 4 },
   { key: 'prop_trash', path: 'assets/props/prop_trash.png', name: 'TRASH' }, // flat: walk right over it
   // The hot-tub hub (CLAUDE.md §6.6).
   { key: 'prop_hottub', path: 'assets/props/prop_hottub.png', name: 'HOT TUB', block: { w: 150, h: 40 }, shadow: 164, glow: [{ x: -2, y: -64, r: 120, color: 0xff40d0, pulse: true }], puffs: { x: 0, y: -84, kind: 'steam', every: 520, spread: 80 } },
   { key: 'prop_cooler', path: 'assets/props/prop_cooler.png', name: 'COOLER', block: { w: 56, h: 18 }, shadow: 58 },
-  { key: 'prop_tiki', path: 'assets/props/prop_tiki.png', name: 'TIKI TORCH', block: { w: 18, h: 10 }, shadow: 18, glow: [{ x: -2, y: -78, r: 76, color: 0xff9a30, flicker: true }], puffs: { x: -2, y: -86, kind: 'ember', every: 420 } },
+  { key: 'prop_tiki', path: 'assets/props/prop_tiki.png', name: 'TIKI TORCH', block: { w: 18, h: 10 }, shadow: 18, glow: [{ x: -2, y: -78, r: 76, color: 0xff9a30, flicker: true }], puffs: { x: -2, y: -86, kind: 'ember', every: 420 }, sway: 2 },
   // The hub's cardboard neighborhood: fake luxury for broke, over-leveraged stonk bros.
   { key: 'prop_cb_mansion', path: 'assets/props/prop_cb_mansion.png', name: 'BOX MANSION', block: { w: 240, h: 90 }, shadow: { w: 250, y: -6 } },
   { key: 'prop_cb_mansion_b', path: 'assets/props/prop_cb_mansion_b.png', name: 'BOX MANSION 2', block: { w: 240, h: 90 }, shadow: { w: 250, y: -6 } },

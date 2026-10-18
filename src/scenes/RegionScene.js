@@ -24,7 +24,8 @@
 // everything in the world sits below the UI's ordinary depths. The map's look
 // (data/looks.js) grades and lights it, with shadows under everyone (ui/atmosphere.js);
 // outdoors the light follows the time of day, and the weather comes and goes.
-// The clock runs while he's in a region (not while the phone's open). UI is created
+// The clock runs while he's in a region (not while the phone's open). Trees and
+// reeds sway in the wind, and everyone standing still breathes (ui/motion.js). UI is created
 // inside ui(), which pins it to the screen.
 
 import { FIELD, LAYOUT, GAME_W, GAME_H } from '../config.js';
@@ -52,6 +53,7 @@ import trade from '../minigames/trade.js';
 import { bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { Atmosphere } from '../ui/atmosphere.js';
+import { Motion, swaySheet } from '../ui/motion.js';
 import { LOOKS, DEFAULT_LOOK, DAY } from '../data/looks.js';
 import { hourOf, parseTime, weatherAt, WEATHER_KINDS, DAY_MINUTES } from '../systems/sky.js';
 import { TapBus } from '../ui/tapBus.js';
@@ -177,10 +179,14 @@ export default class RegionScene extends Phaser.Scene {
       ground: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain, hour: this.hour(), weather: this.weatherNow(),
     });
 
+    this.motion = new Motion(this, { rand: createRng(13).random });
+
     // Props tagged with a secret show once it's found; a `cover` shows until then (systems/secrets.js).
     this.secretProps = [];
     for (const p of map.props) {
-      const img = this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
+      const sway = PROP_DEFS[p.texture]?.sway;
+      const img = this.add.image(p.x, p.y, sway ? swaySheet(this, p.texture, sway) : p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
+      if (sway) this.motion.sway(img);
       const tag = p.label ? signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5) : null;
       this.atmo.addProp(img, PROP_DEFS[p.texture]);
       if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });
@@ -190,7 +196,7 @@ export default class RegionScene extends Phaser.Scene {
 
     const cleared = Save.cleared.has(this.region.id);
     this.npcs = map.npcs.map((n) => {
-      const sprite = this.add.sprite(n.x, n.y, n.sprite).setOrigin(0.5, 1).setDepth(worldDepth(n.y));
+      const sprite = this.walker(n.x, n.y, n.sprite);
       this.face(sprite, n.facing);
       this.atmo.follow(sprite);
       // A bouncing "!" over a villain you haven't beaten, "?" over a challenge you haven't won.
@@ -216,7 +222,7 @@ export default class RegionScene extends Phaser.Scene {
     this.buildGrid();
 
     const spawn = this.arrival() ?? map.spawn;
-    this.player = this.add.sprite(spawn.x, spawn.y, 'field_scott').setOrigin(0.5, 1).setDepth(worldDepth(spawn.y));
+    this.player = this.walker(spawn.x, spawn.y, 'field_scott');
     this.facing = spawn.facing;
     this.face(this.player, this.facing);
     this.atmo.follow(this.player);
@@ -305,10 +311,19 @@ export default class RegionScene extends Phaser.Scene {
   }
 
   /** Show a walker's idle frame for a facing (right mirrors left). */
+  /** A character on the map, feet at (x, y), drawn from walker sheet `sheet`; it breathes while it stands. */
+  walker(x, y, sheet) {
+    const sprite = this.add.sprite(Math.round(x), Math.round(y), sheet).setOrigin(0.5, 1).setDepth(worldDepth(y));
+    sprite.sheet = sheet;
+    this.motion.breathe(sprite, sheet, FIELD.frame.w, FIELD.frame.h);
+    return sprite;
+  }
+
   face(sprite, facing) {
     const { row, flip } = facingFrame(facing);
     sprite.anims.stop();
-    sprite.setFrame(row * SHEET_COLS).setFlipX(flip);
+    sprite.setTexture(sprite.sheet ?? sprite.texture.key, row * SHEET_COLS).setFlipX(flip);
+    this.motion.rest(sprite, row);
   }
 
   // ---- UI ----------------------------------------------------------------------------
@@ -460,6 +475,7 @@ export default class RegionScene extends Phaser.Scene {
   update(time, delta) {
     this.tickClock(time, delta);
     this.atmo.update(time, delta, { hour: this.hour(), weather: this.weatherNow(), fade: DAY.fadeSeconds });
+    this.motion.update(time, this.atmo.light.wind);
     this.placeEmote();
     if (this.mode !== 'explore') return;
     this.talkButton.setReady(!!this.nearbyNpc());
@@ -656,6 +672,7 @@ export default class RegionScene extends Phaser.Scene {
     if ((this.follower?.id ?? null) === id) return;
     if (this.follower) {
       this.atmo.unfollow(this.follower.sprite);
+      this.motion.forget(this.follower.sprite);
       this.follower.sprite.destroy();
     }
     this.follower = null;
@@ -666,7 +683,7 @@ export default class RegionScene extends Phaser.Scene {
     // She starts right behind him, on the side he's facing away from (through a door, that's the doorway).
     const trail = new Trail(data.gap, this.player, { facing: this.facing, bounds: this.map.size });
     const { x, y } = trail.position();
-    const sprite = this.add.sprite(Math.round(x), Math.round(y), data.sprite).setOrigin(0.5, 1).setDepth(worldDepth(y));
+    const sprite = this.walker(x, y, data.sprite);
     this.face(sprite, this.facing);
     this.atmo.follow(sprite, 34);
     const barker = data.barks ? new Barker(data.barks, { now: this.time.now }) : null;

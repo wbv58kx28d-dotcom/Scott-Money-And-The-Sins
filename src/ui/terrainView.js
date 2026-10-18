@@ -1,6 +1,7 @@
 // Draws a region's ground from its terrain grid (systems/terrain.js) and its
 // tileset's art (assets/regions/<set>/, built by tools/region-art/tileset.py):
-// each cell's tile, small details scattered on solid cells, cliff faces under
+// each cell's tile, soft patches breaking up big fields (the tileset's
+// `patches`), small details scattered on solid cells, cliff faces under
 // high ground, and boardwalks over the water (or stairs up a cliff). The ground is cut into square chunks, each its own canvas
 // texture, so a big map never needs one texture past a phone's size limit,
 // and the map editor can repaint just the chunks a brush stroke touched.
@@ -119,17 +120,19 @@ export class TerrainView {
         }
       }
     }
+    const ox = i0 * cell;
+    const oy = j0 * cell;
+    this.drawPatches(ctx, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     // Details on top of the tiles (a pass of their own, so a neighbor's tile never covers one).
-    for (let j = j0; j < j1; j++) {
-      for (let i = i0; i < i1; i++) {
+    // Big ones spill right and down, so the cells just up and left of the chunk can reach into it.
+    for (let j = Math.max(0, j0 - 1); j < j1; j++) {
+      for (let i = Math.max(0, i0 - 1); i < i1; i++) {
         for (const d of terrain.decalsFor(i, j)) {
           const [fx, fy, fw, fh] = frames[d.frame];
           ctx.drawImage(this.decals, fx, fy, fw, fh, (i - i0) * cell + d.x, (j - j0) * cell + d.y, fw, fh);
         }
       }
     }
-    const ox = i0 * cell;
-    const oy = j0 * cell;
     this.drawCliffs(ctx, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     for (const b of this.bridges) this.drawBridge(ctx, b, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     chunk.tex.refresh();
@@ -140,6 +143,35 @@ export class TerrainView {
    * art's matching column (by world x, so it tiles across chunks) hung below
    * each south-facing rim, and a soft shadow on the ground at its foot.
    */
+  /**
+   * The tileset's patches (systems/terrain.js patchAt), in 4 px blocks: each a
+   * color laid over the tiles (`blend`, default normal), its edge dithered in a
+   * checkerboard of 2 px art pixels so it frays like pixel art.
+   */
+  drawPatches(ctx, ox, oy, w, h) {
+    const patches = this.terrain.tileset.patches;
+    if (!patches?.length) return;
+    const B = 4;
+    patches.forEach((p, k) => {
+      ctx.globalCompositeOperation = p.blend ?? 'source-over';
+      ctx.fillStyle = p.color;
+      for (let y = 0; y < h; y += B) {
+        for (let x = 0; x < w; x += B) {
+          const at = this.terrain.patchAt(p, k, ox + x + B / 2, oy + y + B / 2);
+          if (!at) continue;
+          ctx.globalAlpha = p.alpha;
+          if (at === 2) ctx.fillRect(x, y, B, B);
+          else {
+            ctx.fillRect(x, y, B / 2, B / 2);
+            ctx.fillRect(x + B / 2, y + B / 2, B / 2, B / 2);
+          }
+        }
+      }
+    });
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   drawCliffs(ctx, ox, oy, w, h) {
     const { terrain } = this;
     const img = this.cliffImg;
