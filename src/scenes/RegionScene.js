@@ -54,6 +54,7 @@ import { bakeProps, bakeWalkerSheet, walkerAnims, facingFrame, SHEET_COLS } from
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { Atmosphere } from '../ui/atmosphere.js';
 import { Motion, swaySheet } from '../ui/motion.js';
+import { Vista } from '../ui/vista.js';
 import { LOOKS, DEFAULT_LOOK, DAY } from '../data/looks.js';
 import { hourOf, parseTime, weatherAt, WEATHER_KINDS, DAY_MINUTES } from '../systems/sky.js';
 import { TapBus } from '../ui/tapBus.js';
@@ -178,6 +179,10 @@ export default class RegionScene extends Phaser.Scene {
     this.atmo = new Atmosphere(this, this.look, {
       ground: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain, hour: this.hour(), weather: this.weatherNow(),
     });
+    // The view past a drop at the map's top edge (ui/vista.js), if the look has one and the map has a drop.
+    this.vista = this.look.vista && this.terrain.voids.size
+      ? new Vista(this, this.look.vista, { depth: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain })
+      : null;
 
     this.motion = new Motion(this, { rand: createRng(13).random });
 
@@ -233,7 +238,8 @@ export default class RegionScene extends Phaser.Scene {
     // A room smaller than the screen (Derek's basement) sits centered in the dark around it.
     const bw = Math.max(map.size.w, GAME_W);
     const bh = Math.max(map.size.h, GAME_H);
-    cam.setBounds((map.size.w - bw) / 2, (map.size.h - bh) / 2, bw, bh);
+    const past = this.vista ? this.look.vista.extendTop ?? 0 : 0; // room to look out over the drop
+    cam.setBounds((map.size.w - bw) / 2, (map.size.h - bh) / 2 - past, bw, bh + past);
     cam.startFollow(this.player, true, FIELD.cameraLerp, FIELD.cameraLerp);
     cam.setFollowOffset(0, FIELD.frame.h / 2);
 
@@ -476,6 +482,7 @@ export default class RegionScene extends Phaser.Scene {
     this.tickClock(time, delta);
     this.atmo.update(time, delta, { hour: this.hour(), weather: this.weatherNow(), fade: DAY.fadeSeconds });
     this.motion.update(time, this.atmo.light.wind);
+    this.vista?.update(this.atmo.light);
     this.placeEmote();
     if (this.mode !== 'explore') return;
     this.talkButton.setReady(!!this.nearbyNpc());

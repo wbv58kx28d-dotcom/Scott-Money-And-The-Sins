@@ -9,7 +9,8 @@ Reads `tools/region-art/<set>/`:
     art.json                   `terrains` (code, name, which ones block walking), `base`
                                (the terrain two others meet through), the color `grade`,
                                which `scatter` decals go on which terrain, and optional
-                               `bubbles` (animated fx_bubble pops on a terrain, Region scene)
+                               `bubbles` (animated fx_bubble pops on a terrain, Region scene); a terrain
+                               marked `void` (a drop) needs no tiles
     decals/*.png, bridge.png
 
 and writes `assets/regions/<set>/`: tiles.png (every tile, color-graded, at the
@@ -123,7 +124,10 @@ def main(name):
 
     # Each terrain's average color, for the editor's swatches and minimap.
     colors = {}
-    for c in spec['terrains']:
+    for c, t in spec['terrains'].items():
+        if t.get('void'):  # a drop has no tiles: nothing is drawn there (systems/terrain.js)
+            colors[c] = '#0b0614'
+            continue
         solid = tiles[keys[c * 4][0]].convert('RGB').resize((1, 1), Image.BOX).getpixel((0, 0))
         colors[c] = '#%02x%02x%02x' % solid
 

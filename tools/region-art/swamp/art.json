@@ -34,6 +34,13 @@
       "label": "HIGH PATH",
       "level": 1,
       "under": "h"
+    },
+    "v": {
+      "name": "drop",
+      "label": "DROP",
+      "level": -2,
+      "blocks": true,
+      "void": true
     }
   },
   "base": "g",

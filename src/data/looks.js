@@ -13,6 +13,7 @@
 //   vignette   how dark the screen's edges get (0..1), in `vignetteColor`.
 //   shadows    how dark shadows on the ground are (0..1).
 //   lights     how strong props' glows are (0 turns them off).
+//   sky        { top, bottom }: the sky past a drop (a `vista`), top of the screen to the horizon.
 //   fireflies, spores, mist   how much of each (0..1): fireflies and spores
 //              drift in view (`fireflyColors`, `sporeColors`, `motes` of each),
 //              mist banks lie over solid water cells (`mistDensity`, `mistColor`).
@@ -28,24 +29,29 @@ export const DAY = { realMinutes: 24, startHour: 17, fadeSeconds: 8 };
 const NIGHT = {
   grade: 0x5c6098, sun: { color: 0x7080ff, alpha: 0, x: 0.5 }, vignette: 0.6,
   shadows: 0.25, lights: 1.5, fireflies: 1, mist: 0.16,
+  sky: { top: 0x0c0a2a, bottom: 0x3a2c66 },
 };
 const DAWN = {
   grade: 0xdcc2cc, sun: { color: 0xffc890, alpha: 0.38, x: 1 }, vignette: 0.32,
   shadows: 0.32, lights: 0.5, fireflies: 0.15, mist: 0.32,
+  sky: { top: 0x6a78b8, bottom: 0xffc8a8 },
 };
 const DAY_LIGHT = {
   grade: 0xfcf6ee, sun: { color: 0xfff2c8, alpha: 0.06, x: 0.6 }, vignette: 0.18,
   shadows: 0.34, lights: 0.25, fireflies: 0, mist: 0.08,
+  sky: { top: 0x4a90e0, bottom: 0xb8dcf0 },
 };
 // Golden hour: a warm grade and the sun's light flooding in from the west.
 const SUNSET = {
   grade: 0xf2cab4, sun: { color: 0xff8a3a, alpha: 0.6, x: 0 }, vignette: 0.32,
   shadows: 0.42, lights: 0.8, fireflies: 0.3, mist: 0.14,
+  sky: { top: 0x4a3a8a, bottom: 0xffa050 },
 };
 // After sundown: violet, the last pink light low in the west, the neon coming on.
 const DUSK = {
   grade: 0xd6bcd8, sun: { color: 0xff6aa0, alpha: 0.32, x: 0 }, vignette: 0.4,
   shadows: 0.38, lights: 1.05, fireflies: 0.8, mist: 0.16,
+  sky: { top: 0x2a1c5a, bottom: 0xe0609a },
 };
 
 const SWAMP_AIR = {
@@ -72,6 +78,18 @@ export const LOOKS = {
       { at: 21.5, ...NIGHT },
     ],
     weather: { odds: { clear: 6, fog: 3, rain: 2, storm: 1 }, hours: [2, 5] },
+    // Past the cliff at the map's top edge: the financial district the stonk bros can't
+    // afford, over misty hills and the swamp's own treeline (ui/vista.js). `depth` is how
+    // fast a layer moves with the ground, `rise` how far above the cliff edge its skyline
+    // sits with the camera at the top, `haze` how far its color fades toward the sky's.
+    vista: {
+      extendTop: 420, // how far past the map's top the camera may look
+      layers: [
+        { kind: 'city', depth: 0.08, rise: 230, height: 260, color: 0x2a2040, haze: 0.45, mist: 0.5, seed: 5 },
+        { kind: 'hills', depth: 0.2, rise: 130, height: 120, color: 0x261a34, haze: 0.32, mist: 0.6, seed: 9 },
+        { kind: 'trees', depth: 0.4, rise: 40, height: 110, color: 0x140c1e, haze: 0.12, mist: 0.45, seed: 13 },
+      ],
+    },
   },
 
   // Plain daylight: just shadows. Maps without a look of their own.

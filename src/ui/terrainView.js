@@ -6,7 +6,11 @@
 // texture, so a big map never needs one texture past a phone's size limit,
 // and the map editor can repaint just the chunks a brush stroke touched.
 
+import { noise } from '../systems/terrain.js';
+
 const CHUNK = 16; // cells per chunk side (512 px)
+// The ground's edge at a drop: how ragged it is, and its lip (a dark line on the ground side, a lit one above it).
+const DROP = { wobble: 0.35, scale: 0.9, lip: 'rgba(14,8,22,0.9)', lit: 'rgba(255,240,200,0.18)' };
 
 const key = (set, part) => `ts_${set}_${part}`;
 
@@ -104,7 +108,9 @@ export class TerrainView {
     const frames = terrain.tileset.decals.frames;
     for (let j = j0; j < j1; j++) {
       for (let i = i0; i < i1; i++) {
-        const { frame, flip } = terrain.tileFor(i, j);
+        const tile = terrain.tileFor(i, j);
+        if (!tile) continue; // all drop: nothing here
+        const { frame, flip } = tile;
         const sx = (frame % perRow) * cell;
         const sy = Math.floor(frame / perRow) * cell;
         const x = (i - i0) * cell;
@@ -133,6 +139,7 @@ export class TerrainView {
         }
       }
     }
+    this.cutDrops(ctx, ox, oy, i0, j0, i1, j1);
     this.drawCliffs(ctx, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     for (const b of this.bridges) this.drawBridge(ctx, b, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     chunk.tex.refresh();
@@ -172,17 +179,56 @@ export class TerrainView {
     ctx.globalCompositeOperation = 'source-over';
   }
 
+  /**
+   * Where the ground meets a drop (systems/terrain.js voidAt), cut it away on
+   * the 2 px grid along a ragged line, leaving a dark lip on the ground's side
+   * so the edge reads as an edge.
+   */
+  cutDrops(ctx, ox, oy, i0, j0, i1, j1) {
+    const { terrain } = this;
+    if (!terrain.voids.size) return;
+    const { cell } = terrain;
+    const isVoid = (x, y) => terrain.voidAt(x, y) + (noise(x / (cell * DROP.scale), y / (cell * DROP.scale), 77) - 0.5) * DROP.wobble > 0.5;
+    for (let j = j0; j < j1; j++) {
+      for (let i = i0; i < i1; i++) {
+        const corners = [terrain.grid[j][i], terrain.grid[j][i + 1], terrain.grid[j + 1][i], terrain.grid[j + 1][i + 1]];
+        const n = corners.filter((c) => terrain.voids.has(c)).length;
+        if (!n) continue;
+        const cx = (i - i0) * cell;
+        const cy = (j - j0) * cell;
+        if (n === 4) {
+          ctx.clearRect(cx, cy, cell, cell);
+          continue;
+        }
+        for (let y = 0; y < cell; y += 2) {
+          for (let x = 0; x < cell; x += 2) {
+            const wx = i * cell + x + 1;
+            const wy = j * cell + y + 1;
+            if (isVoid(wx, wy)) ctx.clearRect(cx + x, cy + y, 2, 2);
+            else if (isVoid(wx, wy - 2) || isVoid(wx - 2, wy) || isVoid(wx + 2, wy)) {
+              ctx.fillStyle = DROP.lip;
+              ctx.fillRect(cx + x, cy + y, 2, 2);
+            } else if (isVoid(wx, wy + 2) || isVoid(wx, wy - 4)) {
+              ctx.fillStyle = DROP.lit;
+              ctx.fillRect(cx + x, cy + y, 2, 2);
+            }
+          }
+        }
+      }
+    }
+  }
+
   drawCliffs(ctx, ox, oy, w, h) {
     const { terrain } = this;
     const img = this.cliffImg;
     if (!terrain.face || img.width < 2) return;
-    // Nothing to draw unless high ground is somewhere in (or just above) this chunk.
+    // Nothing to draw unless raised ground or a drop is somewhere in (or just above) this chunk.
     const { cell } = terrain;
     const ci0 = Math.floor(ox / cell);
     const cj0 = Math.max(0, Math.floor((oy - terrain.maxFace) / cell));
     let any = false;
     for (let j = cj0; j <= Math.min(terrain.rows, Math.ceil((oy + h) / cell)) && !any; j++) {
-      for (let i = ci0; i <= Math.min(terrain.cols, ci0 + Math.ceil(w / cell)) && !any; i++) any = terrain.levels[terrain.grid[j][i]] > 0;
+      for (let i = ci0; i <= Math.min(terrain.cols, ci0 + Math.ceil(w / cell)) && !any; i++) any = terrain.levels[terrain.grid[j][i]] !== 0;
     }
     if (!any) return;
     for (let x = 0; x < w; x += 2) {

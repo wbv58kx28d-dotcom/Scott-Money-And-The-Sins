@@ -24,8 +24,9 @@ const LIGHT = {
   rain: 0,
   lightning: 0,
   wind: 0.35, // how far trees and reeds lean as they sway (0..1, ui/motion.js)
+  sky: { top: 0x5aa0e0, bottom: 0xd8ecf0 }, // the sky past a drop (ui/vista.js)
 };
-const COLORS = new Set(['grade', 'color']);
+const COLORS = new Set(['grade', 'color', 'top', 'bottom']);
 
 /** The hour (0..24) at a clock reading in game minutes. */
 export function hourOf(clock) {
@@ -96,6 +97,7 @@ const WEATHER = {
     mist: l.mist + (0.3 - l.mist) * m,
     fog: Math.max(l.fog, m),
     wind: l.wind * (1 - 0.7 * m), // fog lies on still air
+    sky: { top: lerpColor(l.sky.top, 0xc8ccd8, 0.7 * m), bottom: lerpColor(l.sky.bottom, 0xe8eaf0, 0.8 * m) },
   }),
   // Rain: grey-blue and flat, streaks falling, no fireflies.
   rain: (l, m) => ({
@@ -107,6 +109,7 @@ const WEATHER = {
     fireflies: l.fireflies * (1 - m),
     rain: Math.max(l.rain, m),
     wind: l.wind + (0.7 - l.wind) * m,
+    sky: { top: lerpColor(l.sky.top, 0x5a6074, 0.75 * m), bottom: lerpColor(l.sky.bottom, 0x8a90a0, 0.75 * m) },
   }),
 };
 WEATHER.storm = (l, m) => {
