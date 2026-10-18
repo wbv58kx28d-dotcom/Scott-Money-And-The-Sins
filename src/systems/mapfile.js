@@ -22,6 +22,7 @@ export function mergeMap(layout, content = {}) {
     region: content.region ?? layout.id,
     name: content.name,
     secrets: content.secrets ?? {}, // hidden things and how they're found (systems/secrets.js)
+    look: content.look ?? null, // its light and air (data/looks.js)
     tileset: layout.tileset,
     layout,
     size: { w: layout.cols * layout.cell, h: (layout.terrain.length - 1) * layout.cell },

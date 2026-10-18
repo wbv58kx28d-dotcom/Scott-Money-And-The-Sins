@@ -6,6 +6,7 @@
 // (./start_lair.js).
 
 export default {
+  look: 'dusk', // its light and air (data/looks.js)
   npcs: {
     // Swamp locals. Each holds a `challenge`: win it and they spill intel on
     // Derek, which starts out visible in the fight (systems/intel.js).

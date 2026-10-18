@@ -6,6 +6,7 @@
 // Placeholder lines until the writing chat sends real ones.
 
 export default {
+  look: 'office', // its light and air (data/looks.js)
   region: 'start',
   name: 'Velocity Capital',
   npcs: {

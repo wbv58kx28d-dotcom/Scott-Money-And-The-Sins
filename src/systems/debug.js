@@ -59,5 +59,6 @@ export const DEBUG = Object.freeze({
   title: flag('title'),
   canvas: flag('canvas'),
   edit: enabled ? params.get('edit') : null,
+  look: enabled ? params.get('look') : null,
   speed: enabled && /^\d+(\.\d+)?$/.test(params.get('speed') ?? '') ? Math.max(0.1, Number(params.get('speed'))) : 1,
 });
