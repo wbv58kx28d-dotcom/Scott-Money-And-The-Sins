@@ -9,12 +9,18 @@
 //   breath   the classic pixel-art idle: the upper body dips one art pixel
 //            for part of each breath while the feet stay put. One frame per
 //            facing row of a walker sheet (data/assets.js FIELD_SHEETS).
+//   idle     now and then, someone holding something does something with it
+//            (a sip of coffee, a note on the clipboard): a clip from their
+//            `idle` sheet, played once, then back to breathing. Only in the
+//            views it was drawn for.
 
-import { SHEET_COLS } from '../systems/fieldArt.js';
+import { SHEET_COLS, SHEET_VIEWS } from '../systems/fieldArt.js';
 
 const PX = 2;
 const LEANS = [-1, -0.5, 0, 0.5, 1]; // sway frames, left to right
 const BREATH = { periodMs: [1700, 2400], downShare: 0.4, waist: 0.55 };
+const IDLE_EVERY_MS = [6000, 13000]; // between idle actions
+const IDLE_AFTER_TURN_MS = 3000; // the soonest one comes after turning (or arriving)
 
 /** The image behind a texture (loaded art or a baked canvas). */
 const sourceOf = (scene, key) => scene.textures.get(key).getSourceImage();
@@ -94,7 +100,8 @@ export class Motion {
     this.scene = scene;
     this.rand = rand;
     this.swaying = []; // { img, frame }
-    this.breathers = []; // { sprite, sheet, breath, row, period, phase, down }
+    this.breathers = []; // { sprite, sheet, breath, row, period, phase, down, idle, idleAt, acting }
+    this.now = 0; // the last update's time
   }
 
   /** Sway a prop's image (already showing its `swaySheet`). */
@@ -103,11 +110,17 @@ export class Motion {
     this.swaying.push({ img, frame: 2 });
   }
 
-  /** Let a walker sprite breathe while it stands still. */
-  breathe(sprite, sheet, frameW, frameH) {
+  /** Let a walker sprite breathe while it stands still, and play its idle action (data/assets.js) now and then. */
+  breathe(sprite, sheet, frameW, frameH, idle = null) {
     const breath = breathSheet(this.scene, sheet, frameW, frameH);
     const [lo, hi] = BREATH.periodMs;
-    this.breathers.push({ sprite, sheet, breath, row: 0, period: lo + this.rand() * (hi - lo), phase: this.rand() * hi, down: false });
+    // idleAt is set by the first update that sees it (or a turn), on the update loop's clock.
+    this.breathers.push({ sprite, sheet, breath, row: 0, period: lo + this.rand() * (hi - lo), phase: this.rand() * hi, down: false, idle, idleAt: null, acting: false });
+  }
+
+  nextIdle(time) {
+    const [lo, hi] = IDLE_EVERY_MS;
+    return time + lo + this.rand() * (hi - lo);
   }
 
   forget(sprite) {
@@ -120,10 +133,13 @@ export class Motion {
     if (b) {
       b.row = row;
       b.down = false;
+      b.acting = false;
+      if (b.idleAt !== null) b.idleAt = Math.max(b.idleAt, this.now + IDLE_AFTER_TURN_MS); // not the moment they turn
     }
   }
 
   update(time, wind) {
+    this.now = time;
     const view = this.scene.cameras.main.worldView;
     const t = time / 1000;
     for (const s of this.swaying) {
@@ -140,9 +156,25 @@ export class Motion {
     }
     for (const b of this.breathers) {
       const { sprite } = b;
+      if (b.acting && !sprite.anims.isPlaying) {
+        // The idle action finished: back to the idle frame it started from.
+        b.acting = false;
+        sprite.setTexture(b.sheet, b.row * SHEET_COLS);
+      }
       if (sprite.anims.isPlaying || !sprite.visible) {
         b.down = false;
         continue;
+      }
+      if (b.idle && b.idleAt === null) b.idleAt = time + IDLE_AFTER_TURN_MS + this.rand() * (IDLE_EVERY_MS[1] - IDLE_AFTER_TURN_MS);
+      if (b.idle && time >= b.idleAt) {
+        b.idleAt = this.nextIdle(time);
+        const view = SHEET_VIEWS[b.row];
+        if (b.idle.views.includes(view)) {
+          b.acting = true;
+          b.down = false;
+          sprite.play(`${b.sheet}_idle_${view}`);
+          continue;
+        }
       }
       const down = ((time + b.phase) % b.period) / b.period < BREATH.downShare;
       if (down === b.down) continue;
