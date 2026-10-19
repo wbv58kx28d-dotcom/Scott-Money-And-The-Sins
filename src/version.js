@@ -3,7 +3,7 @@
 // for fixes. Since it loads with the rest of the game code, a stale version
 // on screen means the browser is still running a cached copy.
 
-export const VERSION = '0.32.0';
+export const VERSION = '0.33.0';
 export const RELEASED = '2026-10-19';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
