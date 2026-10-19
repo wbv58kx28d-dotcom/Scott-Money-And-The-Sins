@@ -3,7 +3,8 @@
     "w": {
       "name": "water",
       "label": "WATER",
-      "blocks": true
+      "blocks": true,
+      "water": true
     },
     "g": {
       "name": "grass",
@@ -346,7 +347,7 @@
     ]
   },
   "cliff": {
-    "face": 24
+    "face": 36
   },
   "patches": [
     {
@@ -401,5 +402,27 @@
       "scale": 3,
       "cut": 0.58
     }
-  ]
+  ],
+  "bank": {
+    "face": 8
+  },
+  "depth": {
+    "color": "#2e0c44",
+    "blend": "multiply",
+    "fray": 8,
+    "steps": [
+      {
+        "at": 20,
+        "alpha": 0.22
+      },
+      {
+        "at": 52,
+        "alpha": 0.38
+      },
+      {
+        "at": 92,
+        "alpha": 0.52
+      }
+    ]
+  }
 }
