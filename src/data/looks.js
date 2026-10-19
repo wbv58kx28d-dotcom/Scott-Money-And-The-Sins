@@ -21,6 +21,10 @@
 //              drift in view (`fireflyColors`, `sporeColors`, `motes` of each),
 //              mist banks lie over solid water cells (`mistDensity`, `mistColor`).
 //
+// `sunPath` ({ rise, set, peak }): where the sun is, for shadows that point away
+// from it (props' silhouettes and characters' shadows, ui/atmosphere.js). Without
+// one (rooms), only props' lights cast shadows.
+//
 // Outdoors, `phases` are lights at hours of the day (`at`, 0..24), blended in
 // between, and the clock runs while $cott walks the region (DAY). `weather`
 // gives each kind's odds and how long it lasts; fog, rain and storms fade in
@@ -81,6 +85,9 @@ export const LOOKS = {
       { at: 21.5, ...NIGHT },
     ],
     weather: { odds: { clear: 6, fog: 3, rain: 2, storm: 1 }, hours: [2, 5] },
+    // The sun's way across the sky, for shadows that point (systems/sky.js sunShadow): up in
+    // the east at 6, highest (62° up) in the north at midday, down in the west at 19:30.
+    sunPath: { rise: 6, set: 19.5, peak: 62 },
     // Past the cliff at the map's top edge: the financial district the stonk bros can't
     // afford, over misty hills and the swamp's own treeline (ui/vista.js). `depth` is how
     // fast a layer moves with the ground, `rise` how far above the cliff edge its skyline

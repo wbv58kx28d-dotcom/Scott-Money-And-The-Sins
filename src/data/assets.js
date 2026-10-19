@@ -64,6 +64,7 @@ export const FIELD_SHEETS = [
 //           (`reach`: how far its pool spreads on the light map; 2.6 × r if not given)
 //   puffs   { x, y, kind: 'steam' | 'ember', every (ms), spread? }, rising off it
 //   sway    how far its top leans in a strong wind, px (ui/motion.js); trees, reeds, flames
+//   cast    false keeps it from casting a shadow away from the sun (ui/atmosphere.js); everything else does
 export const PROP_IMAGES = [
   { key: 'prop_cypress', path: 'assets/props/prop_cypress.png', name: 'CYPRESS', block: { w: 64, h: 24 }, sway: 6 },
   { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png', name: 'CYPRESS 2', block: { w: 64, h: 24 }, sway: 6 },

@@ -29,7 +29,7 @@
 import { GAME_W, GAME_H } from '../config.js';
 import { hash } from '../systems/terrain.js';
 import { createRng } from '../systems/rng.js';
-import { skyAt, easeMix, lerpColor as blendColor } from '../systems/sky.js';
+import { skyAt, easeMix, lerpColor as blendColor, sunShadow, lightShadow } from '../systems/sky.js';
 
 const PX = 2; // screen px per art pixel
 const SHADOW = 0x140a1e;
@@ -40,6 +40,11 @@ const RAIN = { drops: 150, speed: 1300, wind: -260, splashes: 36 };
 // pool lies (3/4 view), how far down from the glow toward the prop's feet it
 // sits, its falloff's steps, and how much darker the dark gets where no light
 // reaches, at full night (the lights carry it now).
+// Shadows that point (systems/sky.js sunShadow, lightShadow): how dark the sun's are on
+// props and characters (× the light's `shadows`), how dark a torch's are on characters,
+// how high a character stands, and how far past the screen a prop's shadow can reach in.
+const CASTS = { props: 1.1, people: 1.3, lamps: 0.9, height: 124, margin: 640, keep: 64 };
+const CAST_SQUASH = 0.6; // the ground's up-and-down, foreshortened (as in systems/sky.js)
 const LIGHTMAP = { reach: 2.6, whiten: 0.12, glows: 0.55, squash: 0.72, drop: 0.6, steps: 12, darken: 0.3 };
 const even = (v) => Math.max(PX, Math.round(v / PX) * PX);
 const hex = (c) => c.toString(16).padStart(6, '0');
@@ -50,6 +55,33 @@ function bake(scene, key, w, h, draw) {
   if (scene.textures.exists(key)) return key;
   const tex = scene.textures.createCanvas(key, w, h);
   draw(tex.getContext(), w, h);
+  tex.refresh();
+  return key;
+}
+
+/**
+ * A texture of SHADOW-colored art pixels from `marks` (w × h art px, each its alpha 0..1),
+ * written straight into an image at art resolution and drawn up to PX: far quicker than
+ * a rectangle per pixel, for shadows baked while the game runs.
+ */
+function bakeMarks(scene, key, w, h, marks) {
+  const small = document.createElement('canvas');
+  small.width = w;
+  small.height = h;
+  const sc = small.getContext('2d');
+  const img = sc.createImageData(w, h);
+  const r = (SHADOW >> 16) & 255;
+  const g = (SHADOW >> 8) & 255;
+  const b = SHADOW & 255;
+  for (let i = 0; i < marks.length; i++) {
+    if (marks[i] <= 0) continue;
+    img.data.set([r, g, b, Math.round(Math.min(1, marks[i]) * 255)], i * 4);
+  }
+  sc.putImageData(img, 0, 0);
+  const tex = scene.textures.createCanvas(key, w * PX, h * PX);
+  const ctx = tex.getContext();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(small, 0, 0, w * PX, h * PX);
   tex.refresh();
   return key;
 }
@@ -77,6 +109,95 @@ function shadowTexture(scene, w) {
   });
 }
 
+const MASKS = new Map();
+
+/** Which art pixels of a texture are painted: { cols, rows, opaque(ax, ay) }, read once. */
+function artMask(scene, key) {
+  if (MASKS.has(key)) return MASKS.get(key);
+  const src = scene.textures.get(key).getSourceImage();
+  const cols = Math.floor(src.width / PX);
+  const rows = Math.floor(src.height / PX);
+  const read = document.createElement('canvas');
+  read.width = src.width;
+  read.height = src.height;
+  const rc = read.getContext('2d');
+  rc.drawImage(src, 0, 0);
+  const data = rc.getImageData(0, 0, src.width, src.height).data;
+  const opaque = (ax, ay) => ax >= 0 && ay >= 0 && ax < cols && ay < rows && data[((ay * PX + PX / 2) * src.width + ax * PX + PX / 2) * 4 + 3] > 40;
+  const mask = { cols, rows, opaque };
+  MASKS.set(key, mask);
+  return mask;
+}
+
+/**
+ * A prop's silhouette cast on the ground by a light from `k` ({ x, y }: where a
+ * point 1 px up lands, per px): every painted pixel h px above the feet is
+ * pushed h × k along the ground, the shadow fading in steps toward its tip.
+ * Returns the key and where its top-left sits from the prop's feet.
+ */
+function castTexture(scene, key, k, tag) {
+  const out = `fx_cast_${key}_${tag}`;
+  const { cols, rows, opaque } = artMask(scene, key);
+  const minX = Math.floor(Math.min(0, rows * k.x));
+  const maxX = Math.ceil(cols + Math.max(0, rows * k.x));
+  const minY = Math.floor(Math.min(0, rows * k.y));
+  const maxY = Math.ceil(Math.max(0, rows * k.y)) + 1;
+  const w = maxX - minX + 1;
+  const h = maxY - minY + 1;
+  if (!scene.textures.exists(out)) {
+    const marks = new Float32Array(w * h);
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(k.x), Math.abs(k.y)))); // no gaps when stretched
+    for (let ay = 0; ay < rows; ay++) {
+      const up = rows - 1 - ay;
+      const a = 1 - (0.45 * Math.floor((up / rows) * 3)) / 3;
+      for (let ax = 0; ax < cols; ax++) {
+        if (!opaque(ax, ay)) continue;
+        for (let s = 0; s <= steps; s++) {
+          const hh = up + s / steps;
+          const i = (Math.round(hh * k.y) - minY) * w + Math.round(ax + hh * k.x) - minX;
+          if (marks[i] < a) marks[i] = a;
+        }
+      }
+    }
+    bakeMarks(scene, out, w, h, marks);
+  }
+  return { key: out, x: (minX - cols / 2) * PX, y: (minY - 1) * PX };
+}
+
+const STREAKS = []; // baked streak keys, oldest first (a few dozen are kept)
+
+/**
+ * A character's shadow cast along the ground to (tx, ty) px from the feet: a
+ * band as wide as they are, a little wider at the far (head) end, fading there.
+ * Tips are rounded to 4 px, so walking around a torch reuses a few dozen.
+ * Returns the key and where its top-left sits from the feet.
+ */
+function streakTexture(scene, w, tx, ty) {
+  const ax = Math.round(tx / 4) * 2; // art px
+  const ay = Math.round(ty / 4) * 2;
+  const r0 = Math.max(2, Math.round((w / PX) * 0.32));
+  const r1 = Math.round(r0 * 1.15);
+  const minX = Math.min(0, ax) - r1;
+  const minY = Math.min(0, ay) - r1;
+  const cw = Math.abs(ax) + r1 * 2 + 1;
+  const ch = Math.abs(ay) + r1 * 2 + 1;
+  const key = `fx_streak_${w}_${ax}_${ay}`;
+  if (!scene.textures.exists(key)) {
+    const len2 = ax * ax + (ay / CAST_SQUASH) ** 2 || 1;
+    bake(scene, key, cw * PX, ch * PX, (ctx) => pixels(ctx, cw * PX, ch * PX, SHADOW, (px, py) => {
+      // In ground space (unsquashed), the distance from the band's spine.
+      const x = px + minX;
+      const y = (py + minY) / CAST_SQUASH;
+      const t = Math.max(0, Math.min(1, (x * ax + y * (ay / CAST_SQUASH)) / len2));
+      const d = Math.hypot(x - ax * t, y - (ay / CAST_SQUASH) * t);
+      if (d > r0 + (r1 - r0) * t) return 0;
+      return t > 0.7 ? 0.7 : 1;
+    }));
+    STREAKS.push(key);
+  }
+  return { key, x: minX * PX, y: minY * PX };
+}
+
 /**
  * A contact shadow under a prop, traced from its own art: wherever its base
  * meets the ground (the lowest painted pixel of each column, if it's within
@@ -86,18 +207,9 @@ function shadowTexture(scene, w) {
  * Returns the key and where its top-left sits from the prop's feet.
  */
 function contactTexture(scene, key, { rise = 40, reach = 12 } = {}) {
-  const src = scene.textures.get(key).getSourceImage();
-  const cols = Math.floor(src.width / PX);
-  const rows = Math.floor(src.height / PX);
+  const { cols, rows, opaque } = artMask(scene, key);
   const up = Math.round(rise / PX);
   const out = Math.round(reach / PX);
-  const read = document.createElement('canvas');
-  read.width = src.width;
-  read.height = src.height;
-  const rc = read.getContext('2d');
-  rc.drawImage(src, 0, 0);
-  const data = rc.getImageData(0, 0, src.width, src.height).data;
-  const opaque = (ax, ay) => data[((ay * PX + PX / 2) * src.width + ax * PX + PX / 2) * 4 + 3] > 40;
   // Each column's base, in art rows up from the feet (null: nothing near the ground there).
   const base = Array.from({ length: cols }, (_, ax) => {
     for (let ay = rows - 1; ay >= rows - up; ay--) if (opaque(ax, ay)) return rows - 1 - ay;
@@ -240,7 +352,12 @@ export class Atmosphere {
     this.pools = []; // the light map's lights: { a: the glow's entry, x, y, pool: its canvas }
     this.mix = easeMix({}, weather, 1, 1); // the weather it is when he arrives, already in
     this.light = skyAt(look, hour, this.mix);
-    this.shadows = []; // { obj, sprite } following a character
+    this.shadows = []; // { obj, sprite, w, h, sun, lamp } following a character (sun, lamp: their cast shadows)
+    this.casts = []; // props' sun shadows: { owner, key, obj, tag }
+    this.lamps = []; // props' lights, for shadows cast away from them: { a, x, y (the ground under it), h, reach }
+    this.hour = hour;
+    this.sunTag = null;
+    this.sunK = { x: 0, y: 0, alpha: 0 };
     this.attached = []; // a prop's shadows and glows: { obj, shadow?, glow?, flicker, pulse, phase, owner }
     this.puffers = []; // { x, y, spec, owner, next }
     this.motes = [];
@@ -262,6 +379,8 @@ export class Atmosphere {
   addProp(img, def) {
     if (!def) return;
     const { x, y } = img;
+    // Outdoors, anything standing casts its silhouette away from the sun.
+    if (this.look.sunPath && def.cast !== false) this.casts.push({ owner: img, key: def.key, obj: null, tag: null });
     if (def.shadow) {
       const s = typeof def.shadow === 'number' ? { w: def.shadow } : def.shadow;
       if (s.w) {
@@ -281,6 +400,7 @@ export class Atmosphere {
         .setDepth(this.over + 2).setBlendMode(Phaser.BlendModes.ADD);
       const a = { obj, glow: g.alpha ?? 1, flicker: g.flicker, pulse: g.pulse, phase: this.rand() * 100, owner: img, wobble: 1 };
       this.attached.push(a);
+      this.lamps.push({ a, x: x + g.x, y, h: Math.max(30, -g.y), reach: g.reach ?? g.r * LIGHTMAP.reach });
       if (this.lightmap) {
         // The pool lies on the ground: down from the glow toward the prop's feet.
         const reach = g.reach ?? g.r * LIGHTMAP.reach;
@@ -294,9 +414,11 @@ export class Atmosphere {
   }
 
   /** A shadow under a character that walks: it follows the sprite's feet. */
-  follow(sprite, w = 44) {
+  follow(sprite, w = 44, h = CASTS.height) {
     const obj = this.scene.add.image(sprite.x, sprite.y - 2, shadowTexture(this.scene, w)).setDepth(this.ground + 1).setAlpha(this.light.shadows);
-    this.shadows.push({ obj, sprite });
+    // Cast shadows: one from the sun, one from the nearest strong light.
+    const cast = () => this.scene.add.image(0, 0, '__DEFAULT').setOrigin(0).setDepth(this.ground + 0.9).setVisible(false);
+    this.shadows.push({ obj, sprite, w, h, sun: cast(), lamp: cast() });
   }
 
   /** Stop following a sprite (and drop its shadow). */
@@ -304,6 +426,8 @@ export class Atmosphere {
     this.shadows = this.shadows.filter((s) => {
       if (s.sprite !== sprite) return true;
       s.obj.destroy();
+      s.sun.destroy();
+      s.lamp.destroy();
       return false;
     });
   }
@@ -374,6 +498,7 @@ export class Atmosphere {
 
   /** Move the light toward `hour` under `weather` (a kind; mixes fade in and out), and animate the air. */
   update(time, delta, { hour, weather, fade = 8 }) {
+    this.hour = hour;
     this.mix = easeMix(this.mix, weather, delta / 1000, 1 / fade);
     this.light = skyAt(this.look, hour, this.mix);
     this.apply(time, delta);
@@ -397,6 +522,7 @@ export class Atmosphere {
       f.tilePositionY = view.y * (k ? 0.9 : 1) + (k ? 256 : 0);
     });
     for (const s of this.shadows) s.obj.setPosition(s.sprite.x, s.sprite.y - 2).setVisible(s.sprite.visible).setAlpha(L.shadows);
+    this.castShadows(L, view);
     for (const a of this.attached) {
       const shown = a.owner.visible && a.owner.alpha > 0.3; // a see-through tree keeps its glow (ui/seeThrough.js)
       a.obj.setVisible(shown);
@@ -419,6 +545,105 @@ export class Atmosphere {
     this.updatePuffs(delta, view);
     this.updateRain(delta, view);
     this.updateLightning(time);
+  }
+
+  // ---- Shadows that point ------------------------------------------------------------
+
+  /**
+   * The sun's shadows (props' silhouettes and characters') turn and stretch with
+   * the hour, in 15-minute steps for props (each step's silhouettes are baked once,
+   * the last step's freed); a character near a strong light casts one away from it.
+   */
+  castShadows(L, view) {
+    const tag = Math.round(this.hour * 4);
+    // New silhouettes are baked one a frame (props sharing art share it), so a new
+    // step turns the shadows over a few frames instead of in one hitch; all at once on arrival.
+    this.bakes = this.sunTag === null ? Infinity : 1;
+    if (tag !== this.sunTag) {
+      this.sunTag = tag;
+      this.sunK = sunShadow(this.look.sunPath, tag / 4);
+    }
+    const sunK = this.sunK;
+    const near = (x, y, m) => x > view.x - m && x < view.right + m && y > view.y - m / 2 && y < view.bottom + m;
+    // Props.
+    const propAlpha = Math.min(1, L.shadows * sunK.alpha * CASTS.props);
+    for (const c of this.casts) {
+      const show = propAlpha > 0.01 && c.owner.visible && near(c.owner.x, c.owner.y, CASTS.margin);
+      if (!show) {
+        if (c.tag !== null) this.release(c, tag);
+        continue;
+      }
+      if (c.tag !== tag) this.recast(c, sunK, tag);
+      if (c.tag !== null) c.obj.setVisible(true).setAlpha(propAlpha);
+    }
+    // Characters.
+    const lit = this.lamps.filter((l) => l.a.owner.visible && near(l.x, l.y, l.reach));
+    for (const s of this.shadows) {
+      const { sprite } = s;
+      const on = sprite.visible && near(sprite.x, sprite.y, 0);
+      this.streak(s.sun, s, sunK, on ? Math.min(1, L.shadows * sunK.alpha * CASTS.people) : 0);
+      let best = { alpha: 0 };
+      if (on) {
+        for (const l of lit) {
+          const strength = Math.min(1, L.lights * 0.9 * l.a.glow * l.a.wobble);
+          const k = lightShadow({ ...l, strength }, sprite.x, sprite.y);
+          if (k.alpha > best.alpha) best = k;
+        }
+      }
+      this.streak(s.lamp, s, best, Math.min(1, best.alpha * CASTS.lamps));
+    }
+    this.trimStreaks();
+  }
+
+  /** Point a prop's sun shadow for this step, freeing the last step's silhouette once nothing shows it. */
+  recast(c, k, tag) {
+    const fresh = !this.scene.textures.exists(`fx_cast_${c.key}_${tag}`);
+    if (fresh && this.bakes <= 0) return; // its turn comes next frame; the last step's shadow stays till then
+    if (fresh) this.bakes--;
+    const t = castTexture(this.scene, c.key, k, tag);
+    if (!c.obj) c.obj = this.scene.add.image(0, 0, t.key).setOrigin(0).setDepth(this.ground + 0.8);
+    const old = c.obj.texture.key;
+    c.obj.setTexture(t.key).setPosition(Math.round(c.owner.x + t.x), Math.round(c.owner.y + t.y));
+    c.tag = tag;
+    if (old !== t.key && old.startsWith('fx_cast_') && !this.casts.some((o) => o.obj?.texture.key === old)) {
+      this.scene.textures.remove(old);
+    }
+  }
+
+  /** A prop's shadow goes out of view: let go of its silhouette, and free it if it's an old step's nobody shows. */
+  release(c, tag) {
+    const old = c.obj.texture.key;
+    c.obj.setTexture('__DEFAULT').setVisible(false);
+    c.tag = null;
+    if (!old.endsWith(`_${tag}`) && !this.casts.some((o) => o.obj?.texture.key === old) && this.scene.textures.exists(old)) {
+      this.scene.textures.remove(old);
+    }
+  }
+
+  /** A character's cast shadow along k ({ x, y } per px of height), at this alpha (0 hides it). */
+  streak(obj, s, k, alpha) {
+    if (alpha <= 0.01) {
+      obj.setVisible(false);
+      return;
+    }
+    const t = streakTexture(this.scene, s.w, k.x * s.h, k.y * s.h);
+    if (obj.texture.key !== t.key) obj.setTexture(t.key);
+    obj.setPosition(Math.round(s.sprite.x + t.x), Math.round(s.sprite.y - PX + t.y)).setVisible(true).setAlpha(alpha);
+  }
+
+  /** Free the oldest streaks nobody's showing, keeping a few dozen. */
+  trimStreaks() {
+    if (STREAKS.length <= CASTS.keep) return;
+    const used = new Set(this.shadows.flatMap((s) => [s.sun.texture.key, s.lamp.texture.key]));
+    for (let i = 0; i < STREAKS.length && STREAKS.length > CASTS.keep; ) {
+      const key = STREAKS[i];
+      if (used.has(key)) {
+        i++;
+        continue;
+      }
+      STREAKS.splice(i, 1);
+      if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
+    }
   }
 
   /** The light map: the grade's color, with each light in view screening its pool in. */

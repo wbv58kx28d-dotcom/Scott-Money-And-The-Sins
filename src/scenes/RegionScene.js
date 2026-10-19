@@ -737,7 +737,7 @@ export default class RegionScene extends Phaser.Scene {
     const { x, y } = trail.position();
     const sprite = this.walker(x, y, data.sprite);
     this.face(sprite, this.facing);
-    this.atmo.follow(sprite, 34);
+    this.atmo.follow(sprite, 34, 66); // a kitten: narrower and shorter, so her shadows are too
     const barker = data.barks ? new Barker(data.barks, { now: this.time.now }) : null;
     this.follower = { id, data, trail, sprite, barker, facing: this.facing, moving: false, stillMs: 0 };
     this.buildBarkTargets();
