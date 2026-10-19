@@ -9,15 +9,18 @@
 // replace these without touching the scene.
 
 import { FIELD } from '../config.js';
+import { FIELD_SHEETS } from '../data/assets.js';
 import { fieldRows, FIELD_PALETTES } from '../data/placeholders.js';
 import { createRng } from './rng.js';
 
 const OUTLINE = '#120d1c';
 
-// Sheet layout, shared with real art: one row per view, columns are
-// idle, walk 1–4. Right-facing is the left row mirrored.
+// Sheet layout, shared with real art: one row per view, columns are idle,
+// then the walk cycle (4 frames in the placeholders and the first sheets, 8
+// in newer ones: sheetCols reads it off the image). Right-facing is the left
+// row mirrored.
 export const SHEET_VIEWS = ['down', 'up', 'left'];
-export const SHEET_COLS = 5;
+export const SHEET_COLS = 5; // the placeholders' columns
 const COLUMN_POSES = ['stand', 'stepA', 'stand', 'stepB', 'stand'];
 
 function canvas(w, h) {
@@ -85,18 +88,37 @@ export function bakeWalkerSheet(scene, key) {
   }
 }
 
-/** Idle and walk animations for a walker sheet: `${key}_walk_${view}`. Idle is a frame index. */
+/** How many columns a loaded walker sheet has: its idle, then its walk cycle. */
+export function sheetCols(scene, key) {
+  return Math.max(2, Math.round(scene.textures.get(key).getSourceImage().width / FIELD.frame.w));
+}
+
+/**
+ * Walk animations for a walker sheet: `${key}_walk_${view}`. Idle is a frame
+ * index. The cycle is paced by distance, not time: at FIELD.speed it covers
+ * `stride` px (two steps; FIELD.stride unless the sheet's FIELD_SHEETS entry
+ * sets its own), and walkPace() slows it with the walker, so the feet keep up
+ * with the ground.
+ */
 export function walkerAnims(scene, key) {
+  const stride = FIELD_SHEETS.find((s) => s.key === key)?.stride ?? FIELD.stride;
+  const cols = sheetCols(scene, key);
+  const steps = cols - 1;
   SHEET_VIEWS.forEach((view, row) => {
     const anim = `${key}_walk_${view}`;
     if (scene.anims.exists(anim)) return;
     scene.anims.create({
       key: anim,
-      frames: scene.anims.generateFrameNumbers(key, { start: row * SHEET_COLS + 1, end: row * SHEET_COLS + 4 }),
-      frameRate: FIELD.walkFps,
+      frames: scene.anims.generateFrameNumbers(key, { start: row * cols + 1, end: row * cols + steps }),
+      frameRate: (steps * FIELD.speed) / stride,
       repeat: -1,
     });
   });
+}
+
+/** Match a walking sprite's cycle to how far it just went: `moved` px over `delta` ms. */
+export function walkPace(sprite, moved, delta) {
+  if (delta > 0) sprite.anims.timeScale = Math.min(1.5, moved / delta * 1000 / FIELD.speed);
 }
 
 /**

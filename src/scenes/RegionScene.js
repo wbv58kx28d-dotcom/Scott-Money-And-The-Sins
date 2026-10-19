@@ -53,7 +53,7 @@ import { Trail, Barker, barkTargets, facingOf, moodOf, followerLines } from '../
 import { PhoneBadge } from '../ui/badge.js';
 import { rng, createRng } from '../systems/rng.js';
 import trade from '../minigames/trade.js';
-import { bakeProps, bakeWalkerSheet, walkerAnims, idleActionAnims, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
+import { bakeProps, bakeWalkerSheet, walkerAnims, walkPace, idleActionAnims, facingFrame, sheetCols } from '../systems/fieldArt.js';
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { Atmosphere } from '../ui/atmosphere.js';
 import { Motion, swaySheet } from '../ui/motion.js';
@@ -345,8 +345,9 @@ export default class RegionScene extends Phaser.Scene {
   /** Show a walker's idle frame for a facing (right mirrors left). */
   face(sprite, facing) {
     const { row, flip } = facingFrame(facing);
+    const sheet = sprite.sheet ?? sprite.texture.key;
     sprite.anims.stop();
-    sprite.setTexture(sprite.sheet ?? sprite.texture.key, row * SHEET_COLS).setFlipX(flip);
+    sprite.setTexture(sheet, row * sheetCols(this, sheet)).setFlipX(flip);
     this.motion.rest(sprite, row);
   }
 
@@ -509,7 +510,7 @@ export default class RegionScene extends Phaser.Scene {
     if (this.stick.active) this.steer(delta);
     else if (this.path.length) this.walkPath(delta);
     else if (this.follower) this.follower.stillMs += delta;
-    this.moveFollower();
+    this.moveFollower(delta);
     this.checkBarks();
   }
 
@@ -543,6 +544,7 @@ export default class RegionScene extends Phaser.Scene {
   /** Tap-to-walk: follow the path, then leave, talk, or stop at its end. */
   walkPath(delta) {
     let step = (FIELD.speed * delta) / 1000;
+    const moved = step;
     let mx = 0;
     let my = 0;
     while (step > 0 && this.path.length) {
@@ -564,8 +566,8 @@ export default class RegionScene extends Phaser.Scene {
       }
     }
     this.player.setDepth(worldDepth(this.player.y));
-    const facing = facingOf(mx, my);
-    if (facing) this.walkAnim(facing);
+    const facing = facingOf(mx, my, this.facing);
+    if (facing) this.walkAnim(facing, moved - step, delta);
 
     const exit = this.exitAt();
     if (exit) return this.leave(exit);
@@ -598,7 +600,11 @@ export default class RegionScene extends Phaser.Scene {
       }
     }
     this.player.setDepth(worldDepth(this.player.y));
-    this.walkAnim(facingOf(v.x, v.y) ?? this.facing);
+    const moved = Math.hypot(this.player.x - x, this.player.y - y);
+    const facing = facingOf(v.x, v.y, this.facing) ?? this.facing;
+    // Pushing into a wall: turn that way, but no walking in place.
+    if (moved < 0.01) this.face(this.player, (this.facing = facing));
+    else this.walkAnim(facing, moved, delta);
     const exit = this.exitAt();
     if (exit) this.leave(exit);
   }
@@ -673,14 +679,18 @@ export default class RegionScene extends Phaser.Scene {
     this.panel.setVisible(false);
   }
 
-  /** Play a walker's walk cycle for a facing (play() leaves it alone if it's already running). */
-  playWalk(sprite, sheet, facing) {
+  /**
+   * Play a walker's walk cycle for a facing (play() leaves it alone if it's already running),
+   * paced to the `moved` px it just went in `delta` ms.
+   */
+  playWalk(sprite, sheet, facing, moved, delta) {
     const { view, flip } = facingFrame(facing);
     sprite.setFlipX(flip).play(`${sheet}_walk_${view}`, true);
+    walkPace(sprite, moved, delta);
   }
 
-  walkAnim(facing) {
-    this.playWalk(this.player, 'field_scott', facing);
+  walkAnim(facing, moved, delta) {
+    this.playWalk(this.player, 'field_scott', facing, moved, delta);
     this.facing = facing;
   }
 
@@ -740,15 +750,16 @@ export default class RegionScene extends Phaser.Scene {
   }
 
   /** She walks $cott's trail, `gap` px behind him, and pops an emote now and then when he stands still. */
-  moveFollower() {
+  moveFollower(delta) {
     const f = this.follower;
     if (!f) return;
     f.trail.record(this.player.x, this.player.y);
     const at = f.trail.position();
-    const facing = facingOf(at.x - f.sprite.x, at.y - f.sprite.y);
+    const facing = facingOf(at.x - f.sprite.x, at.y - f.sprite.y, f.facing);
     if (facing) {
+      const moved = Math.hypot(at.x - f.sprite.x, at.y - f.sprite.y);
       f.sprite.setPosition(at.x, at.y).setDepth(worldDepth(at.y));
-      this.playWalk(f.sprite, f.data.sprite, facing);
+      this.playWalk(f.sprite, f.data.sprite, facing, moved, delta);
       f.facing = facing;
       f.moving = true;
       f.stillMs = 0;

@@ -25,7 +25,8 @@ export const IMAGES = [
 // A region's ground is drawn from its tileset (assets/regions/<set>/, built by
 // tools/region-art/tileset.py), named by the map's layout; see ui/terrainView.js.
 
-// Walker sprite sheets: FIELD.frame-sized frames; rows down, up, left; columns idle, walk 1–4.
+// Walker sprite sheets: FIELD.frame-sized frames; rows down, up, left; columns idle, then the walk
+// cycle (4 or 8 frames). `stride` is how far one walk cycle carries them (FIELD.stride by default).
 // `idle` is an idle action: a clip about what they're holding, played now and then while
 // they stand (ui/motion.js), from `${key}_idle` (tools/region-art/idle.py: rows down, up,
 // left, `frames` each) in the `views` it was drawn for. A standee looks the same every way.
@@ -40,7 +41,7 @@ export const FIELD_SHEETS = [
   { key: 'field_vinny', path: 'assets/field/field_vinny.png', idle: idle('vinny', ['left']) }, // checks his guest list
   { key: 'field_wendy', path: 'assets/field/field_wendy.png', idle: idle('wendy', ['down']) }, // sips her champagne
   // Lil' Turnt, who follows $cott around (data/followers.js).
-  { key: 'field_lilturnt', path: 'assets/field/field_lilturnt.png' },
+  { key: 'field_lilturnt', path: 'assets/field/field_lilturnt.png', stride: 120 }, // short legs, quicker steps
   // Idle-only standees (tools/region-art/standee.py): the hot-tub regulars, the doorman, the day traders.
   { key: 'field_bob', path: 'assets/field/field_bob.png' },
   { key: 'field_floyd', path: 'assets/field/field_floyd.png', idle: idle('floyd', STANDEE) }, // chugs his can

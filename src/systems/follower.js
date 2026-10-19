@@ -17,10 +17,21 @@ const STEP = 4; // record a trail point every this many px of his walking
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
-/** The facing for a movement (dx, dy), or null if it's too small to tell. */
-export function facingOf(dx, dy) {
-  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return null;
-  return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : dy < 0 ? 'up' : 'down';
+// Near a diagonal, keep facing the way he already was until the other axis
+// leads by this much, so a thumb wobbling around 45° doesn't flip him back
+// and forth (each flip restarted the walk cycle).
+const STICKY = 1.4;
+
+/** The facing for a movement (dx, dy), or null if it's too small to tell. Pass the current facing to keep it near a diagonal. */
+export function facingOf(dx, dy, current = null) {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (ax < 0.01 && ay < 0.01) return null;
+  const side = dx < 0 ? 'left' : 'right';
+  const vert = dy < 0 ? 'up' : 'down';
+  if (current === side && ax * STICKY >= ay) return side;
+  if (current === vert && ay * STICKY >= ax) return vert;
+  return ax > ay ? side : vert;
 }
 
 export class Trail {

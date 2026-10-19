@@ -8,7 +8,7 @@ off the ground (and off its shadow) as it walks, worst walking north. This
 moves each 96×144 frame of `assets/field/<key>.png` up or down, by whole art
 pixels, so its lowest opaque pixel sits on the feet line, y 141 (the same for
 every character, so shadows sit alike under all of them). walker.py does the
-same for new sheets.
+same for new sheets built from a drifting cycle like that.
 """
 
 import os

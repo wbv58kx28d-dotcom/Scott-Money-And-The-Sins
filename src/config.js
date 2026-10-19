@@ -107,8 +107,10 @@ export const FIELD = {
   cell: 10, // walk-grid cell, in world px
   clearance: 2, // cells kept free between $cott's feet and a wall
   npcBlock: { w: 70, h: 30 }, // an NPC's own footprint, centered on the feet
-  speed: 320, // walking speed, px per second
-  walkFps: 8,
+  speed: 260, // walking speed, px per second
+  // How far a walk cycle (two steps) carries him at that speed: it sets the cadence, about
+  // 2.9 steps a second, a brisk walk. The cycle is paced by distance, so slower is fewer steps.
+  stride: 180,
   talkRange: 110, // $cott stops this close to an NPC to talk
   cameraLerp: 0.14,
   dragRepathMs: 120, // while a finger is held down and dragged, re-aim this often

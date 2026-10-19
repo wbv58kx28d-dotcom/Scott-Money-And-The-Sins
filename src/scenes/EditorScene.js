@@ -21,7 +21,7 @@ import { regionById } from '../data/regions.js';
 import { Terrain } from '../systems/terrain.js';
 import { checkMap } from '../systems/mapcheck.js';
 import { mergeMap, layoutToSource, cloneLayout } from '../systems/mapfile.js';
-import { bakeProps, bakeWalkerSheet, facingFrame, SHEET_COLS } from '../systems/fieldArt.js';
+import { bakeProps, bakeWalkerSheet, facingFrame, sheetCols } from '../systems/fieldArt.js';
 import { Audio } from '../systems/audio.js';
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { signLabel } from '../ui/pixelFont.js';
@@ -228,12 +228,12 @@ export default class EditorScene extends Phaser.Scene {
     }
     for (const n of L.npcs) {
       const { row, flip } = facingFrame(n.facing);
-      add(this.add.sprite(n.x, n.y, n.sprite, row * SHEET_COLS).setOrigin(0.5, 1).setFlipX(flip).setDepth(n.y));
+      add(this.add.sprite(n.x, n.y, n.sprite, row * sheetCols(this, n.sprite)).setOrigin(0.5, 1).setFlipX(flip).setDepth(n.y));
       add(label(this, n.x, n.y - FIELD.frame.h + 4, n.id.toUpperCase(), 12).setOrigin(0.5, 1).setDepth(1e6));
     }
     const s = L.spawn;
     const { row, flip } = facingFrame(s.facing);
-    add(this.add.sprite(s.x, s.y, 'field_scott', row * SHEET_COLS).setOrigin(0.5, 1).setFlipX(flip).setAlpha(0.6).setDepth(s.y));
+    add(this.add.sprite(s.x, s.y, 'field_scott', row * sheetCols(this, 'field_scott')).setOrigin(0.5, 1).setFlipX(flip).setAlpha(0.6).setDepth(s.y));
     add(label(this, s.x, s.y - FIELD.frame.h + 4, 'START', 12, { color: '#7cf29c' }).setOrigin(0.5, 1).setDepth(1e6));
     this.drawSelection();
   }

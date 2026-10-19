@@ -14,7 +14,7 @@
 //            `idle` sheet, played once, then back to breathing. Only in the
 //            views it was drawn for.
 
-import { SHEET_COLS, SHEET_VIEWS } from '../systems/fieldArt.js';
+import { SHEET_VIEWS, sheetCols } from '../systems/fieldArt.js';
 
 const PX = 2;
 const LEANS = [-1, -0.5, 0, 0.5, 1]; // sway frames, left to right
@@ -159,7 +159,7 @@ export class Motion {
       if (b.acting && !sprite.anims.isPlaying) {
         // The idle action finished: back to the idle frame it started from.
         b.acting = false;
-        sprite.setTexture(b.sheet, b.row * SHEET_COLS);
+        sprite.setTexture(b.sheet, b.row * sheetCols(this.scene, b.sheet));
       }
       if (sprite.anims.isPlaying || !sprite.visible) {
         b.down = false;
@@ -180,7 +180,7 @@ export class Motion {
       if (down === b.down) continue;
       b.down = down;
       if (down) sprite.setTexture(b.breath, b.row);
-      else sprite.setTexture(b.sheet, b.row * SHEET_COLS);
+      else sprite.setTexture(b.sheet, b.row * sheetCols(this.scene, b.sheet));
     }
   }
 }
