@@ -131,39 +131,120 @@ function artMask(scene, key) {
   return mask;
 }
 
+const CAST_AT = new Map(); // a baked cast shadow's key → where its top-left sits from the prop's feet
+
 /**
- * A prop's silhouette cast on the ground by a light from `k` ({ x, y }: where a
- * point 1 px up lands, per px): every painted pixel h px above the feet is
- * pushed h × k along the ground, the shadow fading in steps toward its tip.
- * Returns the key and where its top-left sits from the prop's feet.
+ * How a prop's shadow is shaped (its `cast` entry in PROP_IMAGES, with its image):
+ *   box     a footprint `w` wide and `d` deep, running back up the screen from
+ *           the feet, raised `h` high (defaults: the `block` and the art's height
+ *           over it): boxy things, whose 3/4 art shows their top and their depth
+ *           along with their height, so their own pixels can't say how tall they are.
+ *   foot    the bottom `foot` px of the art are ground (a tree's mud plate): the
+ *           silhouette above casts from there.
+ *   (else)  each column's silhouette casts from that column's own ground line,
+ *           the lowest painted pixel near the feet.
  */
-function castTexture(scene, key, k, tag) {
+function castForm(def, img) {
+  const c = def.cast ?? {};
+  if (c.box) {
+    const d = c.d ?? def.block?.h ?? 20;
+    return { box: true, w: c.w ?? def.block?.w ?? img.width * 0.8, d, h: c.h ?? img.height - d };
+  }
+  if (c.foot != null) return { foot: c.foot };
+  return {};
+}
+
+/**
+ * A prop's shadow cast on the ground by a light from `k` ({ x, y }: where a
+ * point 1 px up lands, per px), shaped by `form` (castForm): a box's footprint
+ * swept along k by its height, or its silhouette with each painted pixel pushed
+ * along k by its height over the ground it stands on. Fades in steps toward its
+ * tip. Returns the key and where its top-left sits from the prop's feet.
+ */
+function castTexture(scene, key, k, tag, form = {}) {
   const out = `fx_cast_${key}_${tag}`;
-  const { cols, rows, opaque } = artMask(scene, key);
-  const minX = Math.floor(Math.min(0, rows * k.x));
-  const maxX = Math.ceil(cols + Math.max(0, rows * k.x));
-  const minY = Math.floor(Math.min(0, rows * k.y));
-  const maxY = Math.ceil(Math.max(0, rows * k.y)) + 1;
-  const w = maxX - minX + 1;
-  const h = maxY - minY + 1;
-  if (!scene.textures.exists(out)) {
-    const marks = new Float32Array(w * h);
+  if (scene.textures.exists(out) && CAST_AT.has(out)) return CAST_AT.get(out);
+  const pts = []; // [x, y, alpha] in art px from the feet (the bottom art row is y -1)
+  const fade = (t) => 1 - (0.45 * Math.floor(Math.min(0.999, t) * 3)) / 3;
+  if (form.box) {
+    // The footprint, swept along the light by the box's height: a pixel is in the
+    // shadow if stepping back along the light by some s (0..1) lands in the footprint.
+    const x0 = -form.w / 2 / PX;
+    const x1 = form.w / 2 / PX;
+    const y0 = -form.d / PX;
+    const y1 = 0;
+    const vx = (k.x * form.h) / PX;
+    const vy = (k.y * form.h) / PX;
+    const span = (p, lo, hi, v) => (Math.abs(v) < 1e-9 ? (p >= lo && p <= hi ? [-Infinity, Infinity] : null) : [Math.min((p - hi) / v, (p - lo) / v), Math.max((p - hi) / v, (p - lo) / v)]);
+    for (let y = Math.floor(Math.min(y0, y0 + vy)); y <= Math.ceil(Math.max(y1, y1 + vy)); y++) {
+      for (let x = Math.floor(Math.min(x0, x0 + vx)); x <= Math.ceil(Math.max(x1, x1 + vx)); x++) {
+        const sx = span(x + 0.5, x0, x1, vx);
+        const sy = span(y + 0.5, y0, y1, vy);
+        if (!sx || !sy) continue;
+        const lo = Math.max(0, sx[0], sy[0]);
+        const hi = Math.min(1, sx[1], sy[1]);
+        if (lo <= hi) pts.push([x, y, fade(lo)]);
+      }
+    }
+  } else {
+    const { cols, rows, opaque } = artMask(scene, key);
+    // Where each column stands on the ground: a tree's whole silhouette on its foot,
+    // anything else on the column's own lowest pixel near the feet (borrowed from
+    // the nearest column that has one, under an overhang).
+    let ground;
+    if (form.foot != null) {
+      ground = new Array(cols).fill(rows - 1 - Math.round(form.foot / PX));
+    } else {
+      const reach = Math.max(4, Math.round(rows * 0.4));
+      const own = Array.from({ length: cols }, (_, ax) => {
+        for (let ay = rows - 1; ay >= rows - reach; ay--) if (opaque(ax, ay)) return ay;
+        return null;
+      });
+      ground = own.map((g, ax) => {
+        if (g !== null) return g;
+        for (let d = 1; d < cols; d++) {
+          if (own[ax - d] != null) return own[ax - d];
+          if (own[ax + d] != null) return own[ax + d];
+        }
+        return rows - 1;
+      });
+    }
     const steps = Math.max(1, Math.ceil(Math.max(Math.abs(k.x), Math.abs(k.y)))); // no gaps when stretched
-    for (let ay = 0; ay < rows; ay++) {
-      const up = rows - 1 - ay;
-      const a = 1 - (0.45 * Math.floor((up / rows) * 3)) / 3;
-      for (let ax = 0; ax < cols; ax++) {
+    for (let ax = 0; ax < cols; ax++) {
+      const base = ground[ax];
+      for (let ay = 0; ay <= base; ay++) {
         if (!opaque(ax, ay)) continue;
-        for (let s = 0; s <= steps; s++) {
-          const hh = up + s / steps;
-          const i = (Math.round(hh * k.y) - minY) * w + Math.round(ax + hh * k.x) - minX;
-          if (marks[i] < a) marks[i] = a;
+        const up = base - ay;
+        const a = fade(up / rows);
+        for (let st = 0; st <= steps; st++) {
+          const hh = up + st / steps;
+          pts.push([ax - cols / 2 + hh * k.x, base - rows + hh * k.y, a]);
         }
       }
     }
-    bakeMarks(scene, out, w, h, marks);
   }
-  return { key: out, x: (minX - cols / 2) * PX, y: (minY - 1) * PX };
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of pts) {
+    minX = Math.min(minX, Math.round(x));
+    maxX = Math.max(maxX, Math.round(x));
+    minY = Math.min(minY, Math.round(y));
+    maxY = Math.max(maxY, Math.round(y));
+  }
+  if (!pts.length) [minX, maxX, minY, maxY] = [0, 0, 0, 0];
+  const w = maxX - minX + 1;
+  const h = maxY - minY + 1;
+  const marks = new Float32Array(w * h);
+  for (const [x, y, a] of pts) {
+    const i = (Math.round(y) - minY) * w + Math.round(x) - minX;
+    if (marks[i] < a) marks[i] = a;
+  }
+  if (!scene.textures.exists(out)) bakeMarks(scene, out, w, h, marks);
+  const at = { key: out, x: minX * PX, y: minY * PX };
+  CAST_AT.set(out, at);
+  return at;
 }
 
 const STREAKS = []; // baked streak keys, oldest first (a few dozen are kept)
@@ -384,8 +465,9 @@ export class Atmosphere {
     if (!def) return;
     const { x, y } = img;
     // Outdoors, anything standing casts its silhouette away from the sun.
-    if (this.look.sunPath && def.cast !== false) this.casts.push({ owner: img, key: def.key, obj: null, tag: null });
-    if (def.cast !== false) this.standing.push({ owner: img, key: def.key });
+    const form = def.cast === false ? null : castForm(def, img);
+    if (this.look.sunPath && form) this.casts.push({ owner: img, key: def.key, form, obj: null, tag: null });
+    if (form) this.standing.push({ owner: img, key: def.key, form });
     this.lampCasts = null; // paired again once the props are all in
     // A contact shadow traced from the art, hugging its base where it meets the ground.
     if (def.shadow) {
@@ -601,7 +683,7 @@ export class Atmosphere {
     const fresh = !this.scene.textures.exists(`fx_cast_${c.key}_${tag}`);
     if (fresh && this.bakes <= 0) return; // its turn comes next frame; the last step's shadow stays till then
     if (fresh) this.bakes--;
-    const t = castTexture(this.scene, c.key, k, tag);
+    const t = castTexture(this.scene, c.key, k, tag, c.form);
     if (!c.obj) c.obj = this.scene.add.image(0, 0, t.key).setOrigin(0).setDepth(this.ground + 0.8);
     const old = c.obj.texture.key;
     c.obj.setTexture(t.key).setPosition(Math.round(c.owner.x + t.x), Math.round(c.owner.y + t.y));
@@ -648,7 +730,7 @@ export class Atmosphere {
         const fresh = !this.scene.textures.exists(`fx_cast_${c.key}_${c.tag}`);
         if (fresh && this.bakes <= 0) continue; // its turn comes next frame
         if (fresh) this.bakes--;
-        const t = castTexture(this.scene, c.key, c.k, c.tag);
+        const t = castTexture(this.scene, c.key, c.k, c.tag, c.form);
         c.obj = this.scene.add.image(Math.round(c.owner.x + t.x), Math.round(c.owner.y + t.y), t.key).setOrigin(0).setDepth(this.ground + 0.8);
       }
       c.obj.setVisible(true).setAlpha(alpha);
