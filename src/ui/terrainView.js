@@ -21,12 +21,14 @@ const FOOT_SHADOW = [0.34, 0.3, 0.24, 0.18, 0.12, 0.07];
 const SIDE = 6;
 
 const key = (set, part) => `ts_${set}_${part}`;
+/** '#rrggbb' at an alpha, for a canvas fill. */
+const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
 
 /** In preload(): the tileset's json and images, if not loaded yet. */
 export function preloadTileset(scene, set) {
   const dir = `assets/regions/${set}`;
   if (!scene.cache.json.exists(key(set, 'json'))) scene.load.json(key(set, 'json'), `${dir}/tileset.json`);
-  for (const part of ['tiles', 'decals', 'bridge', 'cliff', 'bank', 'stairs']) {
+  for (const part of ['tiles', 'decals', 'bridge', 'bridge_h', 'cliff', 'bank', 'stairs']) {
     if (!scene.textures.exists(key(set, part))) scene.load.image(key(set, part), `${dir}/${part}.png`);
   }
 }
@@ -51,6 +53,7 @@ export class TerrainView {
     this.tiles = scene.textures.get(key(set, 'tiles')).getSourceImage();
     this.decals = scene.textures.get(key(set, 'decals')).getSourceImage();
     this.bridgeImg = scene.textures.get(key(set, 'bridge')).getSourceImage();
+    this.bridgeHImg = scene.textures.get(key(set, 'bridge_h')).getSourceImage();
     this.stairsImg = scene.textures.get(key(set, 'stairs')).getSourceImage();
     this.cliffImg = scene.textures.get(key(set, 'cliff')).getSourceImage();
     this.bankImg = scene.textures.get(key(set, 'bank')).getSourceImage();
@@ -375,15 +378,19 @@ export class TerrainView {
     const faces = [];
     for (let x = -2; x <= w; x += 2) faces.push(terrain.facesAt(ox + x + 1, oy, oy + h));
     const hasFace = (k, f) => (faces[k] ?? []).some((g) => Math.abs(g.top - f.top) <= 4);
+    // An endless face (the Sky Deck's walls) repeats the art's rows from `repeat` on below its first copy.
+    const { haze } = terrain.tileset.cliff ?? {};
+    const repeat = (terrain.tileset.cliff?.repeat ?? 0) < img.height ? terrain.tileset.cliff?.repeat ?? 0 : 0;
     for (let x = 0; x < w; x += 2) {
       const sx = (ox + x) % img.width;
       const k = x / 2 + 1;
       for (const f of faces[k]) {
         const y = f.top - oy;
-        // A drop of more than one level stacks the strip.
-        for (let s = 0; s < f.height; s += img.height) {
-          const sh = Math.min(img.height, f.height - s);
-          ctx.drawImage(img, sx, 0, 2, sh, x, y + s, 2, sh);
+        // A drop of more than one level stacks the strip (an endless face, its repeating rows).
+        for (let s = 0, sy = 0; s < f.height; sy = repeat) {
+          const sh = Math.min(img.height - sy, f.height - s);
+          ctx.drawImage(img, sx, sy, 2, sh, x, y + s, 2, sh);
+          s += sh;
         }
         // Where the face ends (it turns the corner into a side wall), an ink edge, and shade beside it.
         const left = !hasFace(k - 1, f);
@@ -395,7 +402,16 @@ export class TerrainView {
           ctx.fillStyle = 'rgba(18,13,28,0.35)';
           ctx.fillRect(x, y + 4, 2, f.height - 4);
         }
-        if (f.height === f.full) {
+        // The deeper an endless wall runs, the more of the haze lies over it (it stays solid).
+        if (haze) {
+          const g = ctx.createLinearGradient(0, y, 0, y + haze.over);
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(1, rgba(haze.color, haze.alpha));
+          ctx.fillStyle = g;
+          ctx.fillRect(x, y, 2, f.height);
+        }
+        // A shadow at its foot, unless it ends in a drop (nothing there to cast it on).
+        if (f.height === f.full && terrain.voidAt(ox + x + 1, f.top + f.height + 1) <= 0.5) {
           FOOT_SHADOW.forEach((a, r) => {
             if (r % 2 && (x / 2) % 2) return; // dithered toward the bottom
             ctx.fillStyle = `rgba(10, 6, 16, ${a})`;
@@ -412,6 +428,10 @@ export class TerrainView {
    * plank rows (never by scaling pixels).
    */
   drawBridge(ctx, b, ox, oy, w, h) {
+    if (b.kind !== 'stairs' && b.w > b.h && this.bridgeHImg.width > 1) {
+      this.drawBridgeAcross(ctx, b, ox, oy, w, h);
+      return;
+    }
     const img = b.kind === 'stairs' ? this.stairsImg : this.bridgeImg;
     const x = Math.round(b.x + b.w / 2 - img.width / 2) - ox;
     const y = Math.round(b.y) - oy;
@@ -435,6 +455,36 @@ export class TerrainView {
       yy += hh;
     }
     ctx.drawImage(img, 0, head + band, img.width, tail, x, end, img.width, tail);
+  }
+
+  /**
+   * A boardwalk running across the screen (a set with bridge_h.png, the Sky
+   * Deck's): the art centered on the rect's height, as wide as the rect,
+   * stretched by repeating its middle columns.
+   */
+  drawBridgeAcross(ctx, b, ox, oy, w, h) {
+    const img = this.bridgeHImg;
+    const x = Math.round(b.x) - ox;
+    const y = Math.round(b.y + b.h / 2 - img.height / 2) - oy;
+    const want = Math.round(b.w);
+    if (x > w || y > h || x + want < 0 || y + img.height < 0) return;
+    const head = Math.floor(img.width / 2) - 8;
+    const band = 16;
+    const tail = img.width - head - band;
+    if (want <= head + tail) {
+      const sx = Math.floor((img.width - want) / 2);
+      ctx.drawImage(img, sx, 0, want, img.height, x, y, want, img.height);
+      return;
+    }
+    ctx.drawImage(img, 0, 0, head, img.height, x, y, head, img.height);
+    let xx = x + head;
+    const end = x + want - tail;
+    while (xx < end) {
+      const ww = Math.min(band, end - xx);
+      ctx.drawImage(img, head, 0, ww, img.height, xx, y, ww, img.height);
+      xx += ww;
+    }
+    ctx.drawImage(img, head + band, 0, tail, img.height, end, y, tail, img.height);
   }
 
   destroy() {

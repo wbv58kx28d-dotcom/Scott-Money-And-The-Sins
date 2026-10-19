@@ -57,7 +57,7 @@ import { bakeProps, bakeWalkerSheet, walkerAnims, walkPace, idleActionAnims, fac
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { Atmosphere } from '../ui/atmosphere.js';
 import { Motion, swaySheet } from '../ui/motion.js';
-import { Vista } from '../ui/vista.js';
+import { makeVista, belowImage } from '../ui/vista.js';
 import { Foreground } from '../ui/foreground.js';
 import { SeeThrough } from '../ui/seeThrough.js';
 import { LOOKS, DEFAULT_LOOK, DAY } from '../data/looks.js';
@@ -119,6 +119,9 @@ export default class RegionScene extends Phaser.Scene {
   // Real art loads when src/data/assets.js lists it; any walker or prop missing is baked in create().
   preload() {
     preloadTileset(this, this.map.tileset);
+    // A look that looks straight down (the Sky Deck's) loads the land below.
+    const below = (LOOKS[DEBUG.look] ?? LOOKS[this.map.look])?.vista?.below;
+    if (below && !this.textures.exists(belowImage(below.image).key)) this.load.image(belowImage(below.image).key, belowImage(below.image).path);
     for (const f of FX_SHEETS) if (!this.textures.exists(f.key)) this.load.spritesheet(f.key, f.path, { frameWidth: f.w, frameHeight: f.h });
     const { w, h } = FIELD.frame;
     for (const s of FIELD_SHEETS) if (s.path) this.load.spritesheet(s.key, s.path, { frameWidth: w, frameHeight: h });
@@ -186,9 +189,9 @@ export default class RegionScene extends Phaser.Scene {
       ground: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain, hour: this.hour(), weather: this.weatherNow(),
       lightmap: !DEBUG.noLightmap,
     });
-    // The view past a drop at the map's top edge (ui/vista.js), if the look has one and the map has a drop.
+    // The view past a drop (ui/vista.js): out past the map's top edge, or straight down from a floating map.
     this.vista = this.look.vista && this.terrain.voids.size
-      ? new Vista(this, this.look.vista, { depth: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain })
+      ? makeVista(this, this.look.vista, { depth: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain })
       : null;
 
     this.motion = new Motion(this, { rand: createRng(13).random });

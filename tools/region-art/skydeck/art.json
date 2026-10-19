@@ -1,0 +1,35 @@
+{
+  "terrains": {
+    "m": {
+      "name": "marble",
+      "label": "MARBLE"
+    },
+    "e": {
+      "name": "hedge",
+      "label": "ROSE HEDGE",
+      "blocks": true
+    },
+    "v": {
+      "name": "drop",
+      "label": "DROP",
+      "level": -2,
+      "blocks": true,
+      "void": true
+    }
+  },
+  "base": "m",
+  "pairs": [
+    "marble_hedge"
+  ],
+  "grade": {
+    "saturation": 1.0,
+    "brightness": 1.0
+  },
+  "cliff": {
+    "face": 30,
+    "endless": true,
+    "repeat": 12,
+    "haze": { "color": "#dce8f6", "alpha": 0.4, "over": 360 }
+  },
+  "scatter": []
+}

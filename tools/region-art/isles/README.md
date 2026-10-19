@@ -1,11 +1,11 @@
 # Influencer Isles: art sources (in progress)
 
-Picked so far, step by step with the user. Nothing here is wired into the game yet: no `art.json`, no `PROP_IMAGES` entries, no layout.
+Picked so far, step by step with the user. The Isles' own ground isn't wired into the game yet (no `art.json`, no `PROP_IMAGES` entries, no layout); the Sky Deck is (CLAUDE.md §6.6, `&region=isles_sky`).
 
 ## Direction
 - Islands dot a lagoon; $cott crosses between them on a **jet ski**.
 - Envy (Lil' Turnt) holds court in a **fantasy princess castle**: a tall central keep linked to smaller turrets by **sky bridges**. She sees herself as a princess.
-- **Sky Deck:** the towers stand as tall props on their islands, and an elevator leads up to a separate rooftop map: the tower tops are platforms over a drop with the lagoon far below (the swamp's drop terrain plus a looking-down vista, not built yet), joined by the bridges. Envy waits in the central keep's penthouse.
+- **Sky Deck (built as a test map):** the towers stand as tall props on their islands, and an elevator leads up to a separate rooftop map: the tower tops are platforms over a drop with the lagoon far below (a looking-down vista: the lagoon with two cloud layers drifting between, following the clock), joined by the bridges. The tower walls run off the bottom of the screen. Envy waits in the central keep's penthouse.
 
 ## Ground (`tiles/`), the "golden-hour" look
 Standard PixelLab top-down tilesets, 16 px, chained through the sand base tile (`03cc7f28-09c3-4f12-84ac-3d32d0885ad4`).
@@ -17,7 +17,9 @@ Standard PixelLab top-down tilesets, 16 px, chained through the sand base tile (
 
 Passed over: a postcard turquoise and white-sand set (`d1406b24…`) and a pastel pink and lavender set (`d5dbb61b…`); both came back with their labels swapped.
 
-## Sky Deck (`../skydeck/tiles/`)
+## Sky Deck (`../skydeck/`)
+`python3 tools/region-art/skydeck.py` draws the tower wall (`cliff.png`), the bridges (`bridge.png`, `bridge_h.png`) and the lagoon below (`assets/vista/isles_below.png`); then `tileset.py skydeck`.
+
 `marble_hedge` (`c224dc9d-d791-45b8-9705-6681a7e6926d`): the castle grounds' marble (chained from its base tile) with clipped rose-hedge planters, which ring each rooftop as railings. Passed over: pink flagstone with marble inlay (`d99c8432…`), and a sky-garden lawn ringed by clouds (`e50c4927…`).
 
 ## Castle props (`../props/`)

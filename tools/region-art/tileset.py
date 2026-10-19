@@ -11,11 +11,11 @@ Reads `tools/region-art/<set>/`:
                                which `scatter` decals go on which terrain, and optional
                                `bubbles` (animated fx_bubble pops on a terrain, Region scene); a terrain
                                marked `void` (a drop) needs no tiles
-    decals/*.png, bridge.png
+    decals/*.png, bridge.png, bridge_h.png (optional: a boardwalk running across the screen)
 
 and writes `assets/regions/<set>/`: tiles.png (every tile, color-graded, at the
 game's 2 screen px per art pixel), decals.png (the decals, packed), bridge.png
-(a boardwalk to stretch over water), cliff.png and bank.png (the faces hung
+(a boardwalk to stretch over water; bridge_h.png one running across, if the set has it), cliff.png and bank.png (the faces hung
 below high ground and over the water's far edges, from cliff.py) and stairs.png (steps up a cliff; both a transparent
 pixel when the set has none), and tileset.json, which the game
 (systems/terrain.js) reads to pick a tile for each cell from its four corners.
@@ -149,10 +149,10 @@ def main(name):
     bridge = Image.open(os.path.join(src, 'bridge.png')).convert('RGBA')
     up(bridge.crop(bridge.getbbox())).save(os.path.join(out, 'bridge.png'), optimize=True)
     # The game loads these for every set, so a set without them gets an empty pixel.
-    for part in ('cliff', 'bank', 'stairs'):
+    for part in ('cliff', 'bank', 'stairs', 'bridge_h'):
         path = os.path.join(src, f'{part}.png')
         im = Image.open(path).convert('RGBA') if os.path.exists(path) else Image.new('RGBA', (1, 1))
-        if part == 'stairs' and im.getbbox():
+        if part in ('stairs', 'bridge_h') and im.getbbox():
             im = im.crop(im.getbbox())
         up(im).save(os.path.join(out, f'{part}.png'), optimize=True)
 
@@ -170,7 +170,14 @@ def main(name):
         },
     }
     if 'cliff' in spec:
-        tileset['cliff'] = {'face': spec['cliff']['face'] * ART_PX}
+        cliff = spec['cliff']
+        tileset['cliff'] = {'face': cliff['face'] * ART_PX}
+        # Faces into a drop that run all the way down (the Sky Deck's tower walls): the art's
+        # rows from `repeat` on repeat below its first copy, hazed by `haze` the deeper they go.
+        if cliff.get('endless'):
+            tileset['cliff'].update(endless=True, repeat=cliff.get('repeat', 0) * ART_PX)
+            if 'haze' in cliff:
+                tileset['cliff']['haze'] = {**cliff['haze'], 'over': cliff['haze']['over'] * ART_PX}
     if 'bank' in spec:
         tileset['bank'] = {'face': spec['bank']['face'] * ART_PX}
     if 'depth' in spec:

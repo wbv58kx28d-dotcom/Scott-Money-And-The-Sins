@@ -16,6 +16,12 @@
 // horizon) and it's solid below that, down past the edge, so there are no
 // gaps. Each moves `depth` as fast as the ground, so walking north reveals
 // more of the far view rising over the edge, and walking away sinks it.
+//
+// A look's `vista.below` is the other kind, for a map that floats (the Sky
+// Deck, on top of Envy's castle): looking straight down past every edge, at a
+// land far below (an image that tiles both ways, drawn at 1 screen px per art
+// px so it reads as far away), under a haze in the hour's sky color, with
+// layers of pixel clouds drifting between at their own depths (BelowView).
 
 import { GAME_W, GAME_H } from '../config.js';
 import { createRng } from '../systems/rng.js';
@@ -120,6 +126,102 @@ function treesMask(h, seed) {
 }
 
 const MASKS = { city: cityMask, hills: hillsMask, trees: treesMask };
+
+/** The view a look names: past the map's top edge (Vista) or straight down (BelowView). */
+export function makeVista(scene, spec, o) {
+  return spec.below ? new BelowView(scene, spec.below, o) : new Vista(scene, spec, o);
+}
+
+/** The texture key a look's land below loads as, and its file (RegionScene preloads it). */
+export const belowImage = (name) => ({ key: `vista_${name}`, path: `assets/vista/${name}.png` });
+
+// A cloud's tones, lit top to shaded underside.
+const CLOUD = { top: '#ffffff', body: '#faf6fa', under: '#e6d6ee', base: '#cebade' };
+
+/**
+ * A layer of clouds that tiles both ways: puffs (a few overlapping ovals each)
+ * on the 2 px grid, wrapped at the edges, lit on top and lavender underneath.
+ */
+function cloudsMask(spec) {
+  const rand = createRng(spec.seed ?? 3).random;
+  const N = TILE / PX;
+  const inside = new Uint8Array(N * N);
+  const [rmin, rmax] = spec.size;
+  for (let k = 0; k < spec.count; k++) {
+    const cx = rand() * N;
+    const cy = rand() * N;
+    const r = rmin + rand() * (rmax - rmin);
+    const blobs = [[0, 0, r]];
+    for (let b = 0; b < 5; b++) blobs.push([(rand() * 2 - 1) * r * 1.4, (rand() * 0.7 - 0.3) * r, r * (0.45 + rand() * 0.35)]);
+    for (const [bx, by, br] of blobs) {
+      for (let y = Math.floor(-br); y <= br; y++) {
+        const half = Math.sqrt(Math.max(0, br * br - (y * 1.35) ** 2));
+        for (let x = Math.floor(-half); x <= half; x++) {
+          const ix = ((Math.floor(cx + bx + x) % N) + N) % N;
+          const iy = ((Math.floor(cy + by + y) % N) + N) % N;
+          inside[iy * N + ix] = 1;
+        }
+      }
+    }
+  }
+  const c = canvas(TILE, TILE);
+  const ctx = c.getContext('2d');
+  const at = (x, y) => inside[(((y % N) + N) % N) * N + (((x % N) + N) % N)];
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      if (!at(x, y)) continue;
+      ctx.fillStyle = !at(x, y - 1) ? CLOUD.top : !at(x, y + 1) ? CLOUD.base : !at(x, y + 2) ? CLOUD.under : CLOUD.body;
+      ctx.fillRect(x * PX, y * PX, PX, PX);
+    }
+  }
+  return c;
+}
+
+/**
+ * Looking straight down from a floating map: the land far below, a haze over it
+ * in the sky's color (thicker in fog), and cloud layers drifting with the wind.
+ * Everything is pinned to the screen and scrolled by its own depth, under the
+ * ground (whose drops are cut away, ui/terrainView.js), so it shows past every edge.
+ */
+export class BelowView {
+  /**
+   * @param {object} spec  { image, depth, haze, clouds: [{ depth, drift, count, size: [min, max], alpha, seed }] }
+   * @param {object} o     { depth: just under the ground }
+   */
+  constructor(scene, spec, { depth }) {
+    this.scene = scene;
+    this.spec = spec;
+    const pin = (o, d) => o.setScrollFactor(0).setOrigin(0).setDepth(d);
+    this.land = pin(scene.add.tileSprite(0, 0, GAME_W, GAME_H, belowImage(spec.image).key), depth - 10);
+    this.haze = pin(scene.add.rectangle(0, 0, GAME_W, GAME_H, 0xffffff), depth - 9);
+    this.drift = 0;
+    this.clouds = (spec.clouds ?? []).map((l, k) => {
+      const key = `fx_below_clouds_${k}`;
+      if (scene.textures.exists(key)) scene.textures.remove(key);
+      scene.textures.addCanvas(key, cloudsMask(l));
+      return { ...l, sprite: pin(scene.add.tileSprite(0, 0, GAME_W, GAME_H, key), depth - 8 + k).setAlpha(l.alpha ?? 1) };
+    });
+    this.last = scene.time.now;
+  }
+
+  /** Scroll everything for the camera, drift the clouds with the wind, and tint the haze for the light. */
+  update(light) {
+    const cam = this.scene.cameras.main;
+    const now = this.scene.time.now;
+    const dt = Math.min(0.1, (now - this.last) / 1000);
+    this.last = now;
+    this.drift += dt * (0.4 + (light.wind ?? 0.35));
+    this.land.tilePositionX = Math.round(cam.scrollX * this.spec.depth);
+    this.land.tilePositionY = Math.round(cam.scrollY * this.spec.depth);
+    const fog = light.fog ?? 0;
+    this.haze.setFillStyle(light.sky.bottom, Math.min(0.85, (this.spec.haze ?? 0.35) + fog * 0.4));
+    for (const l of this.clouds) {
+      // Whole art pixels only, so the clouds stay on the 2 px grid.
+      l.sprite.tilePositionX = Math.round((cam.scrollX * l.depth - this.drift * l.drift) / PX) * PX;
+      l.sprite.tilePositionY = Math.round((cam.scrollY * l.depth) / PX) * PX;
+    }
+  }
+}
 
 export class Vista {
   /**
