@@ -66,12 +66,12 @@ export const FIELD_SHEETS = [
 //   sway    how far its top leans in a strong wind, px (ui/motion.js); trees, reeds, flames
 //   cast    false keeps it from casting a shadow away from the sun (ui/atmosphere.js); everything else does
 export const PROP_IMAGES = [
-  { key: 'prop_cypress', path: 'assets/props/prop_cypress.png', name: 'CYPRESS', block: { w: 64, h: 24 }, sway: 6 },
-  { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png', name: 'CYPRESS 2', block: { w: 64, h: 24 }, sway: 6 },
-  { key: 'prop_cypress_c', path: 'assets/props/prop_cypress_c.png', name: 'CYPRESS 3', block: { w: 60, h: 24 }, sway: 6 },
-  { key: 'prop_cypress_d', path: 'assets/props/prop_cypress_d.png', name: 'CYPRESS 4', block: { w: 64, h: 24 }, sway: 6 },
-  { key: 'prop_snag', path: 'assets/props/prop_snag.png', name: 'SNAG', block: { w: 40, h: 18 }, shadow: true, glow: [{ x: 15, y: -53, r: 40, color: 0xff5ad0, pulse: true }], sway: 4 },
-  { key: 'prop_snag_b', path: 'assets/props/prop_snag_b.png', name: 'SNAG 2', block: { w: 40, h: 18 }, shadow: true, glow: [{ x: 14, y: -58, r: 40, color: 0xff5ad0, pulse: true }], sway: 4 },
+  { key: 'prop_cypress', path: 'assets/props/prop_cypress.png', name: 'CYPRESS', block: { w: 64, h: 24 }, sway: 8 },
+  { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png', name: 'CYPRESS 2', block: { w: 64, h: 24 }, sway: 8 },
+  { key: 'prop_cypress_c', path: 'assets/props/prop_cypress_c.png', name: 'CYPRESS 3', block: { w: 60, h: 24 }, sway: 8 },
+  { key: 'prop_cypress_d', path: 'assets/props/prop_cypress_d.png', name: 'CYPRESS 4', block: { w: 64, h: 24 }, sway: 8 },
+  { key: 'prop_snag', path: 'assets/props/prop_snag.png', name: 'SNAG', block: { w: 40, h: 18 }, shadow: true, glow: [{ x: 4, y: -76, r: 44, color: 0xff5ad0, pulse: true }], sway: 5 },
+  { key: 'prop_snag_b', path: 'assets/props/prop_snag_b.png', name: 'SNAG 2', block: { w: 40, h: 18 }, shadow: true, glow: [{ x: 12, y: -95, r: 44, color: 0xff5ad0, pulse: true }], sway: 5 },
   { key: 'prop_sign', path: 'assets/props/prop_sign.png', name: 'SIGN', block: { w: 90, h: 16 }, label: 'SIGN', shadow: { rise: 10 } },
   { key: 'prop_setup', path: 'assets/props/prop_setup.png', name: 'DESK', block: { w: 170, h: 50 } },
   { key: 'prop_tent', path: 'assets/props/prop_tent.png', name: 'TENT', block: { w: 160, h: 60 }, shadow: true },
