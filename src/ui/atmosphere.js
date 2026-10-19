@@ -41,11 +41,11 @@ const RAIN = { drops: 150, speed: 1300, wind: -260, splashes: 36 };
 // sits, its falloff's steps, and how much darker the dark gets where no light
 // reaches, at full night (the lights carry it now).
 // Shadows that point (systems/sky.js sunShadow, lightShadow): how dark the sun's are on
-// props and characters (× the light's `shadows`), how dark each light's are on characters,
+// props and characters (× the light's `shadows`), how dark each light's are on characters and on props,
 // how much wider a person's shadow gets toward its tip from the sun and from a light
 // (a near light spreads it), how dark contact shadows are (× `shadows`), how high a
 // character stands, and how far past the screen a prop's shadow can reach in.
-const CASTS = { props: 1.1, people: 1.3, lamps: 0.75, spread: { sun: 1.3, lamp: 1.8 }, contact: 2.4, height: 124, margin: 640, keep: 96 };
+const CASTS = { props: 1.1, people: 1.3, lamps: 0.75, lampProps: 0.95, spread: { sun: 1.3, lamp: 1.8 }, contact: 2.4, height: 124, margin: 640, keep: 96 };
 const CAST_SQUASH = 0.6; // the ground's up-and-down, foreshortened (as in systems/sky.js)
 const LIGHTMAP = { reach: 2.6, whiten: 0.12, glows: 0.55, squash: 0.72, drop: 0.6, steps: 12, darken: 0.3 };
 const even = (v) => Math.max(PX, Math.round(v / PX) * PX);
@@ -356,6 +356,8 @@ export class Atmosphere {
     this.light = skyAt(look, hour, this.mix);
     this.shadows = []; // { obj, sprite, w, h, sun, lamps } following a character (their cast shadows: the sun's, and one per light near them)
     this.casts = []; // props' sun shadows: { owner, key, obj, tag }
+    this.standing = []; // every prop that casts shadows: { owner, key }
+    this.lampCasts = null; // props' shadows away from lights near them, paired once all are in: { owner, key, lamp, k, tag, obj }
     this.lamps = []; // props' lights, for shadows cast away from them: { a, x, y (the ground under it), h, reach }
     this.hour = hour;
     this.sunTag = null;
@@ -383,6 +385,8 @@ export class Atmosphere {
     const { x, y } = img;
     // Outdoors, anything standing casts its silhouette away from the sun.
     if (this.look.sunPath && def.cast !== false) this.casts.push({ owner: img, key: def.key, obj: null, tag: null });
+    if (def.cast !== false) this.standing.push({ owner: img, key: def.key });
+    this.lampCasts = null; // paired again once the props are all in
     // A contact shadow traced from the art, hugging its base where it meets the ground.
     if (def.shadow) {
       const c = contactTexture(this.scene, def.key, def.shadow === true ? {} : def.shadow);
@@ -570,6 +574,7 @@ export class Atmosphere {
       if (c.tag !== tag) this.recast(c, sunK, tag);
       if (c.tag !== null) c.obj.setVisible(true).setAlpha(propAlpha);
     }
+    this.lampShadows(L, near);
     // Characters.
     const lit = this.lamps.filter((l) => l.a.owner.visible && near(l.x, l.y, l.reach));
     for (const s of this.shadows) {
@@ -604,6 +609,58 @@ export class Atmosphere {
     if (old !== t.key && old.startsWith('fx_cast_') && !this.casts.some((o) => o.obj?.texture.key === old)) {
       this.scene.textures.remove(old);
     }
+  }
+
+  /**
+   * Props cast their silhouettes away from each light near them (not their own),
+   * like people do. Lights and props stand still, so each pair's direction and
+   * length are worked out once; only how dark it is changes, with the hour and
+   * the light's flicker. Silhouettes are baked as props come near the screen
+   * (sharing the frame's bake with the sun's) and freed as they leave it.
+   */
+  lampShadows(L, near) {
+    if (!this.lampCasts) {
+      this.lampCasts = [];
+      for (const p of this.standing) {
+        for (const lamp of this.lamps) {
+          if (lamp.a.owner === p.owner) continue;
+          const k = lightShadow({ ...lamp, strength: 1 }, p.owner.x, p.owner.y);
+          if (k.alpha < 0.05) continue;
+          const q = { x: Math.round(k.x * 20) / 20, y: Math.round(k.y * 20) / 20, alpha: k.alpha };
+          this.lampCasts.push({ ...p, lamp, k: q, tag: `L${q.x}_${q.y}`, obj: null });
+        }
+      }
+    }
+    for (const c of this.lampCasts) {
+      const { lamp } = c;
+      if (!near(c.owner.x, c.owner.y, CASTS.margin)) {
+        if (c.obj) this.unlampCast(c);
+        continue;
+      }
+      const strength = Math.min(1, L.lights * 0.9 * lamp.a.glow * lamp.a.wobble);
+      const alpha = Math.min(1, c.k.alpha * strength * CASTS.lampProps);
+      const show = alpha > 0.02 && c.owner.visible && lamp.a.owner.visible;
+      if (!show) {
+        c.obj?.setVisible(false);
+        continue;
+      }
+      if (!c.obj) {
+        const fresh = !this.scene.textures.exists(`fx_cast_${c.key}_${c.tag}`);
+        if (fresh && this.bakes <= 0) continue; // its turn comes next frame
+        if (fresh) this.bakes--;
+        const t = castTexture(this.scene, c.key, c.k, c.tag);
+        c.obj = this.scene.add.image(Math.round(c.owner.x + t.x), Math.round(c.owner.y + t.y), t.key).setOrigin(0).setDepth(this.ground + 0.8);
+      }
+      c.obj.setVisible(true).setAlpha(alpha);
+    }
+  }
+
+  /** A prop's light shadow goes out of view: drop it, and its silhouette if no other prop shows it. */
+  unlampCast(c) {
+    const key = c.obj.texture.key;
+    c.obj.destroy();
+    c.obj = null;
+    if (!this.lampCasts.some((o) => o.obj?.texture.key === key) && this.scene.textures.exists(key)) this.scene.textures.remove(key);
   }
 
   /** A prop's shadow goes out of view: let go of its silhouette, and free it if it's an old step's nobody shows. */
