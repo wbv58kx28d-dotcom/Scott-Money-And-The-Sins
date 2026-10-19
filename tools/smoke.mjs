@@ -868,12 +868,41 @@ async function main() {
         return { map: !!r.atmo.lightRT, pools: r.atmo.pools.length, contact: r.children.list.filter((o) => o.texture?.key?.startsWith('fx_contact_')).length };
       });
       await sleep(800);
+      // Near the torches, people cast shadows away from them.
+      lit.lamp = await page.evaluate(() => window.__smm.game.scene.getScene('Region').atmo.shadows.filter((s) => s.lamp.visible).length);
+      if (lit.lamp < 3) failures.push(`light map: expected people by the torches to cast shadows away from them (got ${lit.lamp})`);
       if (!lit.map) failures.push('light map: the region should draw its light map');
       if (lit.pools < 20) failures.push(`light map: expected the swamp's lights to spread pools (got ${lit.pools})`);
       if (lit.contact < 5) failures.push(`light map: expected contact shadows under the cardboard buildings (got ${lit.contact})`);
       await page.screenshot({ path: path.join(SHOTS, '19-lightmap-night.png') });
-      console.log(`light map: ${lit.pools} pools, ${lit.contact} contact shadows`);
+      console.log(`light map: ${lit.pools} pools, ${lit.contact} contact shadows, ${lit.lamp} torch shadows`);
       failures.push(...errors.map((x) => `light map: ${x}`));
+      await page.context().close();
+    }
+
+    // 5d¾. Golden hour: the sun's shadows stretch east from props and people.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&canvas=1&region=start&fast=1&seed=4&weather=clear&time=17:30`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
+      await page.evaluate(() => {
+        const r = window.__smm.game.scene.getScene('Region');
+        r.player.setPosition(1580, 3060);
+        r.cameras.main.centerOn(1580, 3060);
+      });
+      await sleep(800);
+      const sun = await page.evaluate(() => {
+        const a = window.__smm.game.scene.getScene('Region').atmo;
+        const shown = a.casts.filter((c) => c.obj?.visible);
+        return { props: shown.length, east: shown.every((c) => c.obj.x + c.obj.width / 2 > c.owner.x), people: a.shadows.filter((s) => s.sun.visible).length };
+      });
+      if (sun.props < 20) failures.push(`sun shadows: expected props in view to cast them at golden hour (got ${sun.props})`);
+      if (!sun.east) failures.push('sun shadows: at golden hour they should all fall east');
+      if (sun.people < 1) failures.push('sun shadows: $cott should cast one too');
+      await page.screenshot({ path: path.join(SHOTS, '19-sun-shadows.png') });
+      console.log(`sun shadows: ${sun.props} props and ${sun.people} people at golden hour, all falling east`);
+      failures.push(...errors.map((x) => `sun shadows: ${x}`));
       await page.context().close();
     }
 

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 
 import {
   hourOf, clockLabel, parseTime, lerpColor, phaseAt, skyAt, rollWeather, weatherAt, easeMix, clockAtHour, pinWeather, shiftWeather, DAY_MINUTES,
+  sunShadow, lightShadow,
 } from '../src/systems/sky.js';
 import { LOOKS, DAY } from '../src/data/looks.js';
 import { createRng } from '../src/systems/rng.js';
@@ -127,4 +128,38 @@ test("SETTINGS' sliders: the clock moves within its day, and picked weather hold
   assert.equal(weatherAt(moved, back, spec, rand), moved);
   assert.equal(moved.until - back, fog.until - clock);
   assert.equal(shiftWeather(null, 60), null, 'no weather yet stays none');
+});
+
+test("the sun's shadows turn with the day: west in the morning, short at noon, long and east at golden hour, none at night", () => {
+  const path = swamp.sunPath;
+  const at = (h) => sunShadow(path, h);
+  const len = (k) => Math.hypot(k.x, k.y / 0.6);
+  assert.equal(at(3).alpha, 0, 'night');
+  assert.equal(at(path.rise).alpha, 0);
+  assert.equal(at(path.set + 0.5).alpha, 0);
+  assert.equal(sunShadow(undefined, 12).alpha, 0, 'rooms have no sun');
+  assert.ok(at(8).x < 0, 'morning: west');
+  assert.ok(at(17.5).x > 0, 'golden hour: east');
+  const noon = at((path.rise + path.set) / 2);
+  assert.ok(Math.abs(noon.x) < 1e-9 && noon.y > 0, 'midday: straight toward the camera');
+  assert.ok(len(at(17.5)) > len(noon) * 2.5, 'long at golden hour');
+  assert.ok(len(at(6.1)) <= 2.2 + 1e-9, 'never longer than the cap, even at sunrise');
+  assert.ok(at(6.05).alpha < at(9).alpha && at(9).alpha === 1, 'fades in as the sun clears the horizon');
+  for (let h = path.rise + 0.25; h < path.set; h += 0.25) assert.ok(at(h).y >= 0, `never toward the sun in the north (${h})`);
+});
+
+test('a light casts shadows away from it, longer and fainter the farther from it', () => {
+  const torch = { x: 100, y: 100, h: 80, reach: 200, strength: 1 };
+  const east = lightShadow(torch, 160, 100);
+  assert.ok(east.x > 0 && Math.abs(east.y) < 1e-9, 'east of the torch: points east');
+  const south = lightShadow(torch, 100, 160);
+  assert.ok(south.y > 0 && Math.abs(south.x) < 1e-9, 'south of it: points south (down the screen)');
+  const far = lightShadow(torch, 260, 100);
+  assert.ok(Math.hypot(far.x, far.y) > Math.hypot(east.x, east.y), 'longer farther away');
+  assert.ok(far.alpha < east.alpha, 'and fainter');
+  assert.equal(lightShadow(torch, 400, 100).alpha, 0, 'none past its reach');
+  assert.equal(lightShadow(torch, 100, 100).alpha, 0, 'none right under it');
+  assert.ok(lightShadow({ ...torch, strength: 0.5 }, 160, 100).alpha < east.alpha, 'a dimmer light, a fainter shadow');
+  // The ground's up-and-down is foreshortened: 60 px down the screen is farther than 60 px across.
+  assert.ok(lightShadow(torch, 100, 160).alpha < lightShadow(torch, 160, 100).alpha);
 });
