@@ -184,6 +184,7 @@ export default class RegionScene extends Phaser.Scene {
     this.clockSavedAt = 0;
     this.atmo = new Atmosphere(this, this.look, {
       ground: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain, hour: this.hour(), weather: this.weatherNow(),
+      lightmap: DEBUG.lightmap,
     });
     // The view past a drop at the map's top edge (ui/vista.js), if the look has one and the map has a drop.
     this.vista = this.look.vista && this.terrain.voids.size
