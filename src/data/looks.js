@@ -104,7 +104,8 @@ export const LOOKS = {
   day: { shadows: 0.3, lights: 0.35 },
 
   // Derek's basement: a dark room lit by screens, server lights and his neon.
-  basement: { grade: 0x9a90b8, vignette: 0.55, vignetteColor: 0x06040c, shadows: 0.4, lights: 1.1 },
+  // `lightmapDarken`: with the light map (a prototype), how much darker the room gets where its lights don't reach.
+  basement: { grade: 0x9a90b8, vignette: 0.55, vignetteColor: 0x06040c, shadows: 0.4, lights: 1.1, lightmapDarken: 0.75 },
 
   // The trading floor: bright, clean, a little cool.
   office: { grade: 0xf0f0ff, vignette: 0.3, vignetteColor: 0x0a0c14, shadows: 0.3, lights: 0.6 },

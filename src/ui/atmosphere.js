@@ -35,8 +35,10 @@ const SUN_RES = 4; // the sun's light is drawn at a quarter of the screen's reso
 const RAIN = { drops: 150, speed: 1300, wind: -260, splashes: 36 };
 // The light map: how far a light's pool reaches (× its glow's radius), how much
 // whiter than the glow it is, how strong the glows stay over it, how flat the
-// pool lies (3/4 view), and how far down from the glow toward the prop's feet it sits.
-const LIGHTMAP = { reach: 2.4, whiten: 0.35, glows: 0.55, squash: 0.72, drop: 0.6 };
+// pool lies (3/4 view), how far down from the glow toward the prop's feet it
+// sits, its falloff's steps, and how much darker the dark gets where no light
+// reaches, at full night (the lights carry it now).
+const LIGHTMAP = { reach: 2.6, whiten: 0.12, glows: 0.55, squash: 0.72, drop: 0.6, steps: 12, darken: 0.3 };
 const even = (v) => Math.max(PX, Math.round(v / PX) * PX);
 const hex = (c) => c.toString(16).padStart(6, '0');
 const rgba = (c, a) => `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${a})`;
@@ -151,7 +153,7 @@ function poolTexture(scene, rx, color) {
       for (let x = 0; x < w; x++) {
         const d = Math.hypot((x + 0.5 - rx) / rx, (y + 0.5 - ry) / ry);
         if (d >= 1) continue;
-        ctx.fillStyle = rgba(color, Math.ceil((1 - d) ** 1.6 * 8) / 8);
+        ctx.fillStyle = rgba(color, Math.ceil((1 - d) ** 1.4 * LIGHTMAP.steps) / LIGHTMAP.steps);
         ctx.fillRect(x, y, 1, 1);
       }
     }
@@ -371,7 +373,9 @@ export class Atmosphere {
     const { width: w, height: h } = this.mapTex;
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
-    ctx.fillStyle = `#${hex(L.grade)}`;
+    // The darker the hour (the stronger its lights), the darker the dark between them.
+    const dark = (this.look.lightmapDarken ?? LIGHTMAP.darken) * Math.min(1, Math.max(0, (L.lights - 0.6) / 0.9));
+    ctx.fillStyle = `#${hex(blendColor(L.grade, 0x000000, dark))}`;
     ctx.fillRect(0, 0, w, h);
     ctx.globalCompositeOperation = 'lighter';
     for (const p of this.pools) {
@@ -379,7 +383,7 @@ export class Atmosphere {
       const sx = p.x - view.x;
       const sy = p.y - view.y;
       if (sx < -p.reach || sx > GAME_W + p.reach || sy < -p.reach || sy > GAME_H + p.reach) continue;
-      const strength = Math.min(1, L.lights * p.a.glow * p.a.wobble);
+      const strength = Math.min(1, L.lights * 0.9 * p.a.glow * p.a.wobble);
       if (strength <= 0.02) continue;
       ctx.globalAlpha = strength;
       ctx.drawImage(p.pool, Math.round(sx / PX - p.pool.width / 2), Math.round(sy / PX - p.pool.height / 2));
