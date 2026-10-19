@@ -1,14 +1,15 @@
 """Build a walker sprite sheet from a PixelLab character.
 
     python3 tools/region-art/walker.py <character id> <texture key> [<animation>]
-    python3 tools/region-art/walker.py 9a98e7a2-fda8-4b7b-a119-66ec4547c71a field_scott walk8_template
+    python3 tools/region-art/walker.py 9a98e7a2-fda8-4b7b-a119-66ec4547c71a field_scott walk8_skeleton
 
 Downloads the character's zip (rotations plus a walk animation, named "walk"
 unless given), and writes `assets/field/<texture key>.png` in the layout the
 Region scene expects (CLAUDE.md §8.4): rows down, up, left; columns idle, then
-the walk cycle (4 frames, or 8 for PixelLab's walking-8-frames: the game reads
-the count off the image). Each 48×72 art frame is drawn at ART_PX into a
-96×144 cell, feet on y 141 (the template's feet line):
+the walk cycle (4 frames, or 8 for PixelLab's walking-8-frames in skeleton-v3
+mode, which keeps the character's own size; the game reads the count off the
+image). Each 48×72 art frame is drawn at ART_PX into a 96×144 cell, feet on
+y 141 (the template's feet line):
 
 - A cycle that's registered (every frame's lowest foot within an art pixel of
   the others, like walking-8-frames) moves as a whole, so the art's own
@@ -21,6 +22,12 @@ the count off the image). Each 48×72 art frame is drawn at ART_PX into a
   usual height, evening out the pixel or two a generator's frames wander. Contacts are found in the side view, where the
   legs spread widest; the template keeps every view in step. Only cycles of 6
   or more frames: in 4 a dip lands on every other frame and reads as a march.
+- A frame whose head came out clearly unlike the others (turned, a darker
+  beard) gets the rotation's head pasted where its own was: one odd frame
+  flickers at walking speed.
+- A cycle on a bigger canvas than its rotation (PixelLab's skeleton-v3 mode
+  draws on 96×96) is cut down to the rotation's size, heads over the
+  rotation's and feet on its line.
 - A view whose rotation stands taller or shorter than its walk (more than an
   art pixel) stands on the walk's feet-together frame instead, so starting
   and stopping don't pop.
@@ -42,6 +49,7 @@ ART_PX = 2
 FRAME_W, FRAME_H = 96, 144
 FEET_Y = 141
 ROWS = [('down', 'south'), ('up', 'north'), ('left', 'west')]
+HEAD_ROWS = 16  # art px from the top of a 48×72 character down to the chin
 WAIST = 0.55  # the dip moves everything above this share of the body's height, like ui/motion.js breathing
 
 
@@ -78,6 +86,61 @@ def shift_upper(im, k):
     return out
 
 
+def head_x(im):
+    """The middle of the head (the top eighth of the body), across."""
+    top, bottom = im.getbbox()[1], im.getbbox()[3]
+    box = im.crop((0, top, im.width, top + max(1, (bottom - top) // 8))).getbbox()
+    return (box[0] + box[2]) / 2
+
+
+def fit(cycle, idle):
+    """
+    A cycle drawn on a bigger canvas than its rotation (skeleton-v3 renders on
+    96×96) cut down to the rotation's size, one window for the whole cycle so
+    its own registration survives: heads over the rotation's, feet on its line.
+    """
+    if not cycle or cycle[0].size == idle.size:
+        return cycle
+    w, h = idle.size
+    heads = sorted(head_x(f) for f in cycle)
+    lows = [lowest(f) for f in cycle]
+    x0 = round(heads[len(heads) // 2] - head_x(idle))
+    y0 = max(set(lows), key=lows.count) - lowest(idle)
+    return [f.crop((x0, y0, x0 + w, y0 + h)) for f in cycle]
+
+
+def head_fit(frame, ref, x, y):
+    """How many pixels of `frame`'s head, at (x, y), differ from `ref` (shape or a clearly different color)."""
+    a = frame.crop((x, y, x + ref.width, y + ref.height)).tobytes()
+    b = ref.tobytes()
+    return sum(1 for i in range(0, len(a), 4)
+               if (a[i + 3] > 0) != (b[i + 3] > 0) or (a[i + 3] and sum(abs(a[i + k] - b[i + k]) for k in range(3)) > 60))
+
+
+def steady_heads(cycle, idle):
+    """
+    A frame whose head came out clearly unlike the rest (the generator now and
+    then redraws it turned, or with a darker beard) gets the rotation's head
+    instead, where its own head was: one odd frame flickers at walking speed.
+    """
+    top = idle.getbbox()[1]
+    ref = idle.crop((0, top, idle.width, top + HEAD_ROWS))
+    fits = []
+    for f in cycle:
+        t, dx = f.getbbox()[1], round(head_x(f) - head_x(idle))
+        fits.append(min((head_fit(f, ref, x, t + y), x, t + y) for x in range(dx - 2, dx + 3) for y in (-1, 0, 1)))
+    usual = sorted(d for d, _, _ in fits)[len(fits) // 2]
+    out = []
+    for f, (d, x, y) in zip(cycle, fits):
+        if d > max(30, 4 * usual):
+            f = f.copy()
+            f.paste(Image.new('RGBA', (f.width, HEAD_ROWS)), (0, y))
+            f.alpha_composite(ref.crop((max(0, -x), 0, min(ref.width, f.width - x), ref.height)), (max(0, x), y))
+            print(f'  frame {len(out)}: head swapped for the rotation\'s ({d} px off)')
+        out.append(f)
+    return out
+
+
 def main(char_id, key, anim='walk'):
     url = f'https://api.pixellab.ai/mcp/characters/{char_id}/download'
     z = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(url).read()))
@@ -91,7 +154,9 @@ def main(char_id, key, anim='walk'):
     n = min(len(c) for c in cycles)
     if n < 4:
         cycles, n = [[idle] * 4 for idle in idles], 4
-    cycles = [c[:n] for c in cycles]
+    cycles = [fit(c[:n], idle) for c, idle in zip(cycles, idles)]
+    if walk:
+        cycles = [steady_heads(c, idle) for c, idle in zip(cycles, idles)]
     down = contacts(cycles[2]) if n >= 6 and walk else set()
     if down:
         down |= {(c + 1) % n for c in down}
