@@ -1,8 +1,10 @@
 // Draws a region's ground from its terrain grid (systems/terrain.js) and its
 // tileset's art (assets/regions/<set>/, built by tools/region-art/tileset.py):
 // each cell's tile, soft patches breaking up big fields (the tileset's
-// `patches`), small details scattered on solid cells, cliff faces under
-// high ground, and boardwalks over the water (or stairs up a cliff). The ground is cut into square chunks, each its own canvas
+// `patches`), the water darkening toward the middle of pools, small details
+// scattered on solid cells, low earth banks over the water's far edges, cliff
+// faces under high ground (with rocky side walls and shaded ends), and
+// boardwalks over the water (or stairs up a cliff). The ground is cut into square chunks, each its own canvas
 // texture, so a big map never needs one texture past a phone's size limit,
 // and the map editor can repaint just the chunks a brush stroke touched.
 
@@ -11,6 +13,12 @@ import { noise } from '../systems/terrain.js';
 const CHUNK = 16; // cells per chunk side (512 px)
 // The ground's edge at a drop: how ragged it is, and its lip (a dark line on the ground side, a lit one above it).
 const DROP = { wobble: 0.35, scale: 0.9, lip: 'rgba(14,8,22,0.9)', lit: 'rgba(255,240,200,0.18)' };
+// The shadow a bank casts on the water just below it, top row first.
+const BANK_SHADOW = ['rgba(20,6,30,0.42)', 'rgba(20,6,30,0.3)', 'rgba(20,6,30,0.18)', 'rgba(20,6,30,0.08)'];
+// The shadow at a cliff's foot, top row first (every other one dithered).
+const FOOT_SHADOW = [0.34, 0.3, 0.24, 0.18, 0.12, 0.07];
+// How wide a cliff's side wall shows beside an edge running down the screen, px; how dark its ends get.
+const SIDE = 6;
 
 const key = (set, part) => `ts_${set}_${part}`;
 
@@ -18,7 +26,7 @@ const key = (set, part) => `ts_${set}_${part}`;
 export function preloadTileset(scene, set) {
   const dir = `assets/regions/${set}`;
   if (!scene.cache.json.exists(key(set, 'json'))) scene.load.json(key(set, 'json'), `${dir}/tileset.json`);
-  for (const part of ['tiles', 'decals', 'bridge', 'cliff', 'stairs']) {
+  for (const part of ['tiles', 'decals', 'bridge', 'cliff', 'bank', 'stairs']) {
     if (!scene.textures.exists(key(set, part))) scene.load.image(key(set, part), `${dir}/${part}.png`);
   }
 }
@@ -45,6 +53,8 @@ export class TerrainView {
     this.bridgeImg = scene.textures.get(key(set, 'bridge')).getSourceImage();
     this.stairsImg = scene.textures.get(key(set, 'stairs')).getSourceImage();
     this.cliffImg = scene.textures.get(key(set, 'cliff')).getSourceImage();
+    this.bankImg = scene.textures.get(key(set, 'bank')).getSourceImage();
+    this.cliffCols = columnColors(this.cliffImg);
     this.chunks = new Map();
     this.ownLayer = !parent;
     this.layer = parent ?? scene.add.layer().setDepth(depth);
@@ -129,6 +139,7 @@ export class TerrainView {
     const ox = i0 * cell;
     const oy = j0 * cell;
     this.drawPatches(ctx, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
+    this.drawDepth(ctx, ox, oy, i0, j0, i1, j1);
     // Details on top of the tiles (a pass of their own, so a neighbor's tile never covers one).
     // Big ones spill right and down, so the cells just up and left of the chunk can reach into it.
     for (let j = Math.max(0, j0 - 1); j < j1; j++) {
@@ -140,6 +151,7 @@ export class TerrainView {
       }
     }
     this.cutDrops(ctx, ox, oy, i0, j0, i1, j1);
+    this.drawBanks(ctx, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     this.drawCliffs(ctx, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     for (const b of this.bridges) this.drawBridge(ctx, b, ox, oy, (i1 - i0) * cell, (j1 - j0) * cell);
     chunk.tex.refresh();
@@ -218,6 +230,133 @@ export class TerrainView {
     }
   }
 
+  /**
+   * The water's depth (the tileset's `depth`): bands of a darker color laid
+   * over the water the farther it is from any shore (systems/terrain.js
+   * wetDepths), in 4 px blocks, each band's edge dithered on the 2 px grid.
+   */
+  drawDepth(ctx, ox, oy, i0, j0, i1, j1) {
+    const spec = this.terrain.tileset.depth;
+    const { terrain } = this;
+    if (!spec || !terrain.wet.size) return;
+    let any = false;
+    for (let j = j0; j <= j1 && !any; j++) for (let i = i0; i <= i1 && !any; i++) any = terrain.wet.has(terrain.grid[j][i]);
+    if (!any) return;
+    const depthAt = terrain.wetDepths(i0, j0, i1, j1, Math.ceil(spec.steps.at(-1).at / terrain.cell) + 1);
+    const B = 4;
+    const w = (i1 - i0) * terrain.cell;
+    const h = (j1 - j0) * terrain.cell;
+    ctx.globalCompositeOperation = spec.blend ?? 'multiply';
+    ctx.fillStyle = spec.color;
+    const { cell } = terrain;
+    for (let y = 0; y < h; y += B) {
+      for (let x = 0; x < w; x += B) {
+        const wx = ox + x + B / 2;
+        const wy = oy + y + B / 2;
+        if (x % cell === 0 && !terrain.wet.has(terrain.at(wx / cell | 0, wy / cell | 0)) && !terrain.wet.has(terrain.at((wx / cell | 0) + 1, wy / cell | 0))
+          && !terrain.wet.has(terrain.at(wx / cell | 0, (wy / cell | 0) + 1)) && !terrain.wet.has(terrain.at((wx / cell | 0) + 1, (wy / cell | 0) + 1))) {
+          x += cell - B; // a dry cell: on to the next
+          continue;
+        }
+        if (!terrain.wetAt(wx, wy)) continue;
+        const d = depthAt(wx, wy);
+        // The deepest band reached, and how far into it (its first `fray` px are dithered with the band before).
+        let k = -1;
+        for (let s = 0; s < spec.steps.length && d >= spec.steps[s].at; s++) k = s;
+        if (k < 0) continue;
+        const fray = d - spec.steps[k].at < (spec.fray ?? 8);
+        const alpha = spec.steps[k].alpha;
+        const under = k > 0 ? spec.steps[k - 1].alpha : 0;
+        if (!fray) {
+          ctx.globalAlpha = alpha;
+          ctx.fillRect(x, y, B, B);
+          continue;
+        }
+        for (let q = 0; q < 4; q++) {
+          const a = (q === 0 || q === 3) ? alpha : under;
+          if (!a) continue;
+          ctx.globalAlpha = a;
+          ctx.fillRect(x + (q % 2) * 2, y + (q >> 1) * 2, 2, 2);
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /**
+   * Banks (systems/terrain.js banksAt): where ground meets water on the
+   * water's far side, the bank art's matching column hung over the edge, and
+   * a shadow on the water below it, so the water sits below the ground.
+   */
+  drawBanks(ctx, ox, oy, w, h) {
+    const { terrain } = this;
+    const img = this.bankImg;
+    if (!terrain.bank || img.width < 2) return;
+    // Nothing to draw unless there's water in (or just above) this chunk.
+    const { cell } = terrain;
+    const i0 = Math.floor(ox / cell);
+    let any = false;
+    for (let j = Math.max(0, Math.floor((oy - terrain.bank) / cell)); j <= Math.min(terrain.rows, Math.ceil((oy + h) / cell)) && !any; j++) {
+      for (let i = i0; i <= Math.min(terrain.cols, i0 + Math.ceil(w / cell)) && !any; i++) any = terrain.wet.has(terrain.grid[j][i]);
+    }
+    if (!any) return;
+    for (let x = 0; x < w; x += 2) {
+      const wx = ox + x;
+      const sx = wx % img.width;
+      for (const b of terrain.banksAt(wx + 1, oy, oy + h)) {
+        ctx.drawImage(img, sx, 0, 2, b.height, x, b.top - oy, 2, b.height);
+        BANK_SHADOW.forEach((color, k) => {
+          const y = b.top + b.height + k * 2;
+          if (!terrain.wetAt(wx + 1, y + 1)) return;
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y - oy, 2, 2);
+        });
+      }
+    }
+  }
+
+  /**
+   * A cliff's side walls: beside an edge of raised ground that runs down the
+   * screen, a strip of the face's rock SIDE px wide on the lower ground (lit on
+   * the west side of a plateau, in shade on its east), with an ink line on its
+   * outer edge, so the plateau has sides as well as a front.
+   */
+  drawSides(ctx, ox, oy, w, h) {
+    const { terrain } = this;
+    const cols = this.cliffCols;
+    const { cell, levels } = terrain;
+    // Only cells beside a change of level can have a side wall: the cell's corners and its neighbors' across.
+    const near = (i, j) => {
+      const lv = levels[terrain.at(i, j)];
+      for (let a = i - 1; a <= i + 2; a++) for (let b = j; b <= j + 1; b++) if (levels[terrain.at(a, b)] !== lv) return true;
+      return false;
+    };
+    for (let y = 0; y < h; y += 2) {
+      for (let x = 0; x < w; x += 2) {
+        const wx = ox + x + 1;
+        const wy = oy + y + 1;
+        if (x % cell === 0 && !near(Math.floor(wx / cell), Math.floor(wy / cell))) {
+          x += cell - 2; // nothing in this cell: on to the next
+          continue;
+        }
+        const lv = terrain.levelAt(wx, wy);
+        if (terrain.voidAt(wx, wy) > 0.5) continue;
+        for (const dir of [-1, 1]) {
+          // How far toward `dir` the higher ground starts, if within SIDE px.
+          let at = 0;
+          for (let d = 2; d <= SIDE && !at; d += 2) if (terrain.levelAt(wx + dir * d, wy) > lv) at = d;
+          if (!at) continue;
+          const c = cols[Math.floor(wy / 2) % cols.length];
+          // Lit facing west (the higher ground to the east, dir 1), shaded facing east.
+          ctx.fillStyle = at === SIDE ? 'rgba(18,13,28,0.9)' : dir === 1 ? c.lit : c.shade;
+          ctx.fillRect(x, y, 2, 2);
+          break;
+        }
+      }
+    }
+  }
+
   drawCliffs(ctx, ox, oy, w, h) {
     const { terrain } = this;
     const img = this.cliffImg;
@@ -231,18 +370,37 @@ export class TerrainView {
       for (let i = ci0; i <= Math.min(terrain.cols, ci0 + Math.ceil(w / cell)) && !any; i++) any = terrain.levels[terrain.grid[j][i]] !== 0;
     }
     if (!any) return;
+    this.drawSides(ctx, ox, oy, w, h);
+    // Every column's faces first, so each can see whether its neighbors have one.
+    const faces = [];
+    for (let x = -2; x <= w; x += 2) faces.push(terrain.facesAt(ox + x + 1, oy, oy + h));
+    const hasFace = (k, f) => (faces[k] ?? []).some((g) => Math.abs(g.top - f.top) <= 4);
     for (let x = 0; x < w; x += 2) {
-      const wx = ox + x;
-      const sx = wx % img.width;
-      for (const f of terrain.facesAt(wx + 1, oy, oy + h)) {
+      const sx = (ox + x) % img.width;
+      const k = x / 2 + 1;
+      for (const f of faces[k]) {
+        const y = f.top - oy;
         // A drop of more than one level stacks the strip.
-        for (let k = 0; k < f.height; k += img.height) {
-          const sh = Math.min(img.height, f.height - k);
-          ctx.drawImage(img, sx, 0, 2, sh, x, f.top - oy + k, 2, sh);
+        for (let s = 0; s < f.height; s += img.height) {
+          const sh = Math.min(img.height, f.height - s);
+          ctx.drawImage(img, sx, 0, 2, sh, x, y + s, 2, sh);
+        }
+        // Where the face ends (it turns the corner into a side wall), an ink edge, and shade beside it.
+        const left = !hasFace(k - 1, f);
+        const right = !hasFace(k + 1, f);
+        if (left || right) {
+          ctx.fillStyle = 'rgba(18,13,28,0.9)';
+          ctx.fillRect(x, y + 4, 2, f.height - 4);
+        } else if (!hasFace(k - 2, f) || !hasFace(k + 2, f)) {
+          ctx.fillStyle = 'rgba(18,13,28,0.35)';
+          ctx.fillRect(x, y + 4, 2, f.height - 4);
         }
         if (f.height === f.full) {
-          ctx.fillStyle = 'rgba(10, 6, 16, 0.28)';
-          ctx.fillRect(x, f.top - oy + f.height, 2, 6);
+          FOOT_SHADOW.forEach((a, r) => {
+            if (r % 2 && (x / 2) % 2) return; // dithered toward the bottom
+            ctx.fillStyle = `rgba(10, 6, 16, ${a})`;
+            ctx.fillRect(x, y + f.height + r * 2, 2, 2);
+          });
         }
       }
     }
@@ -284,4 +442,38 @@ export class TerrainView {
     this.chunks.clear();
     if (this.ownLayer) this.layer.destroy();
   }
+}
+
+/**
+ * A lit and a shaded tone per row of a cliff strip, taken from its rock (its
+ * middle columns' average), for the side walls.
+ */
+function columnColors(img) {
+  if (img.width < 2) return [{ lit: '#000', shade: '#000' }];
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const data = g.getImageData(0, 0, img.width, img.height).data;
+  const rows = [];
+  // The rock only: below the lip, above the foot.
+  for (let y = Math.round(img.height * 0.3); y < img.height * 0.85; y += 2) {
+    let r = 0;
+    let gg = 0;
+    let b = 0;
+    let n = 0;
+    for (let x = 0; x < img.width; x += 2) {
+      const i = (y * img.width + x) * 4;
+      if (data[i + 3] < 128) continue;
+      r += data[i];
+      gg += data[i + 1];
+      b += data[i + 2];
+      n++;
+    }
+    n = Math.max(1, n);
+    const tone = (f) => `rgb(${Math.round((r / n) * f)},${Math.round((gg / n) * f)},${Math.round((b / n) * f)})`;
+    rows.push({ lit: tone(1.05), shade: tone(0.62) });
+  }
+  return rows;
 }
