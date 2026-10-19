@@ -855,6 +855,28 @@ async function main() {
       await page.context().close();
     }
 
+    // 5d½. The light map at night: the plaza's lights spread pools, and props drawn at an angle get contact shadows.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&canvas=1&region=start&fast=1&seed=4&weather=clear&time=22:30`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
+      const lit = await page.evaluate(() => {
+        const r = window.__smm.game.scene.getScene('Region');
+        r.player.setPosition(1600, 2930);
+        r.cameras.main.centerOn(1600, 2930);
+        return { map: !!r.atmo.lightRT, pools: r.atmo.pools.length, contact: r.children.list.filter((o) => o.texture?.key?.startsWith('fx_contact_')).length };
+      });
+      await sleep(800);
+      if (!lit.map) failures.push('light map: the region should draw its light map');
+      if (lit.pools < 20) failures.push(`light map: expected the swamp's lights to spread pools (got ${lit.pools})`);
+      if (lit.contact < 5) failures.push(`light map: expected contact shadows under the cardboard buildings (got ${lit.contact})`);
+      await page.screenshot({ path: path.join(SHOTS, '19-lightmap-night.png') });
+      console.log(`light map: ${lit.pools} pools, ${lit.contact} contact shadows`);
+      failures.push(...errors.map((x) => `light map: ${x}`));
+      await page.context().close();
+    }
+
     // 5e. Lil' Turnt follows him, Pikachu style: SETTINGS' test toggle brings her in, she walks
     // his trail, talks when tapped (or on TALK with nobody else around), gets jealous when he
     // talks to someone else, and comes through doors with him.

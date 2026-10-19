@@ -12,6 +12,15 @@
 // a multiply at full alpha, light is additive, and each glow color gets its
 // own texture (Canvas can't tint).
 //
+// The light map (`lightmap`): instead of one flat grade, the world is
+// multiplied by a picture of the light, redrawn each frame at the art's
+// resolution: the grade's color everywhere, with a pool of each prop's light
+// screened in around it, so the ground and anyone standing near a torch show
+// their own colors again. Screened, not added, so pools that overlap brighten
+// without washing out to white. The glows stay on top, dimmer, as the bright
+// core of each light. It's a render texture: drawn on the GPU under WebGL
+// (no picture uploaded each frame), on a canvas under Canvas.
+//
 // Depths: shadows and mist lie on the ground under everything standing; the
 // grade, haze, fog and vignette sit over the world; the sun, glows, motes and
 // rain over those, so light isn't dimmed by the dark; overhead bubbles and the
@@ -20,12 +29,18 @@
 import { GAME_W, GAME_H } from '../config.js';
 import { hash } from '../systems/terrain.js';
 import { createRng } from '../systems/rng.js';
-import { skyAt, easeMix } from '../systems/sky.js';
+import { skyAt, easeMix, lerpColor as blendColor } from '../systems/sky.js';
 
 const PX = 2; // screen px per art pixel
 const SHADOW = 0x140a1e;
 const SUN_RES = 4; // the sun's light is drawn at a quarter of the screen's resolution
 const RAIN = { drops: 150, speed: 1300, wind: -260, splashes: 36 };
+// The light map: how far a light's pool reaches (× its glow's radius), how much
+// whiter than the glow it is, how strong the glows stay over it, how flat the
+// pool lies (3/4 view), how far down from the glow toward the prop's feet it
+// sits, its falloff's steps, and how much darker the dark gets where no light
+// reaches, at full night (the lights carry it now).
+const LIGHTMAP = { reach: 2.6, whiten: 0.12, glows: 0.55, squash: 0.72, drop: 0.6, steps: 12, darken: 0.3 };
 const even = (v) => Math.max(PX, Math.round(v / PX) * PX);
 const hex = (c) => c.toString(16).padStart(6, '0');
 const rgba = (c, a) => `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${a})`;
@@ -60,6 +75,52 @@ function shadowTexture(scene, w) {
     const ry = h / PX / 2;
     pixels(ctx, w, h, SHADOW, (ax, ay) => (((ax + 0.5 - rx) / rx) ** 2 + ((ay + 0.5 - ry) / ry) ** 2 <= 1 ? 1 : 0));
   });
+}
+
+/**
+ * A contact shadow under a prop, traced from its own art: wherever its base
+ * meets the ground (the lowest painted pixel of each column, if it's within
+ * `rise` px of the feet), dark right at the edge and fading `reach` px out.
+ * It follows the base's real shape (a box drawn at an angle has a diamond
+ * footprint, its sides rising from the front corner), which an ellipse can't.
+ * Returns the key and where its top-left sits from the prop's feet.
+ */
+function contactTexture(scene, key, { rise = 40, reach = 12 } = {}) {
+  const src = scene.textures.get(key).getSourceImage();
+  const cols = Math.floor(src.width / PX);
+  const rows = Math.floor(src.height / PX);
+  const up = Math.round(rise / PX);
+  const out = Math.round(reach / PX);
+  const read = document.createElement('canvas');
+  read.width = src.width;
+  read.height = src.height;
+  const rc = read.getContext('2d');
+  rc.drawImage(src, 0, 0);
+  const data = rc.getImageData(0, 0, src.width, src.height).data;
+  const opaque = (ax, ay) => data[((ay * PX + PX / 2) * src.width + ax * PX + PX / 2) * 4 + 3] > 40;
+  // Each column's base, in art rows up from the feet (null: nothing near the ground there).
+  const base = Array.from({ length: cols }, (_, ax) => {
+    for (let ay = rows - 1; ay >= rows - up; ay--) if (opaque(ax, ay)) return rows - 1 - ay;
+    return null;
+  });
+  const w = (cols + out * 2) * PX;
+  const h = (up + out + 1) * PX;
+  const tex = bake(scene, `fx_contact_${key}`, w, h, (ctx) => {
+    pixels(ctx, w, h, SHADOW, (ax, ay) => {
+      const col = ax - out;
+      const height = up - ay; // art rows above the feet (negative below them)
+      let a = 0;
+      for (let c = Math.max(0, col - out); c <= Math.min(cols - 1, col + out); c++) {
+        if (base[c] === null) continue;
+        const below = base[c] - height; // how far under this column's base the pixel is
+        if (below < -1) continue;
+        const d = Math.hypot((col - c) / out, Math.max(0, below) / (out * 0.6));
+        a = Math.max(a, 1 - d);
+      }
+      return a <= 0 ? 0 : Math.ceil(a * 4) / 4;
+    });
+  });
+  return { key: tex, x: -w / 2, y: -up * PX - PX };
 }
 
 /** A round glow r px across its radius, its falloff in stepped rings like pixel art. */
@@ -131,6 +192,22 @@ function splashTexture(scene) {
   });
 }
 
+/** A pool of light on the light map, drawn at art resolution (1 px per art pixel): rx across, stepped rings. Returns its key. */
+function poolTexture(scene, rx, color) {
+  rx = Math.max(2, Math.round(rx / PX));
+  const ry = Math.max(2, Math.round(rx * LIGHTMAP.squash));
+  return bake(scene, `fx_pool_${rx}_${hex(color)}`, rx * 2, ry * 2, (ctx, w, h) => {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const d = Math.hypot((x + 0.5 - rx) / rx, (y + 0.5 - ry) / ry);
+        if (d >= 1) continue;
+        ctx.fillStyle = rgba(color, Math.ceil((1 - d) ** 1.4 * LIGHTMAP.steps) / LIGHTMAP.steps);
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  });
+}
+
 function vignetteTexture(scene, color) {
   return bake(scene, `fx_vignette_${hex(color)}`, GAME_W, GAME_H, (ctx, w, h) => {
     const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.45, w / 2, h / 2, Math.hypot(w, h) / 2);
@@ -153,12 +230,14 @@ export class Atmosphere {
    * @param {object} opts  { ground: the ground's depth, over: the depth just over the world, terrain,
    *                         hour, weather: the kind it is when the scene starts }
    */
-  constructor(scene, look, { ground, over, terrain, hour = 12, weather = 'clear' }) {
+  constructor(scene, look, { ground, over, terrain, hour = 12, weather = 'clear', lightmap = true }) {
     this.scene = scene;
     this.look = look;
     this.ground = ground;
     this.over = over;
     this.terrain = terrain;
+    this.lightmap = lightmap;
+    this.pools = []; // the light map's lights: { a: the glow's entry, x, y, pool: its canvas }
     this.mix = easeMix({}, weather, 1, 1); // the weather it is when he arrives, already in
     this.light = skyAt(look, hour, this.mix);
     this.shadows = []; // { obj, sprite } following a character
@@ -185,14 +264,29 @@ export class Atmosphere {
     const { x, y } = img;
     if (def.shadow) {
       const s = typeof def.shadow === 'number' ? { w: def.shadow } : def.shadow;
-      const obj = this.scene.add.image(Math.round(x + (s.x ?? 0)), Math.round(y + (s.y ?? -2)), shadowTexture(this.scene, s.w))
-        .setDepth(this.ground + 1);
-      this.attached.push({ obj, shadow: true, owner: img });
+      if (s.w) {
+        const obj = this.scene.add.image(Math.round(x + (s.x ?? 0)), Math.round(y + (s.y ?? -2)), shadowTexture(this.scene, s.w))
+          .setDepth(this.ground + 1);
+        this.attached.push({ obj, shadow: s.contact ? 0.6 : 1, owner: img });
+      }
+      // A contact shadow traced from the art, hugging its base where it meets the ground.
+      if (s.contact) {
+        const c = contactTexture(this.scene, def.key, s.contact === true ? {} : s.contact);
+        const obj = this.scene.add.image(Math.round(x + c.x), Math.round(y + c.y), c.key).setOrigin(0).setDepth(this.ground + 1.5);
+        this.attached.push({ obj, shadow: 2.2, owner: img });
+      }
     }
     for (const g of def.glow ?? []) {
       const obj = this.scene.add.image(Math.round(x + g.x), Math.round(y + g.y), glowTexture(this.scene, g.r, g.color))
         .setDepth(this.over + 2).setBlendMode(Phaser.BlendModes.ADD);
-      this.attached.push({ obj, glow: g.alpha ?? 1, flicker: g.flicker, pulse: g.pulse, phase: this.rand() * 100, owner: img });
+      const a = { obj, glow: g.alpha ?? 1, flicker: g.flicker, pulse: g.pulse, phase: this.rand() * 100, owner: img, wobble: 1 };
+      this.attached.push(a);
+      if (this.lightmap) {
+        // The pool lies on the ground: down from the glow toward the prop's feet.
+        const reach = g.reach ?? g.r * LIGHTMAP.reach;
+        const color = blendColor(g.color, 0xffffff, LIGHTMAP.whiten);
+        this.pools.push({ a, x: x + g.x, y: y + g.y * (1 - LIGHTMAP.drop), reach, pool: poolTexture(this.scene, reach, color) });
+      }
     }
     if (def.puffs) {
       for (const p of [].concat(def.puffs)) this.puffers.push({ x: x + p.x, y: y + p.y, p, spec: PUFFS[p.kind], owner: img, next: this.rand() * p.every });
@@ -220,6 +314,13 @@ export class Atmosphere {
     const { scene, look, over } = this;
     const pin = (o, depth) => o.setScrollFactor(0).setOrigin(0).setDepth(depth);
     this.grade = pin(scene.add.rectangle(0, 0, GAME_W, GAME_H, 0xffffff), over).setBlendMode(Phaser.BlendModes.MULTIPLY);
+    if (this.lightmap) {
+      // The light map takes the grade's place: a canvas at art resolution, shown at full size.
+      const w = GAME_W / PX;
+      const h = GAME_H / PX;
+      this.lightRT = pin(scene.add.renderTexture(0, 0, w, h), over).setScale(PX).setBlendMode(Phaser.BlendModes.MULTIPLY);
+      this.grade.setVisible(false);
+    }
     this.haze = pin(scene.add.rectangle(0, 0, GAME_W, GAME_H, 0xffffff, 0), over + 0.1);
     // Two layers of fog drifting at different speeds, moving with the world as the camera does.
     this.fog = [0, 1].map((k) => pin(scene.add.tileSprite(0, 0, GAME_W, GAME_H, fogTexture(scene)), over + 0.2 + k * 0.1).setAlpha(0));
@@ -301,14 +402,15 @@ export class Atmosphere {
       a.obj.setVisible(shown);
       if (!shown) continue;
       if (a.shadow) {
-        a.obj.setAlpha(L.shadows);
+        a.obj.setAlpha(Math.min(1, L.shadows * a.shadow));
         continue;
       }
       const base = Math.min(1, L.lights * a.glow);
       const t = time / 1000 + a.phase;
-      const wobble = a.flicker ? 0.8 + 0.12 * Math.sin(t * 9.1) + 0.08 * Math.sin(t * 23.7) : a.pulse ? 0.75 + 0.25 * Math.sin(time / 700 + a.phase) : 1;
-      a.obj.setAlpha(base * wobble);
+      a.wobble = a.flicker ? 0.8 + 0.12 * Math.sin(t * 9.1) + 0.08 * Math.sin(t * 23.7) : a.pulse ? 0.75 + 0.25 * Math.sin(time / 700 + a.phase) : 1;
+      a.obj.setAlpha(base * a.wobble * (this.lightmap ? LIGHTMAP.glows : 1));
     }
+    if (this.lightmap) this.drawLightmap(L, view);
     for (const m of this.mists) {
       const t = time / 1000 + m.phase;
       m.obj.setPosition(even(m.x + Math.sin(t * 0.15) * 36), even(m.y + Math.sin(t * 0.11) * 8)).setAlpha(L.mist);
@@ -317,6 +419,24 @@ export class Atmosphere {
     this.updatePuffs(delta, view);
     this.updateRain(delta, view);
     this.updateLightning(time);
+  }
+
+  /** The light map: the grade's color, with each light in view screening its pool in. */
+  drawLightmap(L, view) {
+    // The darker the hour (the stronger its lights), the darker the dark between them.
+    const dark = (this.look.lightmapDarken ?? LIGHTMAP.darken) * Math.min(1, Math.max(0, (L.lights - 0.6) / 0.9));
+    const rt = this.lightRT;
+    rt.fill(blendColor(L.grade, 0x000000, dark), 1);
+    const stamp = { originX: 0.5, originY: 0.5, blendMode: Phaser.BlendModes.SCREEN, alpha: 1 };
+    for (const p of this.pools) {
+      if (!p.a.owner.visible || p.a.owner.alpha <= 0.3) continue;
+      const sx = p.x - view.x;
+      const sy = p.y - view.y;
+      if (sx < -p.reach || sx > GAME_W + p.reach || sy < -p.reach || sy > GAME_H + p.reach) continue;
+      stamp.alpha = Math.min(1, L.lights * 0.9 * p.a.glow * p.a.wobble);
+      if (stamp.alpha <= 0.02) continue;
+      rt.stamp(p.pool, undefined, Math.round(sx / PX), Math.round(sy / PX), stamp);
+    }
   }
 
   /** Redraw the sun's light when it's changed enough to see. */

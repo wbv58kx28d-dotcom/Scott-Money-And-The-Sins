@@ -5,14 +5,17 @@
 // strong they are.
 //
 // The light (each part optional):
-//   grade      a color the whole world is multiplied by (white = untouched).
-//              UI and overhead bubbles sit above it.
+//   grade      a color the whole world is multiplied by (white = untouched),
+//              except where props' lights spread their pools over it (the
+//              light map, ui/atmosphere.js). UI and overhead bubbles sit above it.
+//              `lightmapDarken`: how much darker it gets between lights at the
+//              darkest hour (0.3 if not given), since the lights carry the scene.
 //   sun        { color, alpha, x }: a low sun's light washing in from the top
 //              of the screen, x 0 from the west (left), 1 from the east.
 //   haze       { color, alpha }: a flat wash over the world.
 //   vignette   how dark the screen's edges get (0..1), in `vignetteColor`.
 //   shadows    how dark shadows on the ground are (0..1).
-//   lights     how strong props' glows are (0 turns them off).
+//   lights     how strong props' glows and their pools of light are (0 turns them off).
 //   sky        { top, bottom }: the sky past a drop (a `vista`), top of the screen to the horizon.
 //   fireflies, spores, mist   how much of each (0..1): fireflies and spores
 //              drift in view (`fireflyColors`, `sporeColors`, `motes` of each),
@@ -104,7 +107,7 @@ export const LOOKS = {
   day: { shadows: 0.3, lights: 0.35 },
 
   // Derek's basement: a dark room lit by screens, server lights and his neon.
-  basement: { grade: 0x9a90b8, vignette: 0.55, vignetteColor: 0x06040c, shadows: 0.4, lights: 1.1 },
+  basement: { grade: 0x9a90b8, vignette: 0.55, vignetteColor: 0x06040c, shadows: 0.4, lights: 1.1, lightmapDarken: 0.75 },
 
   // The trading floor: bright, clean, a little cool.
   office: { grade: 0xf0f0ff, vignette: 0.3, vignetteColor: 0x0a0c14, shadows: 0.3, lights: 0.6 },

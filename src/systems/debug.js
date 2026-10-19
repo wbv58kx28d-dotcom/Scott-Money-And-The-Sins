@@ -22,6 +22,7 @@
 //   &edit=start          open the map editor on that region's map (CLAUDE.md §6.11);
 //                        progress stays in memory while you playtest
 //   &canvas=1            use the Canvas renderer instead of WebGL (fast without a GPU)
+//   &lightmap=0          the old flat grade instead of the light map (ui/atmosphere.js), to compare
 //
 // Example: index.html?debug=1&battle=derek&perfect=1&seed=123&fast=1
 
@@ -58,6 +59,7 @@ export const DEBUG = Object.freeze({
   found: list('found'),
   title: flag('title'),
   canvas: flag('canvas'),
+  noLightmap: enabled && params.get('lightmap') === '0',
   edit: enabled ? params.get('edit') : null,
   look: enabled ? params.get('look') : null,
   time: enabled ? params.get('time') : null, // '18:30': the clock stands still at this hour
