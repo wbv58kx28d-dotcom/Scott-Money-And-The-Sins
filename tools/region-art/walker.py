@@ -28,8 +28,8 @@ y 141 (the template's feet line):
 - A cycle on a bigger canvas than its rotation (PixelLab's skeleton-v3 mode
   draws on 96×96) is cut down to the rotation's size, heads over the
   rotation's and feet on its line.
-- A view whose rotation stands taller or shorter than its walk (more than an
-  art pixel) stands on the walk's feet-together frame instead, so starting
+- A view whose rotation stands taller or shorter than its walk (more than two
+  art pixels) stands on the walk's feet-together frame instead, so starting
   and stopping don't pop.
 
 A character without a walk yet gets its idle in every column.
@@ -168,7 +168,7 @@ def main(char_id, key, anim='walk'):
         # A rotation drawn taller than its walk (PixelLab's side view can stand 3 art px taller than
         # it walks) would pop up and down at every start and stop: stand on the cycle's own feet-together frame.
         tall = lambda im: lowest(im) - im.getbbox()[1]
-        if walk and abs(tall(idle) - sorted(map(tall, cycle))[n // 2]) > 1:
+        if walk and abs(tall(idle) - sorted(map(tall, cycle))[n // 2]) > 2:
             idle = min(cycle, key=legs_width)
             print(f'  {ROWS[r][0]}: idle from the walk (the rotation stands {tall(idles[r]) - tall(idle):+d} art px taller)')
         lows = [lowest(f) for f in cycle]
