@@ -57,7 +57,9 @@ export const FIELD_SHEETS = [
 // gives a new one; `place: false` ones aren't placed as props (ropes are map `gates`).
 // Their atmosphere (ui/atmosphere.js, as strong as the map's look says):
 //   shadow  a shadow on the ground under one without its own ground plate:
-//           its width, or { w, x, y } to move it from the feet
+//           its width, or { w, x, y } to move it from the feet; `contact: true`
+//           (or { rise, reach }) adds a contact shadow traced from the art's
+//           own base, for a base that isn't flat across (a box drawn at an angle)
 //   glow    lights: [{ x, y (from the feet), r, color, alpha?, flicker? | pulse? }]
 //   puffs   { x, y, kind: 'steam' | 'ember', every (ms), spread? }, rising off it
 //   sway    how far its top leans in a strong wind, px (ui/motion.js); trees, reeds, flames
@@ -68,29 +70,29 @@ export const PROP_IMAGES = [
   { key: 'prop_cypress_d', path: 'assets/props/prop_cypress_d.png', name: 'CYPRESS 4', block: { w: 64, h: 24 }, sway: 6 },
   { key: 'prop_snag', path: 'assets/props/prop_snag.png', name: 'SNAG', block: { w: 40, h: 18 }, shadow: 50, glow: [{ x: 15, y: -53, r: 40, color: 0xff5ad0, pulse: true }], sway: 4 },
   { key: 'prop_snag_b', path: 'assets/props/prop_snag_b.png', name: 'SNAG 2', block: { w: 40, h: 18 }, shadow: 50, glow: [{ x: 14, y: -58, r: 40, color: 0xff5ad0, pulse: true }], sway: 4 },
-  { key: 'prop_sign', path: 'assets/props/prop_sign.png', name: 'SIGN', block: { w: 90, h: 16 }, label: 'SIGN', shadow: 84 },
+  { key: 'prop_sign', path: 'assets/props/prop_sign.png', name: 'SIGN', block: { w: 90, h: 16 }, label: 'SIGN', shadow: { w: 84, contact: { rise: 10 } } },
   { key: 'prop_setup', path: 'assets/props/prop_setup.png', name: 'DESK', block: { w: 170, h: 50 } },
-  { key: 'prop_tent', path: 'assets/props/prop_tent.png', name: 'TENT', block: { w: 160, h: 60 }, shadow: 170 },
+  { key: 'prop_tent', path: 'assets/props/prop_tent.png', name: 'TENT', block: { w: 160, h: 60 }, shadow: { w: 170, contact: true } },
   { key: 'prop_lounge', path: 'assets/props/prop_lounge.png', name: 'LOUNGE', block: { w: 100, h: 30 } },
   // Toxic bog scenery (tools/region-art/props/, CLAUDE.md §8.4).
   { key: 'prop_shrooms', path: 'assets/props/prop_shrooms.png', name: 'SHROOMS', block: { w: 30, h: 12 }, shadow: 30, glow: [{ x: -5, y: -40, r: 66, color: 0xff5ad0, pulse: true }] },
   { key: 'prop_shrooms_b', path: 'assets/props/prop_shrooms_b.png', name: 'SHROOMS 2', block: { w: 30, h: 12 }, shadow: 30, glow: [{ x: -1, y: -44, r: 60, color: 0xc060ff, pulse: true }] },
-  { key: 'prop_barrel', path: 'assets/props/prop_barrel.png', name: 'SLUDGE BARREL', block: { w: 40, h: 18 }, shadow: 40, glow: [{ x: 9, y: -25, r: 56, color: 0xff40d0, alpha: 0.8 }] },
-  { key: 'prop_stump', path: 'assets/props/prop_stump.png', name: 'STUMP', block: { w: 56, h: 20 }, shadow: 52 },
+  { key: 'prop_barrel', path: 'assets/props/prop_barrel.png', name: 'SLUDGE BARREL', block: { w: 40, h: 18 }, shadow: { w: 40, contact: true }, glow: [{ x: 9, y: -25, r: 56, color: 0xff40d0, alpha: 0.8 }] },
+  { key: 'prop_stump', path: 'assets/props/prop_stump.png', name: 'STUMP', block: { w: 56, h: 20 }, shadow: { w: 52, contact: true } },
   { key: 'prop_crystals', path: 'assets/props/prop_crystals.png', name: 'CRYSTALS', block: { w: 44, h: 16 }, shadow: 40, glow: [{ x: -3, y: -30, r: 72, color: 0xff50e0, pulse: true }] },
-  { key: 'prop_rig', path: 'assets/props/prop_rig.png', name: 'MINING RIG', block: { w: 70, h: 24 }, shadow: 66 },
+  { key: 'prop_rig', path: 'assets/props/prop_rig.png', name: 'MINING RIG', block: { w: 70, h: 24 }, shadow: { w: 66, contact: true } },
   { key: 'prop_reeds', path: 'assets/props/prop_reeds.png', name: 'REEDS', block: { w: 34, h: 12 }, sway: 4 },
   { key: 'prop_trash', path: 'assets/props/prop_trash.png', name: 'TRASH' }, // flat: walk right over it
   // The hot-tub hub (CLAUDE.md §6.6).
-  { key: 'prop_hottub', path: 'assets/props/prop_hottub.png', name: 'HOT TUB', block: { w: 150, h: 40 }, shadow: 164, glow: [{ x: -2, y: -64, r: 120, color: 0xff40d0, pulse: true }], puffs: { x: 0, y: -84, kind: 'steam', every: 520, spread: 80 } },
-  { key: 'prop_cooler', path: 'assets/props/prop_cooler.png', name: 'COOLER', block: { w: 56, h: 18 }, shadow: 58 },
+  { key: 'prop_hottub', path: 'assets/props/prop_hottub.png', name: 'HOT TUB', block: { w: 150, h: 40 }, shadow: { w: 164, contact: true }, glow: [{ x: -2, y: -64, r: 120, color: 0xff40d0, pulse: true }], puffs: { x: 0, y: -84, kind: 'steam', every: 520, spread: 80 } },
+  { key: 'prop_cooler', path: 'assets/props/prop_cooler.png', name: 'COOLER', block: { w: 56, h: 18 }, shadow: { w: 58, contact: true } },
   { key: 'prop_tiki', path: 'assets/props/prop_tiki.png', name: 'TIKI TORCH', block: { w: 18, h: 10 }, shadow: 18, glow: [{ x: -2, y: -78, r: 76, color: 0xff9a30, flicker: true }], puffs: { x: -2, y: -86, kind: 'ember', every: 420 }, sway: 2 },
   // The hub's cardboard neighborhood: fake luxury for broke, over-leveraged stonk bros.
-  { key: 'prop_cb_mansion', path: 'assets/props/prop_cb_mansion.png', name: 'BOX MANSION', block: { w: 240, h: 90 }, shadow: { w: 250, y: -6 } },
-  { key: 'prop_cb_mansion_b', path: 'assets/props/prop_cb_mansion_b.png', name: 'BOX MANSION 2', block: { w: 240, h: 90 }, shadow: { w: 250, y: -6 } },
-  { key: 'prop_cb_bank', path: 'assets/props/prop_cb_bank.png', name: 'APE CAPITAL', block: { w: 200, h: 60 }, shadow: { w: 200, y: -6 } },
-  { key: 'prop_cb_condo', path: 'assets/props/prop_cb_condo.png', name: 'BOX CONDOS', block: { w: 150, h: 50 }, shadow: { w: 150, y: -4 } },
-  { key: 'prop_cb_garage', path: 'assets/props/prop_cb_garage.png', name: 'BOX LAMBO', block: { w: 160, h: 60 }, shadow: { w: 180, y: -4 } },
+  { key: 'prop_cb_mansion', path: 'assets/props/prop_cb_mansion.png', name: 'BOX MANSION', block: { w: 240, h: 90 }, shadow: { w: 250, y: -6, contact: true } },
+  { key: 'prop_cb_mansion_b', path: 'assets/props/prop_cb_mansion_b.png', name: 'BOX MANSION 2', block: { w: 240, h: 90 }, shadow: { w: 250, y: -6, contact: true } },
+  { key: 'prop_cb_bank', path: 'assets/props/prop_cb_bank.png', name: 'APE CAPITAL', block: { w: 200, h: 60 }, shadow: { w: 200, y: -6, contact: true } },
+  { key: 'prop_cb_condo', path: 'assets/props/prop_cb_condo.png', name: 'BOX CONDOS', block: { w: 150, h: 50 }, shadow: { w: 150, y: -4, contact: true } },
+  { key: 'prop_cb_garage', path: 'assets/props/prop_cb_garage.png', name: 'BOX LAMBO', block: { w: 160, h: 60 }, shadow: { w: 180, y: -4, contact: true } },
   // The trading firm's tower; its door is an exit just in front of its footprint.
   { key: 'prop_tower', path: 'assets/props/prop_tower.png', name: 'OFFICE TOWER', block: { w: 230, h: 24 }, glow: [{ x: 3, y: -136, r: 130, color: 0x50ff90, alpha: 0.45, pulse: true }, { x: 0, y: -40, r: 96, color: 0x70d8ff, alpha: 0.7 }] },
   { key: 'prop_plant', path: 'assets/props/prop_plant.png', name: 'PLANT', block: { w: 30, h: 14 } },

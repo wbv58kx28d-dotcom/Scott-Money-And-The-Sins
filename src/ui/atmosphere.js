@@ -75,6 +75,52 @@ function shadowTexture(scene, w) {
   });
 }
 
+/**
+ * A contact shadow under a prop, traced from its own art: wherever its base
+ * meets the ground (the lowest painted pixel of each column, if it's within
+ * `rise` px of the feet), dark right at the edge and fading `reach` px out.
+ * It follows the base's real shape (a box drawn at an angle has a diamond
+ * footprint, its sides rising from the front corner), which an ellipse can't.
+ * Returns the key and where its top-left sits from the prop's feet.
+ */
+function contactTexture(scene, key, { rise = 40, reach = 12 } = {}) {
+  const src = scene.textures.get(key).getSourceImage();
+  const cols = Math.floor(src.width / PX);
+  const rows = Math.floor(src.height / PX);
+  const up = Math.round(rise / PX);
+  const out = Math.round(reach / PX);
+  const read = document.createElement('canvas');
+  read.width = src.width;
+  read.height = src.height;
+  const rc = read.getContext('2d');
+  rc.drawImage(src, 0, 0);
+  const data = rc.getImageData(0, 0, src.width, src.height).data;
+  const opaque = (ax, ay) => data[((ay * PX + PX / 2) * src.width + ax * PX + PX / 2) * 4 + 3] > 40;
+  // Each column's base, in art rows up from the feet (null: nothing near the ground there).
+  const base = Array.from({ length: cols }, (_, ax) => {
+    for (let ay = rows - 1; ay >= rows - up; ay--) if (opaque(ax, ay)) return rows - 1 - ay;
+    return null;
+  });
+  const w = (cols + out * 2) * PX;
+  const h = (up + out + 1) * PX;
+  const tex = bake(scene, `fx_contact_${key}`, w, h, (ctx) => {
+    pixels(ctx, w, h, SHADOW, (ax, ay) => {
+      const col = ax - out;
+      const height = up - ay; // art rows above the feet (negative below them)
+      let a = 0;
+      for (let c = Math.max(0, col - out); c <= Math.min(cols - 1, col + out); c++) {
+        if (base[c] === null) continue;
+        const below = base[c] - height; // how far under this column's base the pixel is
+        if (below < -1) continue;
+        const d = Math.hypot((col - c) / out, Math.max(0, below) / (out * 0.6));
+        a = Math.max(a, 1 - d);
+      }
+      return a <= 0 ? 0 : Math.ceil(a * 4) / 4;
+    });
+  });
+  return { key: tex, x: -w / 2, y: -up * PX - PX };
+}
+
 /** A round glow r px across its radius, its falloff in stepped rings like pixel art. */
 function glowTexture(scene, r, color) {
   r = even(r);
@@ -217,9 +263,17 @@ export class Atmosphere {
     const { x, y } = img;
     if (def.shadow) {
       const s = typeof def.shadow === 'number' ? { w: def.shadow } : def.shadow;
-      const obj = this.scene.add.image(Math.round(x + (s.x ?? 0)), Math.round(y + (s.y ?? -2)), shadowTexture(this.scene, s.w))
-        .setDepth(this.ground + 1);
-      this.attached.push({ obj, shadow: true, owner: img });
+      if (s.w) {
+        const obj = this.scene.add.image(Math.round(x + (s.x ?? 0)), Math.round(y + (s.y ?? -2)), shadowTexture(this.scene, s.w))
+          .setDepth(this.ground + 1);
+        this.attached.push({ obj, shadow: s.contact ? 0.6 : 1, owner: img });
+      }
+      // A contact shadow traced from the art, hugging its base where it meets the ground.
+      if (s.contact) {
+        const c = contactTexture(this.scene, def.key, s.contact === true ? {} : s.contact);
+        const obj = this.scene.add.image(Math.round(x + c.x), Math.round(y + c.y), c.key).setOrigin(0).setDepth(this.ground + 1.5);
+        this.attached.push({ obj, shadow: 2.2, owner: img });
+      }
     }
     for (const g of def.glow ?? []) {
       const obj = this.scene.add.image(Math.round(x + g.x), Math.round(y + g.y), glowTexture(this.scene, g.r, g.color))
@@ -348,7 +402,7 @@ export class Atmosphere {
       a.obj.setVisible(shown);
       if (!shown) continue;
       if (a.shadow) {
-        a.obj.setAlpha(L.shadows);
+        a.obj.setAlpha(Math.min(1, L.shadows * a.shadow));
         continue;
       }
       const base = Math.min(1, L.lights * a.glow);
