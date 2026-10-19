@@ -234,7 +234,8 @@ export default class RegionScene extends Phaser.Scene {
       const text = `${formatClout(g.clout)} CLOUT`;
       const sign = pixelText(this, Math.round(g.x - pixelTextWidth(text, 2) / 2), Math.round(g.y - rope.height - 22), text, { px: 2, color: '#ffd166' })
         .setDepth(worldDepth(g.y) + 0.5).setVisible(!open);
-      return { ...g, open, rope, sign };
+      // `unlocked`, not `open`: the content's `open` is what the bouncer says once it is.
+      return { ...g, unlocked: open, rope, sign };
     });
     this.buildGrid();
 
@@ -321,7 +322,7 @@ export default class RegionScene extends Phaser.Scene {
 
   /** The walk grid (systems/mapcheck.js), with the ropes that are still up. Rebuilt when one opens. */
   buildGrid() {
-    this.grid = buildRegionGrid(this.map, this.terrain, { isClosed: (g) => !this.gates.find((o) => o.id === g.id)?.open });
+    this.grid = buildRegionGrid(this.map, this.terrain, { isClosed: (g) => !this.gates.find((o) => o.id === g.id)?.unlocked });
   }
 
   gateId(gate) {
@@ -874,7 +875,7 @@ export default class RegionScene extends Phaser.Scene {
     const won = npc.challenge && Save.hasWon(this.npcKey(npc));
     const metBefore = Save.socialState.met.has(this.npcKey(npc));
     const gate = this.gates.find((g) => g.bouncer === npc.id);
-    if (!(gate?.open)) {
+    if (!(gate?.unlocked)) {
       await this.sayAll((won && npc.talkWon) || (cleared && npc.talkCleared) || (metBefore && npc.talkAgain) || npc.talk);
     }
     Save.meet(this.npcKey(npc));
@@ -934,7 +935,7 @@ export default class RegionScene extends Phaser.Scene {
   /** A bouncer checks $cott's Clout against the list, and opens the rope once he has it. */
   async atTheRope(gate) {
     const vars = { clout: formatClout(Save.clout), need: formatClout(gate.clout) };
-    if (gate.open) return this.sayAll(gate.open, vars);
+    if (gate.unlocked) return this.sayAll(gate.open, vars);
     if (Save.clout < gate.clout) {
       Audio.sfx('bad');
       return this.sayAll(gate.deny, vars);
@@ -945,7 +946,7 @@ export default class RegionScene extends Phaser.Scene {
 
   openGate(gate) {
     Save.openGate(this.gateId(gate));
-    gate.open = true;
+    gate.unlocked = true;
     gate.rope.setTexture('prop_rope_open');
     gate.sign.setVisible(false);
     Audio.sfx('crit');
@@ -1092,7 +1093,7 @@ export default class RegionScene extends Phaser.Scene {
       quizAnswer: this.quizAnswer ?? null,
       clout: Save.clout,
       cash: Save.cash,
-      gates: this.gates.map((g) => ({ id: g.id, open: g.open, clout: g.clout, tap: screen(g.x, g.y - 20) })),
+      gates: this.gates.map((g) => ({ id: g.id, open: g.unlocked, clout: g.clout, tap: screen(g.x, g.y - 20) })),
       exits: this.map.exits.map((e) => ({ to: e.to, open: present(e, (id) => this.found.has(id)), tap: screen(e.x + e.w / 2, e.y + e.h / 2) })),
       secrets: this.wifiNetworks(),
       apps: APPS.filter((x) => x.gift && Save.hasApp(x.id)).map((x) => x.id),
