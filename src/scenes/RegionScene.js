@@ -516,9 +516,22 @@ export default class RegionScene extends Phaser.Scene {
 
   // ---- The clock and the weather (systems/sky.js) -------------------------------
 
+  /** The clock the light follows: debug's, or the saved one. */
+  skyClock() {
+    return this.fixedClock ?? Save.clock;
+  }
+
   /** The hour of the day (0..24). */
   hour() {
-    return hourOf(this.fixedClock ?? Save.clock);
+    return hourOf(this.skyClock());
+  }
+
+  /** SETTINGS moved the clock or the weather (scenes/PhoneScene.js): show it under the phone now, the weather already in. */
+  showSky() {
+    const weather = this.weatherNow();
+    this.atmo.snapWeather(weather);
+    this.atmo.update(this.time.now, 0, { hour: this.hour(), weather });
+    this.vista?.update(this.atmo.light);
   }
 
   /** A whole day takes DAY.realMinutes; the save keeps up every CLOCK_SAVE_MS. */
@@ -534,7 +547,7 @@ export default class RegionScene extends Phaser.Scene {
     const spec = this.look.weather;
     if (!spec) return 'clear';
     if (WEATHER_KINDS.includes(DEBUG.weather)) return DEBUG.weather;
-    const clock = this.fixedClock ?? Save.clock;
+    const clock = this.skyClock();
     let roll = null; // only made when the weather changes
     const now = weatherAt(Save.weather, clock, spec, () => (roll ??= createRng(Math.floor(clock)).random)());
     if (now !== Save.weather) Save.setWeather(now);

@@ -2,7 +2,8 @@
 // the overworld map, which pause underneath, and holds the apps in
 // data/phone.js: MAP, Y ($cott's social app, scenes/SocialScene.js), STONKS
 // (stake cash on $cott's day trade, minigames/trade.js), REALTY, SHOP (spend
-// it), SETTINGS, and WIFI once the day traders give it to him. A big Stonks or Realty win posts itself to Y for Clout.
+// it), SETTINGS (with sliders for the regions' time of day and weather), and
+// WIFI once the day traders give it to him. A big Stonks or Realty win posts itself to Y for Clout.
 //
 // $cott starts on a flip phone: a green LCD with chunky pixel lettering
 // (ui/pixelFont.js), a 2×2 icon grid, and a keypad whose right soft key goes
@@ -13,7 +14,7 @@
 // the phone is a work in progress, SETTINGS can swap models for testing.
 
 import { GAME_W, GAME_H } from '../config.js';
-import { PHONES, APPS, SHOP, ECONOMY, WIFI } from '../data/phone.js';
+import { PHONES, APPS, SHOP, ECONOMY, WIFI, SKY } from '../data/phone.js';
 import { TRADE } from '../data/trade.js';
 import { ITEMS } from '../data/items.js';
 import { Save } from '../systems/save.js';
@@ -29,7 +30,8 @@ import { socialNews, badgeLabel } from '../ui/badge.js';
 import { REALTY, CITIES } from '../data/realty.js';
 import { price } from '../systems/realty.js';
 import { VERSION } from '../version.js';
-import { clockLabel } from '../systems/sky.js';
+import { clockLabel, hourOf, clockAtHour, pinWeather, shiftWeather, DAY_MINUTES } from '../systems/sky.js';
+import { LOOKS } from '../data/looks.js';
 import { pixelText, pixelTextWidth } from '../ui/pixelFont.js';
 import { pixelIcon } from '../ui/phoneIcons.js';
 import { label, body, fitWidth } from '../ui/text.js';
@@ -59,6 +61,9 @@ const SMART = {
 const FLIP_PX = { s: 2, m: 3, l: 4, xl: 5 };
 const SMART_LABEL = { s: 12, m: 16, l: 22, xl: 34 };
 const SMART_BODY = { s: 24, m: 30, l: 36, xl: 48 };
+// How dark the game gets under the phone; lighter on the TIME + WEATHER page, so the change shows around it.
+const DIM = 0.65;
+const DIM_SKY = 0.15;
 
 export default class PhoneScene extends Phaser.Scene {
   constructor() {
@@ -78,11 +83,20 @@ export default class PhoneScene extends Phaser.Scene {
     this.root = null;
     this.closing = false;
     this.resetArmed = false;
-    // Dim the game; tapping outside the phone puts it away.
-    this.add.rectangle(0, 0, GAME_W, GAME_H, 0x05030a, 0.65).setOrigin(0).setInteractive()
+    this.sliders = [];
+    this.sliding = null; // the slider being dragged
+    // Dim the game; tapping outside the phone puts it away (not a slider's drag ending out there).
+    this.dim = this.add.rectangle(0, 0, GAME_W, GAME_H, 0x05030a, DIM).setOrigin(0).setInteractive()
       .on('pointerup', (p) => {
-        if (!this.inBody(p.x, p.y)) this.close();
+        if (!this.sliding && !this.inBody(p.x, p.y)) this.close();
       });
+    // A slider follows the finger anywhere once it's down on it.
+    const move = (p) => {
+      if (this.sliding && p.isDown) this.sliding.set(p.x);
+    };
+    const up = () => (this.sliding = null);
+    this.input.on('pointermove', move).on('pointerup', up).on('pointerupoutside', up);
+    this.events.once('shutdown', () => this.input.off('pointermove', move).off('pointerup', up).off('pointerupoutside', up));
     this.build(true);
   }
 
@@ -263,6 +277,9 @@ export default class PhoneScene extends Phaser.Scene {
     this.page = page;
     this.pageLayer.removeAll(true);
     this.targets = [];
+    this.sliders = [];
+    this.sliding = null;
+    this.dim.setAlpha(page === 'sky' ? DIM_SKY : DIM);
     this.refreshStatus();
   }
 
@@ -316,6 +333,51 @@ export default class PhoneScene extends Phaser.Scene {
     return g;
   }
 
+  /**
+   * A slider in the current model's style, its track centered on y: `steps`
+   * notches from x across w, at `value`. Drag or tap along it; `onChange(value)` as it moves.
+   */
+  slider(x, y, w, { id, steps, value, accent = 0x1f6feb, onChange }) {
+    const g = this.add.graphics();
+    this.pageLayer.add(g);
+    const knob = this.flip ? { w: 12, h: 24 } : { w: 40, h: 40 };
+    const span = w - knob.w;
+    const s = { id, x, y, steps, value };
+    s.at = (v) => Math.round(x + knob.w / 2 + (span * v) / (steps - 1));
+    s.draw = () => {
+      const kx = s.at(s.value);
+      g.clear();
+      if (this.flip) {
+        const { inkHex, midHex } = FLIP.colors;
+        g.fillStyle(midHex, 1).fillRect(x, y - 2, w, 4);
+        g.fillStyle(inkHex, 1).fillRect(x, y - 2, kx - x, 4);
+        g.fillRect(kx - knob.w / 2, y - knob.h / 2, knob.w, knob.h);
+      } else {
+        g.fillStyle(0x3a3550, 1).fillRoundedRect(x, y - 7, w, 14, 7);
+        if (kx - x >= 14) g.fillStyle(accent, 1).fillRoundedRect(x, y - 7, kx - x, 14, 7);
+        g.fillStyle(0x000000, 0.35).fillCircle(kx + 2, y + 4, knob.w / 2);
+        g.fillStyle(0xffffff, 1).fillCircle(kx, y, knob.w / 2);
+      }
+    };
+    s.set = (px) => {
+      const v = Phaser.Math.Clamp(Math.round(((px - x - knob.w / 2) / span) * (steps - 1)), 0, steps - 1);
+      if (v === s.value) return;
+      s.value = v;
+      s.draw();
+      onChange(v);
+    };
+    s.draw();
+    const hit = this.flip ? 44 : 80;
+    const zone = this.add.zone(x - 12, y - hit / 2, w + 24, hit).setOrigin(0).setInteractive();
+    zone.on('pointerdown', (p) => {
+      this.sliding = s;
+      s.set(p.x);
+    });
+    this.pageLayer.add(zone);
+    this.sliders.push(s);
+    return s;
+  }
+
   /** The screen area apps draw in, on the current model. */
   get content() {
     return this.flip ? FLIP.content : SMART.content;
@@ -348,6 +410,7 @@ export default class PhoneScene extends Phaser.Scene {
     if (this.page === 'stonks-result') return this.stonks();
     if (this.page === 'realty-result') return this.realty();
     if (this.page === 'wifi-traced') return this.close();
+    if (this.page === 'sky') return this.settings();
     this.home();
   }
 
@@ -725,13 +788,18 @@ export default class PhoneScene extends Phaser.Scene {
     const { c, accent } = this.appPage('settings', 'settings');
     this.header('SETTINGS', accent);
     const top = c.y + (this.flip ? 28 : 100);
-    const rowH = this.flip ? 48 : 110;
     const gap = this.flip ? 6 : 16;
+    // The flip phone's rows shrink to leave room on its LCD for the version underneath.
+    const count = Save.followIsTrial ? 5 : 4;
+    const rowH = this.flip ? Math.min(48, Math.floor((c.h - 28 - 34) / count) - gap) : 110;
     this.button(c.x, top, c.w, rowH, Audio.muted ? 'SOUND: OFF' : 'SOUND: ON', () => {
       Audio.toggleMute();
       this.settings();
     }, { accent });
-    this.button(c.x, top + rowH + gap, c.w, rowH, this.resetArmed ? 'TAP AGAIN TO WIPE' : 'RESET PROGRESS', () => {
+    this.button(c.x, top + rowH + gap, c.w, rowH, 'TIME + WEATHER', () => this.sky(), {
+      accent, sub: this.flip ? null : 'Set the clock and the sky.',
+    });
+    this.button(c.x, top + (rowH + gap) * 2, c.w, rowH, this.resetArmed ? 'TAP AGAIN TO WIPE' : 'RESET PROGRESS', () => {
       if (!this.resetArmed) {
         this.resetArmed = true;
         return this.settings();
@@ -742,11 +810,11 @@ export default class PhoneScene extends Phaser.Scene {
     }, { accent: 0xb3261e });
     // Work in progress: swap between the two phones without buying the upgrade.
     const other = this.flip ? 'smart' : 'flip';
-    this.button(c.x, top + (rowH + gap) * 2, c.w, rowH, this.flip ? 'TRY SMARTPHONE' : 'TRY FLIP PHONE', () => this.swapPhone(other), {
+    this.button(c.x, top + (rowH + gap) * 3, c.w, rowH, this.flip ? 'TRY SMARTPHONE' : 'TRY FLIP PHONE', () => this.swapPhone(other), {
       accent: 0x3a3550, sub: this.flip ? 'TEST TOGGLE' : 'Test toggle while the phone is in progress.',
     });
     // Work in progress: Lil' Turnt following him around before she's recruited (data/followers.js).
-    let rows = 3;
+    let rows = 4;
     if (Save.followIsTrial) {
       const on = Save.tryFollow;
       this.button(c.x, top + (rowH + gap) * rows++, c.w, rowH, on ? 'SEND TURNT HOME' : "TRY LIL' TURNT", () => {
@@ -757,6 +825,94 @@ export default class PhoneScene extends Phaser.Scene {
     const info = top + (rowH + gap) * rows + (this.flip ? 6 : 20);
     this.text(c.x + c.w / 2, info, PHONES[this.model].name, { size: 's', align: 'center', font: 'body' });
     this.text(c.x + c.w / 2, info + (this.flip ? 16 : 36), `V${VERSION}`, { size: 's', align: 'center', font: 'body' });
+  }
+
+  // ---- SETTINGS: TIME + WEATHER ---------------------------------------------------------
+  // Sliders for the regions' clock and weather (systems/sky.js). Over a region
+  // the dim lifts and the region shows each change as it's made.
+
+  get region() {
+    return this.from === 'Region' ? this.scene.get('Region') : null;
+  }
+
+  sky() {
+    const { c, accent } = this.appPage('sky', 'settings');
+    this.header(this.flip ? 'SKY' : 'TIME + WEATHER', accent);
+    const region = this.region;
+    const clock = region?.skyClock() ?? Save.clock;
+    const saved = Save.weather && clock < Save.weather.until ? Save.weather.kind : 'clear';
+    const outdoors = !region || !!region.look.weather;
+    const ink = this.flip ? null : '#e2d9ff';
+    const dim = this.flip ? FLIP.colors.mid : '#8f88a8';
+
+    // The time of day, in SKY.minuteStep notches round the clock.
+    const y = c.y + (this.flip ? 30 : 110);
+    this.text(c.x, y, 'TIME', { size: 'm' });
+    const notches = DAY_MINUTES / SKY.minuteStep;
+    const shown = [];
+    const showTime = (minutes) => {
+      shown.splice(0).forEach((t) => t.destroy());
+      const hour = minutes / 60;
+      shown.push(this.text(c.x + c.w, y, timeLabel(minutes), { size: 'm', align: 'right', color: this.flip ? null : '#ffd166' }));
+      shown.push(this.text(c.x + c.w / 2, y + (this.flip ? 54 : 130), partOfDay(hour), { size: 's', align: 'center', font: 'body', color: ink }));
+    };
+    const start = Math.round((hourOf(clock) * 60) / SKY.minuteStep) % notches;
+    this.slider(c.x, y + (this.flip ? 36 : 80), c.w, {
+      id: 'time', steps: notches, value: start, accent,
+      onChange: (v) => {
+        this.setHour((v * SKY.minuteStep) / 60);
+        showTime(v * SKY.minuteStep);
+      },
+    });
+    showTime(start * SKY.minuteStep);
+
+    // The weather, one stop per kind, each named under its notch (the current one lit).
+    const wy = y + (this.flip ? 84 : 230);
+    this.text(c.x, wy, 'WEATHER', { size: 'm' });
+    const kinds = SKY.weather;
+    const names = [];
+    const weather = this.slider(c.x, wy + (this.flip ? 36 : 80), c.w, {
+      id: 'weather', steps: kinds.length, value: Math.max(0, kinds.indexOf(region && outdoors ? region.weatherNow() : saved)), accent,
+      onChange: (v) => {
+        this.setWeather(kinds[v]);
+        showNames(v);
+      },
+    });
+    const showNames = (v) => {
+      names.splice(0).forEach((t) => t.destroy());
+      kinds.forEach((kind, i) => {
+        const align = i === 0 ? 'left' : i === kinds.length - 1 ? 'right' : 'center';
+        const x = i === 0 ? c.x : i === kinds.length - 1 ? c.x + c.w : weather.at(i);
+        names.push(this.text(x, wy + (this.flip ? 54 : 130), kind.toUpperCase(), { size: 's', align, color: i === v ? (this.flip ? null : '#ffffff') : dim }));
+      });
+    };
+    showNames(weather.value);
+
+    // What it means, under the sliders.
+    const note = !region ? (this.flip ? 'SHOWS IN THE REGIONS.' : 'It all shows once $cott walks a region.')
+      : !outdoors ? (this.flip ? 'NO WEATHER INDOORS.' : 'No weather in here. It shows outside.')
+      : this.flip ? 'THE CLOCK RUNS ON.' : 'The clock runs on from here; the weather lasts a few hours.';
+    this.text(c.x + c.w / 2, wy + (this.flip ? 90 : 220), note, { size: 's', align: 'center', font: 'body', color: ink, maxW: c.w });
+  }
+
+  /** The time slider: the clock to `hour` on the same day, with the weather keeping its time left. */
+  setHour(hour) {
+    const region = this.region;
+    const before = Save.clock;
+    const after = clockAtHour(before, hour);
+    Save.setClock(after);
+    Save.setWeather(shiftWeather(Save.weather, after - before)); // saves the clock too
+    if (region && region.fixedClock !== null) region.fixedClock = clockAtHour(region.fixedClock, hour); // debug's `&time`
+    region?.showSky();
+    this.refreshStatus(); // the smartphone's clock
+  }
+
+  /** The weather slider: `kind` from now, as long as weather lasts, then it rolls on as usual. */
+  setWeather(kind) {
+    const region = this.region;
+    const spec = region?.look.weather ?? Object.values(LOOKS).find((l) => l.weather).weather;
+    Save.setWeather(pinWeather(kind, region?.skyClock() ?? Save.clock, spec));
+    region?.showSky();
   }
 
   /** Switch models and reopen on SETTINGS (the toggle lives there). */
@@ -779,8 +935,20 @@ export default class PhoneScene extends Phaser.Scene {
       cash: Save.cash,
       clout: Save.clout,
       trades: Save.trades,
+      sky: { hour: hourOf(this.region?.skyClock() ?? Save.clock), weather: Save.weather?.kind ?? null },
+      sliders: this.sliders.map((sl) => ({ id: sl.id, value: sl.value, steps: sl.steps, x0: sl.at(0), x1: sl.at(sl.steps - 1), y: sl.y })),
       // While the day trade is up, its own buttons are the ones to press.
       targets: this.trading ? undefined : [...this.chrome, ...this.targets].map(({ text, x, y, enabled }) => ({ text, x, y, enabled })),
     };
   }
+}
+
+/** "5:45 PM" */
+function timeLabel(minutes) {
+  return `${clockLabel(minutes)} ${minutes >= 12 * 60 ? 'PM' : 'AM'}`;
+}
+
+/** What the time slider calls this part of the day (data/phone.js SKY.times). */
+function partOfDay(hour) {
+  return SKY.times.findLast((t) => t.at <= hour)?.name ?? SKY.times[0].name;
 }

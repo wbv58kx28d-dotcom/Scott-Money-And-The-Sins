@@ -54,3 +54,20 @@ export const ECONOMY = {
   // A ticker is picked at random for each trade. Parody only.
   tickers: ['$APE', '$MOON', '$HODL', '$YOLO', '$BAGS', '$DOGE2', '$LAMBO', '$RUG'],
 };
+
+// SETTINGS' TIME + WEATHER page: sliders that set the regions' clock and
+// weather (systems/sky.js). The clock keeps running from the time picked; the
+// weather picked lasts as long as weather ever does, then rolls on as usual.
+export const SKY = {
+  minuteStep: 15, // the time slider's notches, in game minutes
+  // What the time slider calls each part of the day (from `at`, in hours), after the swamp's phases (data/looks.js).
+  times: [
+    { at: 0, name: 'NIGHT' },
+    { at: 5, name: 'DAWN' },
+    { at: 8.5, name: 'DAY' },
+    { at: 17, name: 'GOLDEN HOUR' },
+    { at: 18.75, name: 'DUSK' },
+    { at: 21.5, name: 'NIGHT' },
+  ],
+  weather: ['clear', 'fog', 'rain', 'storm'], // the weather slider's stops, left to right (systems/sky.js WEATHER_KINDS)
+};

@@ -5,7 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PHONES, APPS, SHOP, ECONOMY, WIFI } from '../src/data/phone.js';
+import { PHONES, APPS, SHOP, ECONOMY, WIFI, SKY } from '../src/data/phone.js';
+import { WEATHER_KINDS, DAY_MINUTES } from '../src/systems/sky.js';
 import { MAPS } from '../src/data/maps/index.js';
 import { ITEMS } from '../src/data/items.js';
 import SCOTT from '../src/data/scott.js';
@@ -52,6 +53,14 @@ test('phone data hangs together', () => {
   assert.ok(ECONOMY.stakes.every((s, i) => i === 0 || s > ECONOMY.stakes[i - 1]), 'stakes ascend');
   assert.ok(ECONOMY.startCash >= ECONOMY.stakes[0], 'a new player can afford a first trade');
   assert.ok(ECONOMY.tickers.length > 0 && ECONOMY.tickers.every((t) => /^\$[A-Z0-9]+$/.test(t)), 'tickers look like $TICKERS');
+});
+
+test("SETTINGS' time and weather sliders cover the day and every kind of weather", () => {
+  assert.equal(DAY_MINUTES % SKY.minuteStep, 0, 'the time slider\'s notches fit the day');
+  assert.equal(SKY.times[0].at, 0);
+  assert.ok(SKY.times.every((t, i) => i === 0 || t.at > SKY.times[i - 1].at), 'parts of the day in order');
+  assert.deepEqual([...SKY.weather].sort(), [...WEATHER_KINDS].sort());
+  for (const name of [...SKY.times.map((t) => t.name), ...SKY.weather.map((w) => w.toUpperCase())]) assert.match(name, /^[A-Z ]+$/, `${name} fits the flip phone's font`);
 });
 
 test('every gifted app is given by someone, and Wi-Fi names fit the flip phone\'s font', () => {

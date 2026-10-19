@@ -278,6 +278,11 @@ export class Atmosphere {
     this.apply(time, delta);
   }
 
+  /** Put `kind` of weather fully in at once, with no fade (SETTINGS' weather slider). */
+  snapWeather(kind) {
+    this.mix = easeMix({}, kind, 1, 1);
+  }
+
   apply(time, delta) {
     const L = this.light;
     const view = this.scene.cameras.main.worldView;
