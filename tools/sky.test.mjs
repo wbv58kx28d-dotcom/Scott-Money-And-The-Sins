@@ -3,7 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { hourOf, clockLabel, parseTime, lerpColor, phaseAt, skyAt, rollWeather, weatherAt, easeMix, DAY_MINUTES } from '../src/systems/sky.js';
+import {
+  hourOf, clockLabel, parseTime, lerpColor, phaseAt, skyAt, rollWeather, weatherAt, easeMix, clockAtHour, pinWeather, shiftWeather, DAY_MINUTES,
+} from '../src/systems/sky.js';
 import { LOOKS, DAY } from '../src/data/looks.js';
 import { createRng } from '../src/systems/rng.js';
 
@@ -107,4 +109,22 @@ test('weather fades: each kind eases toward the current one', () => {
   assert.equal(mix.rain, 0.25);
   mix = easeMix(mix, 'rain', 100, 1 / 8);
   assert.deepEqual(mix, { fog: 0, rain: 1, storm: 0 });
+});
+
+test("SETTINGS' sliders: the clock moves within its day, and picked weather holds until it runs out", () => {
+  const spec = swamp.weather;
+  const clock = DAY_MINUTES * 2 + 17 * 60 + 20; // day 3, 5:20 PM
+  assert.equal(clockAtHour(clock, 6.25), DAY_MINUTES * 2 + 6 * 60 + 15, 'same day, earlier');
+  assert.equal(clockAtHour(clock, 23.75), DAY_MINUTES * 2 + 23 * 60 + 45, 'same day, later');
+  const rand = createRng(3).random;
+  const fog = pinWeather('fog', clock, spec);
+  assert.equal(weatherAt(fog, clock, spec, rand), fog, 'the picked weather is in now');
+  assert.equal(weatherAt(fog, fog.until - 1, spec, rand), fog, 'and lasts as long as weather can');
+  assert.notEqual(weatherAt(fog, fog.until, spec, rand).kind, 'fog', 'then rolls on');
+  // Moving the clock back keeps the weather, with the same time left.
+  const back = clockAtHour(clock, 6);
+  const moved = shiftWeather(fog, back - clock);
+  assert.equal(weatherAt(moved, back, spec, rand), moved);
+  assert.equal(moved.until - back, fog.until - clock);
+  assert.equal(shiftWeather(null, 60), null, 'no weather yet stays none');
 });
