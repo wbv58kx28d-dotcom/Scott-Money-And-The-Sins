@@ -701,7 +701,11 @@ async function main() {
       s = await talkTo('wendy');
       await page.screenshot({ path: path.join(SHOTS, '18f-yacht-club.png') });
       if (s.cash !== cashBefore + 750) failures.push(`social: Wendy's gift should pay $750 (${cashBefore} -> ${s.cash})`);
-      console.log(`social: turned away at the rope, ${replies} right repl${replies === 1 ? 'y' : 'ies'} + 3 posts -> ${clout} Clout, rope opened, Wendy's gift paid $${s.cash - cashBefore}`);
+      const cashAfter = s.cash;
+      // Back to the bouncer with the rope already down: his "welcome back" line, then free to walk.
+      s = await talkTo('vinny');
+      if (s.mode !== 'explore') failures.push(`social: talking to the bouncer of an open rope should end the talk (stuck in ${s.mode})`);
+      console.log(`social: turned away at the rope, ${replies} right repl${replies === 1 ? 'y' : 'ies'} + 3 posts -> ${clout} Clout, rope opened, Wendy's gift paid $${cashAfter - cashBefore}, Vinny waved him back in`);
       failures.push(...errors.map((e) => `social: ${e}`));
       await page.context().close();
     }
