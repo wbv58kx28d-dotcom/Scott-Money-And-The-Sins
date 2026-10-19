@@ -16,9 +16,9 @@ export default {
   bridges: [
     { x: 2470, y: 1280, w: 100, h: 216 },
     { x: 690, y: 4050, w: 100, h: 210 },
-    { x: 1396, y: 2352, w: 58, h: 124, kind: 'stairs' },
-    { x: 846, y: 1012, w: 58, h: 124, kind: 'stairs' },
-    { x: 740, y: 530, w: 58, h: 124, kind: 'stairs' },
+    { x: 1396, y: 2352, w: 58, h: 148, kind: 'stairs' },
+    { x: 846, y: 1012, w: 58, h: 144, kind: 'stairs' },
+    { x: 740, y: 530, w: 58, h: 146, kind: 'stairs' },
   ],
   npcs: [
     { id: 'brad', sprite: 'field_brad', x: 1450, y: 2820, facing: 'right' },

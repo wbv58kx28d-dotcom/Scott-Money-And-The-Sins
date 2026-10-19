@@ -23,6 +23,11 @@
 // `level` is below the ground's, so the far side of a hole shows a tall cliff
 // face down into it, like a crater; at the map's top edge nothing hangs. Any
 // terrain can meet it; cells mixing ground and void are drawn as the ground.
+//
+// Water (a terrain marked `water`) sits a little below the ground: where
+// ground meets it on its far (north) side, a low earth bank hangs over the
+// water's edge, `tileset.bank.face` px tall (banksAt), and the water darkens
+// in steps the farther it is from any shore (wetDepths), so pools read as deep.
 
 /** A small integer hash, so tile variants and decals stay put when nearby corners change. */
 export function hash(i, j, salt = 0) {
@@ -66,6 +71,8 @@ export class Terrain {
     this.pairs = new Set(tileset.pairs.flatMap((p) => [p, [...p].reverse().join('')]));
     this.blocking = new Set(Object.entries(tileset.terrains).filter(([, t]) => t.blocks).map(([c]) => c));
     this.voids = new Set(Object.entries(tileset.terrains).filter(([, t]) => t.void).map(([c]) => c));
+    this.wet = new Set(Object.entries(tileset.terrains).filter(([, t]) => t.water).map(([c]) => c));
+    this.bank = this.wet.size ? (tileset.bank?.face ?? 0) : 0;
     this.levels = Object.fromEntries(Object.entries(tileset.terrains).map(([c, t]) => [c, t.level ?? 0]));
     this.maxLevel = Math.max(0, ...Object.values(this.levels));
     this.minLevel = Math.min(0, ...Object.values(this.levels));
@@ -282,6 +289,84 @@ export class Terrain {
       prev = lv;
     }
     return out;
+  }
+
+  /** Is world point (x, y) water (more than half, blended like the tiles)? */
+  wetAt(x, y) {
+    return this.wet.size > 0 && this.shareAt(this.wet, x, y) > 0.5;
+  }
+
+  /**
+   * Where a bank hangs over the water in a column of world x, from y0 to y1:
+   * [{ top, height }] for each spot where solid ground (not a drop) gives way
+   * to water going down the screen, `bank` px tall or less where the water
+   * ends sooner. On the 2 px art grid.
+   */
+  banksAt(x, y0, y1) {
+    const out = [];
+    if (!this.bank) return out;
+    const start = Math.floor((y0 - this.bank) / 2) * 2;
+    let prev = this.wetAt(x, start);
+    for (let y = start + 2; y < y1; y += 2) {
+      const wet = this.wetAt(x, y);
+      if (wet && !prev && this.voidAt(x, y - 2) <= 0.5) {
+        let h = 0;
+        while (h < this.bank && this.wetAt(x, y + h)) h += 2;
+        out.push({ top: y, height: h });
+      }
+      prev = wet;
+    }
+    return out;
+  }
+
+  /**
+   * How far into the water each point of cells i0..i1 × j0..j1 is: a function
+   * (x, y) => px from the nearest shore, up to `reach` cells (more than that
+   * reads as `reach`). Worked out once for the box (a chamfer distance over
+   * the corners, so diagonals count ~1.4), then blended between corners.
+   */
+  wetDepths(i0, j0, i1, j1, reach = 4) {
+    const a0 = Math.max(0, i0 - reach);
+    const b0 = Math.max(0, j0 - reach);
+    const a1 = Math.min(this.cols, i1 + reach);
+    const b1 = Math.min(this.rows, j1 + reach);
+    const w = a1 - a0 + 1;
+    const h = b1 - b0 + 1;
+    const d = new Float32Array(w * h);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) d[j * w + i] = this.wet.has(this.grid[b0 + j][a0 + i]) ? reach : 0;
+    // Two passes of a 3×3 chamfer: down-right, then up-left.
+    const D = Math.SQRT2;
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        let v = d[j * w + i];
+        if (i > 0) v = Math.min(v, d[j * w + i - 1] + 1);
+        if (j > 0) v = Math.min(v, d[(j - 1) * w + i] + 1);
+        if (i > 0 && j > 0) v = Math.min(v, d[(j - 1) * w + i - 1] + D);
+        if (i < w - 1 && j > 0) v = Math.min(v, d[(j - 1) * w + i + 1] + D);
+        d[j * w + i] = v;
+      }
+    }
+    for (let j = h - 1; j >= 0; j--) {
+      for (let i = w - 1; i >= 0; i--) {
+        let v = d[j * w + i];
+        if (i < w - 1) v = Math.min(v, d[j * w + i + 1] + 1);
+        if (j < h - 1) v = Math.min(v, d[(j + 1) * w + i] + 1);
+        if (i < w - 1 && j < h - 1) v = Math.min(v, d[(j + 1) * w + i + 1] + D);
+        if (i > 0 && j < h - 1) v = Math.min(v, d[(j + 1) * w + i - 1] + D);
+        d[j * w + i] = v;
+      }
+    }
+    const { cell } = this;
+    return (x, y) => {
+      const fx = Math.max(0, Math.min(w - 1.001, x / cell - a0));
+      const fy = Math.max(0, Math.min(h - 1.001, y / cell - b0));
+      const i = Math.floor(fx);
+      const j = Math.floor(fy);
+      const u = fx - i;
+      const v = fy - j;
+      const at = (ci, cj) => d[cj * w + ci];
+      return ((at(i, j) * (1 - u) + at(i + 1, j) * u) * (1 - v) + (at(i, j + 1) * (1 - u) + at(i + 1, j + 1) * u) * v) * cell;
+    };
   }
 
   /**
