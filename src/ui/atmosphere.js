@@ -41,9 +41,11 @@ const RAIN = { drops: 150, speed: 1300, wind: -260, splashes: 36 };
 // sits, its falloff's steps, and how much darker the dark gets where no light
 // reaches, at full night (the lights carry it now).
 // Shadows that point (systems/sky.js sunShadow, lightShadow): how dark the sun's are on
-// props and characters (× the light's `shadows`), how dark a torch's are on characters,
-// how high a character stands, and how far past the screen a prop's shadow can reach in.
-const CASTS = { props: 1.1, people: 1.3, lamps: 0.9, height: 124, margin: 640, keep: 64 };
+// props and characters (× the light's `shadows`), how dark each light's are on characters,
+// how much wider a person's shadow gets toward its tip from the sun and from a light
+// (a near light spreads it), how dark contact shadows are (× `shadows`), how high a
+// character stands, and how far past the screen a prop's shadow can reach in.
+const CASTS = { props: 1.1, people: 1.3, lamps: 0.75, spread: { sun: 1.3, lamp: 1.8 }, contact: 2.4, height: 124, margin: 640, keep: 96 };
 const CAST_SQUASH = 0.6; // the ground's up-and-down, foreshortened (as in systems/sky.js)
 const LIGHTMAP = { reach: 2.6, whiten: 0.12, glows: 0.55, squash: 0.72, drop: 0.6, steps: 12, darken: 0.3 };
 const even = (v) => Math.max(PX, Math.round(v / PX) * PX);
@@ -168,20 +170,20 @@ const STREAKS = []; // baked streak keys, oldest first (a few dozen are kept)
 
 /**
  * A character's shadow cast along the ground to (tx, ty) px from the feet: a
- * band as wide as they are, a little wider at the far (head) end, fading there.
- * Tips are rounded to 4 px, so walking around a torch reuses a few dozen.
- * Returns the key and where its top-left sits from the feet.
+ * band as wide as they are, spreading `spread` times wider toward the far
+ * (head) end and fading there. Tips are rounded to 4 px, so walking around a
+ * torch reuses a few dozen. Returns the key and where its top-left sits from the feet.
  */
-function streakTexture(scene, w, tx, ty) {
+function streakTexture(scene, w, tx, ty, spread = 1.3) {
   const ax = Math.round(tx / 4) * 2; // art px
   const ay = Math.round(ty / 4) * 2;
-  const r0 = Math.max(2, Math.round((w / PX) * 0.32));
-  const r1 = Math.round(r0 * 1.15);
+  const r0 = Math.max(2, Math.round((w / PX) * 0.45));
+  const r1 = Math.round(r0 * spread);
   const minX = Math.min(0, ax) - r1;
   const minY = Math.min(0, ay) - r1;
   const cw = Math.abs(ax) + r1 * 2 + 1;
   const ch = Math.abs(ay) + r1 * 2 + 1;
-  const key = `fx_streak_${w}_${ax}_${ay}`;
+  const key = `fx_streak_${w}_${ax}_${ay}_${r1}`;
   if (!scene.textures.exists(key)) {
     const len2 = ax * ax + (ay / CAST_SQUASH) ** 2 || 1;
     bake(scene, key, cw * PX, ch * PX, (ctx) => pixels(ctx, cw * PX, ch * PX, SHADOW, (px, py) => {
@@ -191,7 +193,7 @@ function streakTexture(scene, w, tx, ty) {
       const t = Math.max(0, Math.min(1, (x * ax + y * (ay / CAST_SQUASH)) / len2));
       const d = Math.hypot(x - ax * t, y - (ay / CAST_SQUASH) * t);
       if (d > r0 + (r1 - r0) * t) return 0;
-      return t > 0.7 ? 0.7 : 1;
+      return t > 0.75 ? 0.5 : t > 0.45 ? 0.75 : 1;
     }));
     STREAKS.push(key);
   }
@@ -352,7 +354,7 @@ export class Atmosphere {
     this.pools = []; // the light map's lights: { a: the glow's entry, x, y, pool: its canvas }
     this.mix = easeMix({}, weather, 1, 1); // the weather it is when he arrives, already in
     this.light = skyAt(look, hour, this.mix);
-    this.shadows = []; // { obj, sprite, w, h, sun, lamp } following a character (sun, lamp: their cast shadows)
+    this.shadows = []; // { obj, sprite, w, h, sun, lamps } following a character (their cast shadows: the sun's, and one per light near them)
     this.casts = []; // props' sun shadows: { owner, key, obj, tag }
     this.lamps = []; // props' lights, for shadows cast away from them: { a, x, y (the ground under it), h, reach }
     this.hour = hour;
@@ -381,19 +383,11 @@ export class Atmosphere {
     const { x, y } = img;
     // Outdoors, anything standing casts its silhouette away from the sun.
     if (this.look.sunPath && def.cast !== false) this.casts.push({ owner: img, key: def.key, obj: null, tag: null });
+    // A contact shadow traced from the art, hugging its base where it meets the ground.
     if (def.shadow) {
-      const s = typeof def.shadow === 'number' ? { w: def.shadow } : def.shadow;
-      if (s.w) {
-        const obj = this.scene.add.image(Math.round(x + (s.x ?? 0)), Math.round(y + (s.y ?? -2)), shadowTexture(this.scene, s.w))
-          .setDepth(this.ground + 1);
-        this.attached.push({ obj, shadow: s.contact ? 0.6 : 1, owner: img });
-      }
-      // A contact shadow traced from the art, hugging its base where it meets the ground.
-      if (s.contact) {
-        const c = contactTexture(this.scene, def.key, s.contact === true ? {} : s.contact);
-        const obj = this.scene.add.image(Math.round(x + c.x), Math.round(y + c.y), c.key).setOrigin(0).setDepth(this.ground + 1.5);
-        this.attached.push({ obj, shadow: 2.2, owner: img });
-      }
+      const c = contactTexture(this.scene, def.key, def.shadow === true ? {} : def.shadow);
+      const obj = this.scene.add.image(Math.round(x + c.x), Math.round(y + c.y), c.key).setOrigin(0).setDepth(this.ground + 1.5);
+      this.attached.push({ obj, shadow: CASTS.contact, owner: img });
     }
     for (const g of def.glow ?? []) {
       const obj = this.scene.add.image(Math.round(x + g.x), Math.round(y + g.y), glowTexture(this.scene, g.r, g.color))
@@ -418,7 +412,7 @@ export class Atmosphere {
     const obj = this.scene.add.image(sprite.x, sprite.y - 2, shadowTexture(this.scene, w)).setDepth(this.ground + 1).setAlpha(this.light.shadows);
     // Cast shadows: one from the sun, one from the nearest strong light.
     const cast = () => this.scene.add.image(0, 0, '__DEFAULT').setOrigin(0).setDepth(this.ground + 0.9).setVisible(false);
-    this.shadows.push({ obj, sprite, w, h, sun: cast(), lamp: cast() });
+    this.shadows.push({ obj, sprite, w, h, sun: cast(), lamps: new Map(), cast });
   }
 
   /** Stop following a sprite (and drop its shadow). */
@@ -427,7 +421,7 @@ export class Atmosphere {
       if (s.sprite !== sprite) return true;
       s.obj.destroy();
       s.sun.destroy();
-      s.lamp.destroy();
+      for (const o of s.lamps.values()) o.destroy();
       return false;
     });
   }
@@ -581,16 +575,18 @@ export class Atmosphere {
     for (const s of this.shadows) {
       const { sprite } = s;
       const on = sprite.visible && near(sprite.x, sprite.y, 0);
-      this.streak(s.sun, s, sunK, on ? Math.min(1, L.shadows * sunK.alpha * CASTS.people) : 0);
-      let best = { alpha: 0 };
-      if (on) {
-        for (const l of lit) {
-          const strength = Math.min(1, L.lights * 0.9 * l.a.glow * l.a.wobble);
-          const k = lightShadow({ ...l, strength }, sprite.x, sprite.y);
-          if (k.alpha > best.alpha) best = k;
-        }
+      this.streak(s.sun, s, sunK, on ? Math.min(1, L.shadows * sunK.alpha * CASTS.people) : 0, CASTS.spread.sun);
+      // One shadow per light in reach, each fading out with distance on its own,
+      // so walking between two torches crossfades instead of flipping between them.
+      for (const [l, o] of s.lamps) if (!on || !lit.includes(l)) o.setVisible(false);
+      if (!on) continue;
+      for (const l of lit) {
+        const strength = Math.min(1, L.lights * 0.9 * l.a.glow * l.a.wobble);
+        const k = lightShadow({ ...l, strength }, sprite.x, sprite.y);
+        let o = s.lamps.get(l);
+        if (!o && k.alpha > 0.01) s.lamps.set(l, (o = s.cast()));
+        if (o) this.streak(o, s, k, Math.min(1, k.alpha * CASTS.lamps), CASTS.spread.lamp);
       }
-      this.streak(s.lamp, s, best, Math.min(1, best.alpha * CASTS.lamps));
     }
     this.trimStreaks();
   }
@@ -620,13 +616,13 @@ export class Atmosphere {
     }
   }
 
-  /** A character's cast shadow along k ({ x, y } per px of height), at this alpha (0 hides it). */
-  streak(obj, s, k, alpha) {
+  /** A character's cast shadow along k ({ x, y } per px of height), at this alpha (0 hides it), `spread` wider at its tip. */
+  streak(obj, s, k, alpha, spread) {
     if (alpha <= 0.01) {
       obj.setVisible(false);
       return;
     }
-    const t = streakTexture(this.scene, s.w, k.x * s.h, k.y * s.h);
+    const t = streakTexture(this.scene, s.w, k.x * s.h, k.y * s.h, spread);
     if (obj.texture.key !== t.key) obj.setTexture(t.key);
     obj.setPosition(Math.round(s.sprite.x + t.x), Math.round(s.sprite.y - PX + t.y)).setVisible(true).setAlpha(alpha);
   }
@@ -634,7 +630,7 @@ export class Atmosphere {
   /** Free the oldest streaks nobody's showing, keeping a few dozen. */
   trimStreaks() {
     if (STREAKS.length <= CASTS.keep) return;
-    const used = new Set(this.shadows.flatMap((s) => [s.sun.texture.key, s.lamp.texture.key]));
+    const used = new Set(this.shadows.flatMap((s) => [s.sun, ...s.lamps.values()].map((o) => o.texture.key)));
     for (let i = 0; i < STREAKS.length && STREAKS.length > CASTS.keep; ) {
       const key = STREAKS[i];
       if (used.has(key)) {

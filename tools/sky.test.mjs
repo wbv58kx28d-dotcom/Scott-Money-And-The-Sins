@@ -143,7 +143,8 @@ test("the sun's shadows turn with the day: west in the morning, short at noon, l
   const noon = at((path.rise + path.set) / 2);
   assert.ok(Math.abs(noon.x) < 1e-9 && noon.y > 0, 'midday: straight toward the camera');
   assert.ok(len(at(17.5)) > len(noon) * 2.5, 'long at golden hour');
-  assert.ok(len(at(6.1)) <= 2.2 + 1e-9, 'never longer than the cap, even at sunrise');
+  assert.ok(len(at(6.1)) <= 1.1 + 1e-9, 'never longer than the cap, even at sunrise');
+  assert.ok(len(at(17.5)) < 1.2, 'golden hour: long, but not off the screen');
   assert.ok(at(6.05).alpha < at(9).alpha && at(9).alpha === 1, 'fades in as the sun clears the horizon');
   for (let h = path.rise + 0.25; h < path.set; h += 0.25) assert.ok(at(h).y >= 0, `never toward the sun in the north (${h})`);
 });

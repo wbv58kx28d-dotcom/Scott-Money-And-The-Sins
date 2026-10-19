@@ -186,7 +186,10 @@ export function easeMix(mix, kind, dt, rate) {
 // A cast shadow is an offset per pixel of height: a point h px up lands h × (x, y)
 // px from the feet on the ground. The ground's up-and-down is foreshortened in the
 // 3/4 view, so the y part is squashed.
-const CAST = { squash: 0.6, longest: 2.2 };
+// The sun's are kept short (`sun`: a low sun's would run off the screen) and so are a
+// light's (`lamp`: how fast they grow per px walked, per px of the light's height), so
+// the light feels near and soft rather than a spotlight from far away.
+const CAST = { squash: 0.6, longest: 1.1, sun: 0.55, lamp: 0.6, lampLongest: 0.8 };
 
 /**
  * Where the sun's shadows fall at an hour: { x, y, alpha }. `path` ({ rise, set, peak }):
@@ -201,7 +204,7 @@ export function sunShadow(path, hour, { squash = CAST.squash, longest = CAST.lon
   const t = (hour - path.rise) / (path.set - path.rise);
   if (t <= 0 || t >= 1) return none;
   const up = Math.sin(Math.PI * t) * path.peak * (Math.PI / 180);
-  const len = Math.min(longest, 1 / Math.tan(up));
+  const len = Math.min(longest, CAST.sun / Math.tan(up));
   return {
     x: -Math.cos(Math.PI * t) * len,
     y: Math.sin(Math.PI * t) * len * squash,
@@ -215,15 +218,15 @@ export function sunShadow(path, hour, { squash = CAST.squash, longest = CAST.lon
  * The farther from the light, the longer the shadow and the fainter, gone at its reach;
  * right under it, there's none to speak of.
  */
-export function lightShadow(light, x, y, { squash = CAST.squash, longest = CAST.longest } = {}) {
+export function lightShadow(light, x, y, { squash = CAST.squash, longest = CAST.lampLongest } = {}) {
   const gx = x - light.x;
   const gy = (y - light.y) / squash; // on the ground, unsquashed
   const d = Math.hypot(gx, gy);
   if (d >= light.reach || d < 1) return { x: 0, y: 0, alpha: 0 };
-  const len = Math.min(longest, d / light.h);
+  const len = Math.min(longest, (CAST.lamp * d) / light.h);
   return {
     x: (gx / d) * len,
     y: (gy / d) * len * squash,
-    alpha: light.strength * Math.sqrt(1 - d / light.reach) * Math.min(1, d / 24),
+    alpha: light.strength * Math.sqrt(1 - d / light.reach) * Math.min(1, d / 40),
   };
 }
