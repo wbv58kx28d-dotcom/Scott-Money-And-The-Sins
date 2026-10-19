@@ -47,6 +47,11 @@ export function parseTime(str) {
   return Number(m[1]) * 60 + Number(m[2] ?? 0);
 }
 
+/** The clock moved to `hour` (0..24) on the same day: what SETTINGS' time slider does. */
+export function clockAtHour(clock, hour) {
+  return Math.floor(clock / DAY_MINUTES) * DAY_MINUTES + Math.round(hour * 60);
+}
+
 export function lerpColor(a, b, t) {
   const ch = (c, s) => (c >> s) & 255;
   const mix = (s) => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * t);
@@ -153,6 +158,16 @@ export function weatherAt(state, clock, spec, rand) {
   if (state && Object.keys(odds).filter((k) => odds[k] > 0).length > 1) delete odds[state.kind];
   const hours = spec.hours[0] + rand() * (spec.hours[1] - spec.hours[0]);
   return { kind: rollWeather(odds, rand), until: Math.round(clock + hours * 60) };
+}
+
+/** Weather picked by hand (SETTINGS' slider): `kind` from now, for as long as any weather lasts. */
+export function pinWeather(kind, clock, spec) {
+  return { kind, until: Math.round(clock + spec.hours[1] * 60) };
+}
+
+/** The weather after the clock is moved by `by` minutes: the same kind, for the same time left. */
+export function shiftWeather(state, by) {
+  return state && { ...state, until: state.until + by };
 }
 
 /** Ease each weather's share toward the current kind's: 1 for it, 0 for the rest, `rate` per second. */

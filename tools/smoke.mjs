@@ -586,6 +586,24 @@ async function main() {
       await press('TRY FLIP PHONE');
       await page.waitForFunction(() => window.__smm.state().phone === 'flip', null, { timeout: 5000 }).catch(() => failures.push('phone: the SETTINGS toggle should swap back to the flip phone'));
       await sleep(500);
+      // TIME + WEATHER: tap along the sliders (noon, rain); the region under the phone shows it at once.
+      await press('TIME + WEATHER');
+      s = await state(page);
+      const time = s.sliders?.find((x) => x.id === 'time');
+      const weather = s.sliders?.find((x) => x.id === 'weather');
+      if (!time || !weather) failures.push('phone: TIME + WEATHER should show a time slider and a weather slider');
+      else {
+        await tapGame(page, (time.x0 + time.x1) / 2, time.y);
+        await tapGame(page, weather.x0 + ((weather.x1 - weather.x0) * 2) / 3, weather.y);
+        await sleep(400);
+        s = await state(page);
+        if (Math.abs(s.sky.hour - 12) > 0.3) failures.push(`phone: the time slider's middle should be noon (got ${s.sky.hour})`);
+        if (s.sky.weather !== 'rain') failures.push(`phone: the weather slider should set rain (got ${s.sky.weather})`);
+        const rain = await page.evaluate(() => window.__smm.game.scene.getScene('Region').atmo.light.rain);
+        if (!(rain > 0.9)) failures.push(`phone: the region should show the rain under the phone right away (rain ${rain})`);
+        await page.screenshot({ path: path.join(SHOTS, '16f-phone-sky.png') });
+      }
+      await press('BACK');
       await press('BACK');
       await press('SHOP');
       await press('BREW $150');
