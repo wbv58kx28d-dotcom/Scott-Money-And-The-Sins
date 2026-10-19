@@ -60,7 +60,8 @@ export const FIELD_SHEETS = [
 //           its width, or { w, x, y } to move it from the feet; `contact: true`
 //           (or { rise, reach }) adds a contact shadow traced from the art's
 //           own base, for a base that isn't flat across (a box drawn at an angle)
-//   glow    lights: [{ x, y (from the feet), r, color, alpha?, flicker? | pulse? }]
+//   glow    lights: [{ x, y (from the feet), r, color, alpha?, flicker? | pulse?, reach? }]
+//           (`reach`: how far its pool spreads on the light map; 2.6 × r if not given)
 //   puffs   { x, y, kind: 'steam' | 'ember', every (ms), spread? }, rising off it
 //   sway    how far its top leans in a strong wind, px (ui/motion.js); trees, reeds, flames
 export const PROP_IMAGES = [
@@ -110,7 +111,7 @@ export const PROP_IMAGES = [
   { key: 'prop_rack', path: 'assets/props/prop_rack.png', name: 'SERVER RACK', block: { w: 70, h: 26 }, glow: [{ x: 0, y: -90, r: 56, color: 0x60ffb0, alpha: 0.6, flicker: true }] },
   { key: 'prop_rack_b', path: 'assets/props/prop_rack_b.png', name: 'SERVER RACK 2', block: { w: 76, h: 26 }, glow: [{ x: 0, y: -90, r: 56, color: 0x60c0ff, alpha: 0.6, flicker: true }] },
   { key: 'prop_rack_c', path: 'assets/props/prop_rack_c.png', name: 'SERVER RACK 3', block: { w: 76, h: 26 }, glow: [{ x: 0, y: -90, r: 56, color: 0xff60e0, alpha: 0.6, flicker: true }] },
-  { key: 'prop_battlestation', path: 'assets/props/prop_battlestation.png', name: 'BATTLE STATION', block: { w: 200, h: 50 }, glow: [{ x: -10, y: -105, r: 120, color: 0x7090ff, flicker: true }] },
+  { key: 'prop_battlestation', path: 'assets/props/prop_battlestation.png', name: 'BATTLE STATION', block: { w: 200, h: 50 }, glow: [{ x: -10, y: -105, r: 120, reach: 200, color: 0x7090ff, flicker: true }] },
   { key: 'prop_fridge', path: 'assets/props/prop_fridge.png', name: 'MINI FRIDGE', block: { w: 36, h: 18 }, glow: [{ x: 5, y: -28, r: 44, color: 0xff40d0, alpha: 0.7 }] },
   { key: 'prop_mattress', path: 'assets/props/prop_mattress.png', name: 'MATTRESS', block: { w: 100, h: 36 } },
   // The trading floor: a marble-and-glass office (tools/region-art/wall.py draws its wall).

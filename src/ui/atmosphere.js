@@ -12,12 +12,14 @@
 // a multiply at full alpha, light is additive, and each glow color gets its
 // own texture (Canvas can't tint).
 //
-// The light map (a prototype, `lightmap`): instead of one flat grade, the
-// world is multiplied by a picture of the light, redrawn each frame at the
-// art's resolution: the grade's color everywhere, with a pool of each prop's
-// light added in around it, so the ground and anyone standing near a torch
-// show their own colors again. The glows stay on top, dimmer, as the bright
-// core of each light.
+// The light map (`lightmap`): instead of one flat grade, the world is
+// multiplied by a picture of the light, redrawn each frame at the art's
+// resolution: the grade's color everywhere, with a pool of each prop's light
+// screened in around it, so the ground and anyone standing near a torch show
+// their own colors again. Screened, not added, so pools that overlap brighten
+// without washing out to white. The glows stay on top, dimmer, as the bright
+// core of each light. It's a render texture: drawn on the GPU under WebGL
+// (no picture uploaded each frame), on a canvas under Canvas.
 //
 // Depths: shadows and mist lie on the ground under everything standing; the
 // grade, haze, fog and vignette sit over the world; the sun, glows, motes and
@@ -190,11 +192,11 @@ function splashTexture(scene) {
   });
 }
 
-/** A pool of light on the light map, drawn at art resolution (1 px per art pixel): rx across, stepped rings. */
+/** A pool of light on the light map, drawn at art resolution (1 px per art pixel): rx across, stepped rings. Returns its key. */
 function poolTexture(scene, rx, color) {
   rx = Math.max(2, Math.round(rx / PX));
   const ry = Math.max(2, Math.round(rx * LIGHTMAP.squash));
-  const key = bake(scene, `fx_pool_${rx}_${hex(color)}`, rx * 2, ry * 2, (ctx, w, h) => {
+  return bake(scene, `fx_pool_${rx}_${hex(color)}`, rx * 2, ry * 2, (ctx, w, h) => {
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const d = Math.hypot((x + 0.5 - rx) / rx, (y + 0.5 - ry) / ry);
@@ -204,7 +206,6 @@ function poolTexture(scene, rx, color) {
       }
     }
   });
-  return scene.textures.get(key).getSourceImage();
 }
 
 function vignetteTexture(scene, color) {
@@ -229,7 +230,7 @@ export class Atmosphere {
    * @param {object} opts  { ground: the ground's depth, over: the depth just over the world, terrain,
    *                         hour, weather: the kind it is when the scene starts }
    */
-  constructor(scene, look, { ground, over, terrain, hour = 12, weather = 'clear', lightmap = false }) {
+  constructor(scene, look, { ground, over, terrain, hour = 12, weather = 'clear', lightmap = true }) {
     this.scene = scene;
     this.look = look;
     this.ground = ground;
@@ -317,8 +318,7 @@ export class Atmosphere {
       // The light map takes the grade's place: a canvas at art resolution, shown at full size.
       const w = GAME_W / PX;
       const h = GAME_H / PX;
-      this.mapTex = scene.textures.exists('fx_lightmap') ? scene.textures.get('fx_lightmap') : scene.textures.createCanvas('fx_lightmap', w, h);
-      this.map = pin(scene.add.image(0, 0, 'fx_lightmap'), over).setScale(PX).setBlendMode(Phaser.BlendModes.MULTIPLY);
+      this.lightRT = pin(scene.add.renderTexture(0, 0, w, h), over).setScale(PX).setBlendMode(Phaser.BlendModes.MULTIPLY);
       this.grade.setVisible(false);
     }
     this.haze = pin(scene.add.rectangle(0, 0, GAME_W, GAME_H, 0xffffff, 0), over + 0.1);
@@ -421,30 +421,22 @@ export class Atmosphere {
     this.updateLightning(time);
   }
 
-  /** The light map: the grade's color, with each light in view adding its pool. */
+  /** The light map: the grade's color, with each light in view screening its pool in. */
   drawLightmap(L, view) {
-    const ctx = this.mapTex.getContext();
-    const { width: w, height: h } = this.mapTex;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
     // The darker the hour (the stronger its lights), the darker the dark between them.
     const dark = (this.look.lightmapDarken ?? LIGHTMAP.darken) * Math.min(1, Math.max(0, (L.lights - 0.6) / 0.9));
-    ctx.fillStyle = `#${hex(blendColor(L.grade, 0x000000, dark))}`;
-    ctx.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = 'lighter';
+    const rt = this.lightRT;
+    rt.fill(blendColor(L.grade, 0x000000, dark), 1);
+    const stamp = { originX: 0.5, originY: 0.5, blendMode: Phaser.BlendModes.SCREEN, alpha: 1 };
     for (const p of this.pools) {
       if (!p.a.owner.visible || p.a.owner.alpha <= 0.3) continue;
       const sx = p.x - view.x;
       const sy = p.y - view.y;
       if (sx < -p.reach || sx > GAME_W + p.reach || sy < -p.reach || sy > GAME_H + p.reach) continue;
-      const strength = Math.min(1, L.lights * 0.9 * p.a.glow * p.a.wobble);
-      if (strength <= 0.02) continue;
-      ctx.globalAlpha = strength;
-      ctx.drawImage(p.pool, Math.round(sx / PX - p.pool.width / 2), Math.round(sy / PX - p.pool.height / 2));
+      stamp.alpha = Math.min(1, L.lights * 0.9 * p.a.glow * p.a.wobble);
+      if (stamp.alpha <= 0.02) continue;
+      rt.stamp(p.pool, undefined, Math.round(sx / PX), Math.round(sy / PX), stamp);
     }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
-    this.mapTex.refresh();
   }
 
   /** Redraw the sun's light when it's changed enough to see. */
