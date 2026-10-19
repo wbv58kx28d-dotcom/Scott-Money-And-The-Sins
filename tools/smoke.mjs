@@ -869,7 +869,7 @@ async function main() {
       });
       await sleep(800);
       // Near the torches, people cast shadows away from them.
-      lit.lamp = await page.evaluate(() => window.__smm.game.scene.getScene('Region').atmo.shadows.filter((s) => s.lamp.visible).length);
+      lit.lamp = await page.evaluate(() => window.__smm.game.scene.getScene('Region').atmo.shadows.filter((s) => [...s.lamps.values()].some((o) => o.visible)).length);
       if (lit.lamp < 3) failures.push(`light map: expected people by the torches to cast shadows away from them (got ${lit.lamp})`);
       if (!lit.map) failures.push('light map: the region should draw its light map');
       if (lit.pools < 20) failures.push(`light map: expected the swamp's lights to spread pools (got ${lit.pools})`);
