@@ -82,6 +82,19 @@ test('facing comes from the way she moved', () => {
   assert.equal(facingOf(0, 0), null);
 });
 
+test('near a diagonal, facing holds until the other way clearly leads', () => {
+  // Wobbling around 45° keeps whichever way he was already facing.
+  assert.equal(facingOf(10, 11, 'right'), 'right');
+  assert.equal(facingOf(11, 10, 'down'), 'down');
+  // Clearly past it, he turns.
+  assert.equal(facingOf(10, 15, 'right'), 'down');
+  assert.equal(facingOf(15, 10, 'down'), 'right');
+  // Reversing turns him at once, whatever the lead.
+  assert.equal(facingOf(-10, 11, 'right'), 'down');
+  assert.equal(facingOf(-10, 1, 'right'), 'left');
+  assert.equal(facingOf(0, -5, 'down'), 'up');
+});
+
 test("Lil' Turnt's moods climb with jealousy, and each has an emote and lines", () => {
   const { moods } = FOLLOWERS.lilturnt;
   assert.equal(moodOf(moods, 0).id, moods[0].id);

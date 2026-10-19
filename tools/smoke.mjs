@@ -456,7 +456,7 @@ async function main() {
       const push = await touchDrag(page, stick, { x: stick.x, y: stick.y - stick.radius }, 1000);
       const climbed = before.player.y - push.held.player.y;
       if (!push.midway.stick.active) failures.push('joystick: a touch on it should grab it');
-      // Headless Chromium runs slow frames, so this only checks he clearly moved (on a phone it's ~320 px/s).
+      // Headless Chromium runs slow frames, so this only checks he clearly moved (on a phone it's ~260 px/s).
       if (climbed < 60) failures.push(`joystick: pushing up should walk $cott up (moved ${climbed}px)`);
       if (push.held.player.facing !== 'up') failures.push(`joystick: $cott should face up, faced ${push.held.player.facing}`);
       await sleep(300);
