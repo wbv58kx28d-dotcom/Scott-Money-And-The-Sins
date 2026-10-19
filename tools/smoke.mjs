@@ -871,11 +871,13 @@ async function main() {
       // Near the torches, people cast shadows away from them.
       lit.lamp = await page.evaluate(() => window.__smm.game.scene.getScene('Region').atmo.shadows.filter((s) => [...s.lamps.values()].some((o) => o.visible)).length);
       if (lit.lamp < 3) failures.push(`light map: expected people by the torches to cast shadows away from them (got ${lit.lamp})`);
+      lit.props = await page.evaluate(() => window.__smm.game.scene.getScene('Region').atmo.lampCasts.filter((c) => c.obj?.visible).length);
+      if (lit.props < 3) failures.push(`light map: expected props by the torches to cast shadows away from them too (got ${lit.props})`);
       if (!lit.map) failures.push('light map: the region should draw its light map');
       if (lit.pools < 20) failures.push(`light map: expected the swamp's lights to spread pools (got ${lit.pools})`);
       if (lit.contact < 5) failures.push(`light map: expected contact shadows under the cardboard buildings (got ${lit.contact})`);
       await page.screenshot({ path: path.join(SHOTS, '19-lightmap-night.png') });
-      console.log(`light map: ${lit.pools} pools, ${lit.contact} contact shadows, ${lit.lamp} torch shadows`);
+      console.log(`light map: ${lit.pools} pools, ${lit.contact} contact shadows, ${lit.lamp} people's and ${lit.props} props' torch shadows`);
       failures.push(...errors.map((x) => `light map: ${x}`));
       await page.context().close();
     }
