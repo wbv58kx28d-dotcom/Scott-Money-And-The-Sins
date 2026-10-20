@@ -18,7 +18,9 @@ Standard PixelLab top-down tilesets, 16 px, chained through the sand base tile (
 Passed over: a postcard turquoise and white-sand set (`d1406b24…`) and a pastel pink and lavender set (`d5dbb61b…`); both came back with their labels swapped.
 
 ## Sky Deck (`../skydeck/`, `../skytowers/`)
-`python3 tools/region-art/skydeck.py` draws the bridges (`bridge.png`, `bridge_h.png`) and the lagoon below (`assets/vista/isles_below.png`); then `tileset.py skydeck`.
+`python3 tools/region-art/skydeck.py` cuts the picked bridges (`picks/bridge_h.png`, `picks/bridge_v.png`) to one seamless segment each (`bridge_h.png`, `bridge.png`) and draws the lagoon below (`assets/vista/isles_below.png`); then `tileset.py skydeck`.
+
+**Bridges and gates** (`create_image_pro`, the turret's top as the style image): across, 168×96 with `prop_skybridge` as the design reference, job `b7ae67cc` #1 (pointed pink arches with roses; passed over a scalloped one, a single big arch and a gothic arcade); down, 80×168, job `157f10e9` #1 (a pink runner, balustrades hung with banners; passed over plain, rose-vined and gold-carpet ones); gate facing the camera, 64×80, job `a5a8d95f` #2 (domed pillars, a crown, pennants: `../props/prop_sky_gate.png`); side-on gate, 40×80, job `ba87082a` #5 (`../props/prop_sky_gate_side.png`). Numbers count from 0.
 
 **Tower bodies** (`../skytowers/<name>.png`, baked by `python3 tools/region-art/skytowers.py` into `assets/skydeck/`): one tall `create_image_pro` image per tower (1 candidate at that size, 25 generations each), the tower's own rooftop at the top and its body plunging down past the bottom, with its exterior castle prop as the style image and the design reference, and a procedural silhouette (`../skytowers/guides/`, the turret's or the keep's) as the composition reference. Prompts asked for a corbelled crown, varied floors (arched galleries, balconies, banners, vines, a rose window, a clock on the keep), narrowing slightly toward the bottom, and no clouds (the game drifts its own wisps across). Two takes each; picks:
 | File | Job | From | Notes |

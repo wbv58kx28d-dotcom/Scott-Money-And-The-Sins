@@ -1,18 +1,22 @@
-"""Draw the Sky Deck's art: its bridges and the lagoon far below.
+"""Make the Sky Deck's art: its bridges and the lagoon far below.
 
     python3 tools/region-art/skydeck.py
 
 The Sky Deck (CLAUDE.md §6.6) is the top of Envy's castle: rooftops over a drop,
-joined by bridges, with the Influencer Isles far below. Drawn here rather than
-generated, since each piece has to tile exactly. Colors come from the castle's
+joined by bridges, with the Influencer Isles far below. Each piece has to tile
+exactly, so the generated bridges are cut to seamless segments here, and the
+lagoon is drawn from the Isles' tiles. Colors come from the castle's
 turrets (cream stone, pink bands, gold trim) and the rooftops' marble. (The
 towers' bodies under the rooftops are PixelLab art: tools/region-art/isles/README.md.)
 
 tools/region-art/skydeck/:
-  bridge.png   a marble walkway running down the screen, gold rails on both sides;
-               its middle rows repeat to any length.
-  bridge_h.png the same running across the screen: a back rail, the deck, a front
-               rail and the bridge's edge below; its middle columns repeat.
+  bridge.png   a walkway running down the screen (picks/bridge_v.png, PixelLab: a
+               pink runner on marble, balustrades hung with banners), cut to one
+               segment that repeats seamlessly; the game tiles it along a bridge
+               (art.json's bridges `tile`).
+  bridge_h.png one running across the screen (picks/bridge_h.png: a balustraded
+               deck over pointed pink arches with roses), cut the same way and
+               padded so its deck sits at the image's middle.
 
 assets/vista/isles_below.png: the lagoon seen from the top of the castle, drawn
 from the Isles' own tiles at 1 screen px per art px (half the world's, so it
@@ -26,81 +30,43 @@ import math
 import os
 import random
 
+import numpy as np
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'tools', 'region-art', 'skydeck')
 
-INK = (21, 14, 9)
-GOLD = [(252, 251, 175), (247, 226, 120), (219, 161, 75), (160, 104, 48)]
-PINK = [(246, 139, 144), (220, 116, 124), (197, 96, 106)]
-MARBLE = [(251, 250, 236), (244, 239, 222), (229, 229, 217), (192, 179, 161)]
+DECK_H = 31  # the middle row of bridge_h's walkway deck in its pick (art px)
 
-def deck(x, y):
-    """Marble slabs 8 art px square with gold inlay seams (repeats every 8 px both ways)."""
-    sx, sy = x % 8, y % 8
-    if sx == 7 or sy == 7:
-        return GOLD[2] if (sx + sy) % 2 else GOLD[1]
-    if sx == 0 or sy == 0:
-        return MARBLE[0]
-    return MARBLE[1] if (x // 8 + y // 8) % 2 else MARBLE[0]
-
-
-def draw_bridge():
-    """A walkway running down the screen: 40 art px wide (a 32 px deck between gold rails), 48 tall."""
-    W, H = 40, 48
-    im = Image.new('RGBA', (W, H))
-    px = im.load()
-    for y in range(H):
-        for x in range(W):
-            if x in (0, W - 1):
-                c = INK
-            elif x in (1, 2, W - 3, W - 2):
-                # Rails: posts every 8 rows, a gold bar between.
-                post = y % 8 in (0, 1)
-                c = GOLD[0] if x in (1, W - 3) else GOLD[2]
-                if post:
-                    c = GOLD[1] if x in (1, W - 3) else GOLD[3]
-            elif x in (3, W - 4):
-                c = MARBLE[3]  # the deck's edge, in the rails' shadow
-            else:
-                c = deck(x - 4, y)
-            px[x, y] = c + (255,)
-    # Thresholds at both ends, where the bridge meets a rooftop.
-    for x in range(1, W - 1):
-        for y in (0, 1, H - 2, H - 1):
-            px[x, y] = (GOLD[1] if y in (0, H - 1) else GOLD[2]) + (255,)
-    return im
+def seamless(im, axis, lo, hi, window=3):
+    """
+    Cut a generated bridge down to one segment that repeats without a seam: of every cut [x0, x0 + k)
+    along `axis` (1 across, 0 down) with k from lo to hi, the one whose next column (or row) best
+    matches its first, over a few lines, so the copy after it carries on cleanly.
+    """
+    a = np.asarray(im).astype(int)
+    a = a if axis == 0 else a.transpose(1, 0, 2)
+    n = a.shape[0]
+    best = None
+    for k in range(lo, min(hi, n - window)):
+        for x0 in range(0, n - k - window):
+            d = np.abs(a[x0:x0 + window] - a[x0 + k:x0 + k + window]).mean()
+            if best is None or d < best[0]:
+                best = (d, x0, k)
+    _, x0, k = best
+    return (im.crop((0, x0, im.width, x0 + k)) if axis == 0 else im.crop((x0, 0, x0 + k, im.height))), k
 
 
-def draw_bridge_h():
-    """A walkway running across the screen: a back rail, a 32 px deck, a front rail, the bridge's edge. 48 wide."""
-    W, H = 48, 44
-    im = Image.new('RGBA', (W, H))
-    px = im.load()
-    for y in range(H):
-        for x in range(W):
-            post = x % 8 in (0, 1)
-            if y == 0:
-                c = INK
-            elif y in (1, 2):
-                c = (GOLD[1] if post else GOLD[0]) if y == 1 else (GOLD[3] if post else GOLD[2])  # back rail
-            elif y == 3:
-                c = MARBLE[3]
-            elif y < 34:
-                c = deck(x, y - 4)
-            elif y in (34, 35):
-                c = (GOLD[1] if post else GOLD[0]) if y == 34 else (GOLD[3] if post else GOLD[2])  # front rail
-            elif y == 36:
-                c = INK
-            elif y < 42:
-                c = PINK[0] if y < 38 else PINK[1] if y < 40 else PINK[2]  # the bridge's edge, in the castle's pink
-            elif y == 42:
-                c = (165, 108, 113)
-            else:
-                c = INK
-            px[x, y] = c + (255,)
-    return im
+def bridges():
+    """The picked bridges (picks/), each cut to one seamless segment; the one running across padded so its deck is centered."""
+    v, kv = seamless(Image.open(os.path.join(OUT, 'picks', 'bridge_v.png')).convert('RGBA'), 0, 70, 100)
+    h, kh = seamless(Image.open(os.path.join(OUT, 'picks', 'bridge_h.png')).convert('RGBA'), 1, 70, 100)
+    # The game centers bridge_h.png on the bridge's rect, so put its deck (DECK_H, art rows) in the middle.
+    h = h.crop((0, 0, h.width, h.getbbox()[3]))
+    pad = max(0, h.height - 2 * DECK_H)
+    out = Image.new('RGBA', (h.width, h.height + pad))
+    out.alpha_composite(h, (0, pad))
+    return v, out, kv, kh
 
 
 def wang_tiles(name):
@@ -172,12 +138,13 @@ def torus(x0, y0, x1, y1, n):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    draw_bridge().save(os.path.join(OUT, 'bridge.png'))
-    draw_bridge_h().save(os.path.join(OUT, 'bridge_h.png'))
+    v, h, kv, kh = bridges()
+    v.save(os.path.join(OUT, 'bridge.png'))
+    h.save(os.path.join(OUT, 'bridge_h.png'))
     vista = os.path.join(ROOT, 'assets', 'vista')
     os.makedirs(vista, exist_ok=True)
     draw_below().save(os.path.join(vista, 'isles_below.png'), optimize=True)
-    print('skydeck: bridge, bridge_h; assets/vista/isles_below.png')
+    print(f'skydeck: bridge ({kv} art px a segment), bridge_h ({kh}); assets/vista/isles_below.png')
 
 
 if __name__ == '__main__':

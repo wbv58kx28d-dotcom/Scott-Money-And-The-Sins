@@ -153,7 +153,7 @@ def main(name):
     for part in ('cliff', 'bank', 'stairs', 'bridge_h'):
         path = os.path.join(src, f'{part}.png')
         im = Image.open(path).convert('RGBA') if os.path.exists(path) else Image.new('RGBA', (1, 1))
-        if part in ('stairs', 'bridge_h') and im.getbbox():
+        if part == 'stairs' and im.getbbox():  # (bridge_h keeps its padding: its deck is centered in it)
             im = im.crop(im.getbbox())
         up(im).save(os.path.join(out, f'{part}.png'), optimize=True)
 
@@ -180,6 +180,9 @@ def main(name):
         tileset['patches'] = [{**p, 'on': [code[t] for t in p['on']]} for p in spec['patches']]
     if 'bubbles' in spec:
         tileset['bubbles'] = {**spec['bubbles'], 'on': code[spec['bubbles']['on']]}
+    if spec.get('bridges', {}).get('tile'):
+        # The bridge art is one seamless segment, repeated whole along a bridge (the Sky Deck's).
+        tileset['bridgeTile'] = True
     json.dump(tileset, open(os.path.join(out, 'tileset.json'), 'w'), separators=(',', ':'))
     print(f'{name}: {len(tiles)} tiles of {size * ART_PX}px, {len(frames)} decals, keys {len(keys)}')
 

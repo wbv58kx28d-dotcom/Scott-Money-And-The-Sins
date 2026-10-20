@@ -99,6 +99,8 @@ const BARK_MS = { base: 1600, perChar: 45, max: 4500 };
 const worldDepth = (y) => y - WORLD_DEPTH;
 // Tower bodies under the ground (props marked `under`): above the view down (ui/vista.js), below the ground.
 const UNDER_GROUND = -WORLD_DEPTH * 2 - 4;
+// The shadow a Sky Deck bridge casts on the tower bodies behind it (RegionScene.shadedTower).
+const TOWER_SHADOW = { dx: 22, dy: 30, color: 'rgba(48, 18, 52, 0.38)' };
 /** Is (x, y) on a body standing at `s` (its feet), in a hit box this big? */
 const onBody = (x, y, s, box) => Math.abs(x - s.x) <= box.w / 2 && y <= s.y + 10 && y >= s.y - box.h;
 
@@ -283,7 +285,7 @@ export default class RegionScene extends Phaser.Scene {
     const src = this.textures.get(p.texture).getSourceImage();
     const [ox, oy] = propOrigin(def, src.width, src.height);
     const depth = UNDER_GROUND + p.y / (this.terrain.height + 1);
-    const img = this.add.image(p.x, p.y, p.texture).setOrigin(ox, oy).setDepth(depth);
+    const img = this.add.image(p.x, p.y, this.shadedTower(p, def, src, ox, oy)).setOrigin(ox, oy).setDepth(depth);
     const foot = Math.round(p.y + src.height * (1 - oy));
     let band = null;
     if (def.band && this.textures.exists(def.band.key)) {
@@ -293,6 +295,51 @@ export default class RegionScene extends Phaser.Scene {
         .setOrigin(0).setDepth(depth - 1e-6);
     }
     return { p, img, band, depth, w: src.width };
+  }
+
+  /**
+   * A tower body with the bridges' shadows on it: each bridge's art (as wide as it's drawn), pushed
+   * right and down (TOWER_SHADOW), darkens the tower's own walls, so a bridge reads as standing out
+   * in front of the towers it crosses rather than painted on them. The tower's rooftop floor stays
+   * unshaded. Its own texture, freed with the scene.
+   */
+  shadedTower(p, def, src, ox, oy) {
+    const left = p.x - src.width * ox;
+    const top = p.y - src.height * oy;
+    const { dx, dy } = TOWER_SHADOW;
+    // Each bridge as drawn (ui/terrainView.js centers its art across the rect).
+    const drawn = this.map.bridges.filter((b) => b.kind !== 'stairs').map((b) => {
+      if (b.w > b.h) {
+        const ih = this.ground.bridgeHImg.height;
+        return { x: b.x, y: b.y + b.h / 2 - ih / 2, w: b.w, h: ih };
+      }
+      const iw = this.ground.bridgeImg.width;
+      return { x: b.x + b.w / 2 - iw / 2, y: b.y, w: iw, h: b.h };
+    });
+    const hits = drawn.filter((r) => r.x + dx < left + src.width && r.x + r.w + dx > left && r.y + dy < top + src.height && r.y + r.h + dy > top);
+    if (!hits.length) return p.texture;
+    const key = `${p.texture}_shaded_${Math.round(p.x)}_${Math.round(p.y)}`;
+    if (this.textures.exists(key)) this.textures.remove(key);
+    const tex = this.textures.createCanvas(key, src.width, src.height);
+    const ctx = tex.getContext();
+    ctx.drawImage(src, 0, 0);
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = TOWER_SHADOW.color;
+    for (const r of hits) ctx.fillRect(Math.round(r.x + dx - left), Math.round(r.y + dy - top), Math.round(r.w), Math.round(r.h));
+    // The rooftop floor is level and open to the sky: put it back as it was.
+    if (def.anchor && def.floor) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(def.anchor.x, def.anchor.y, def.floor.rx + 8, def.floor.ry + 8, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.clearRect(0, 0, src.width, src.height);
+      ctx.drawImage(src, 0, 0);
+      ctx.restore();
+    }
+    tex.refresh();
+    this.events.once('shutdown', () => this.textures.exists(key) && this.textures.remove(key));
+    return key;
   }
 
   /**

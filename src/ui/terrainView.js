@@ -414,6 +414,10 @@ export class TerrainView {
    * plank rows (never by scaling pixels).
    */
   drawBridge(ctx, b, ox, oy, w, h) {
+    if (b.kind !== 'stairs' && this.terrain.tileset.bridgeTile) {
+      this.drawBridgeTiled(ctx, b, ox, oy, w, h);
+      return;
+    }
     if (b.kind !== 'stairs' && b.w > b.h && this.bridgeHImg.width > 1) {
       this.drawBridgeAcross(ctx, b, ox, oy, w, h);
       return;
@@ -441,6 +445,33 @@ export class TerrainView {
       yy += hh;
     }
     ctx.drawImage(img, 0, head + band, img.width, tail, x, end, img.width, tail);
+  }
+
+  /**
+   * A boardwalk on a set whose bridge art is one seamless segment (`bridgeTile`, the Sky Deck's):
+   * the segment repeated whole along the rect, centered across it (bridge_h.png for one running
+   * across the screen, bridge.png for one running down it), the last copy cut at the rect's end.
+   */
+  drawBridgeTiled(ctx, b, ox, oy, w, h) {
+    const across = b.w > b.h && this.bridgeHImg.width > 1;
+    const img = across ? this.bridgeHImg : this.bridgeImg;
+    if (across) {
+      const y = Math.round(b.y + b.h / 2 - img.height / 2) - oy;
+      if (y > h || y + img.height < 0) return;
+      for (let s = 0; s < b.w; s += img.width) {
+        const x = Math.round(b.x + s) - ox;
+        const sw = Math.min(img.width, Math.round(b.w - s));
+        if (x <= w && x + sw >= 0) ctx.drawImage(img, 0, 0, sw, img.height, x, y, sw, img.height);
+      }
+    } else {
+      const x = Math.round(b.x + b.w / 2 - img.width / 2) - ox;
+      if (x > w || x + img.width < 0) return;
+      for (let s = 0; s < b.h; s += img.height) {
+        const y = Math.round(b.y + s) - oy;
+        const sh = Math.min(img.height, Math.round(b.h - s));
+        if (y <= h && y + sh >= 0) ctx.drawImage(img, 0, 0, img.width, sh, x, y, img.width, sh);
+      }
+    }
   }
 
   /**

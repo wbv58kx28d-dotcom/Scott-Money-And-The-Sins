@@ -141,6 +141,10 @@ export const PROP_IMAGES = [
     key: `sky_${id}`, path: `assets/skydeck/sky_${id}.png`, name, under: true, cast: false,
     anchor: { x, y }, floor: { rx, ry }, band: { key: `sky_${id}_band`, path: `assets/skydeck/sky_${id}_band.png` },
   })),
+  // Gate arches where a Sky Deck bridge meets a rooftop: facing the camera for a bridge running
+  // down the screen, side-on for one running across. Stand one on the rim, at the bridge's mouth.
+  { key: 'prop_sky_gate', path: 'assets/props/prop_sky_gate.png', name: 'SKY GATE', shadow: true, cast: false },
+  { key: 'prop_sky_gate_side', path: 'assets/props/prop_sky_gate_side.png', name: 'SKY GATE (SIDE)', shadow: true, cast: false },
   // A velvet rope (map `gates`), closed and unhooked.
   { key: 'prop_rope', path: 'assets/props/prop_rope.png', place: false },
   { key: 'prop_rope_open', path: 'assets/props/prop_rope_open.png', place: false },

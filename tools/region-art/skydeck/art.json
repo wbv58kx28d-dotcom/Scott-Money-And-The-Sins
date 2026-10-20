@@ -30,5 +30,8 @@
     "saturation": 1.0,
     "brightness": 1.0
   },
+  "bridges": {
+    "tile": true
+  },
   "scatter": []
 }
