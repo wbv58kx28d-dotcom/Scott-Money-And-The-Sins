@@ -50,7 +50,13 @@ export const FIELD_SHEETS = [
   { key: 'field_helena', path: 'assets/field/field_helena.png', idle: idle('helena', STANDEE) }, // checks her phone
   { key: 'field_quentin', path: 'assets/field/field_quentin.png', idle: idle('quentin', STANDEE, 7) }, // sips his coffee
   { key: 'field_bart', path: 'assets/field/field_bart.png', idle: idle('bart', STANDEE) }, // yells into his phone
+  { key: 'field_dockhand', path: 'assets/field/field_dockhand.png' }, // the Isles' jet-ski rental
+  { key: 'field_guard', path: 'assets/field/field_guard.png' }, // at Envy's castle
 ];
+
+// $cott on his jet ski (tools/region-art/jetski.py, systems/ride.js): one frame per view, rows down,
+// up, left (right mirrors left), the hull's bottom on one waterline near the frame's foot.
+export const RIDE_SHEET = { key: 'field_scott_ski', path: 'assets/field/field_scott_ski.png', w: 168, h: 144 };
 
 // Scenery props, drawn with their feet (bottom center) on the ground. `name` and
 // `block` (the footprint $cott can't walk through) are what the map editor
@@ -149,6 +155,17 @@ export const PROP_IMAGES = [
   // is open); for one running across, a pair of its pillars, one on each rail at the bridge's mouth.
   { key: 'prop_sky_gate', path: 'assets/props/prop_sky_gate.png', name: 'SKY GATE', shadow: true, cast: false, seeThrough: false, pillars: { dx: 44, w: 16, h: 12 } },
   { key: 'prop_sky_pillar', path: 'assets/props/prop_sky_pillar.png', name: 'SKY GATE PILLAR', shadow: true, cast: false, seeThrough: false },
+  // The Influencer Isles (tools/region-art/props/, tools/region-art/isles/README.md): palms, the jet-ski
+  // rental shack, and the castle's exterior keep and turrets standing on its island (placeholders, drawn
+  // at an angle before the straight-on rule; CLAUDE.md §8.4).
+  { key: 'prop_palm', path: 'assets/props/prop_palm.png', name: 'PALM', block: { w: 50, h: 22 }, sway: 8, cast: { foot: 24 } },
+  { key: 'prop_palm_b', path: 'assets/props/prop_palm_b.png', name: 'PALM 2', block: { w: 50, h: 22 }, sway: 8, cast: { foot: 24 } },
+  { key: 'prop_palm_c', path: 'assets/props/prop_palm_c.png', name: 'GLAM PALM', block: { w: 50, h: 22 }, sway: 8, cast: { foot: 24 } },
+  { key: 'prop_skishack', path: 'assets/props/prop_skishack.png', name: 'JET-SKI SHACK', block: { w: 170, h: 50 }, shadow: true, cast: { box: true } },
+  { key: 'prop_castle_keep', path: 'assets/props/prop_castle_keep.png', name: 'CASTLE KEEP', block: { w: 240, h: 80 }, shadow: true, cast: { box: true } },
+  { key: 'prop_castle_turret', path: 'assets/props/prop_castle_turret.png', name: 'CASTLE TURRET', block: { w: 84, h: 36 }, shadow: true, cast: { box: true } },
+  { key: 'prop_castle_turret_b', path: 'assets/props/prop_castle_turret_b.png', name: 'CASTLE TURRET 2', block: { w: 110, h: 40 }, shadow: true, cast: { box: true } },
+  { key: 'prop_castle_turret_c', path: 'assets/props/prop_castle_turret_c.png', name: 'CASTLE TURRET 3', block: { w: 84, h: 36 }, shadow: true, cast: { box: true } },
   // A velvet rope (map `gates`), closed and unhooked.
   { key: 'prop_rope', path: 'assets/props/prop_rope.png', place: false },
   { key: 'prop_rope_open', path: 'assets/props/prop_rope_open.png', place: false },

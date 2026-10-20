@@ -13,6 +13,7 @@ import { CREW } from '../data/crew.js';
 import { MAPS } from '../data/maps/index.js';
 import { allStatuses, frontierTier, newlyOpened } from '../systems/progress.js';
 import { Save } from '../systems/save.js';
+import { DEBUG } from '../systems/debug.js';
 import { Audio } from '../systems/audio.js';
 import { Button } from '../ui/button.js';
 import { PhoneBadge } from '../ui/badge.js';
@@ -240,6 +241,8 @@ export default class OverworldScene extends Phaser.Scene {
       return { text: `LOCKED: clear ${TIER_NAMES[frontierTier(Save.cleared)]} first`, color: '#ff5c8a' };
     }
     if (status === 'cleared') return { text: 'CLEARED', color: COLORS.textGood };
+    // A region whose map is being built (the Isles) can be walked in debug mode before its villain exists.
+    if (!villain && wip(region)) return { text: 'WORK IN PROGRESS (debug). Tap ENTER to explore.', color: '#9fdcff' };
     if (!villain) return { text: "COMING SOON: this villain isn't written yet", color: COLORS.textDim };
     return { text: MAPS[region.id] ? 'OPEN. Tap ENTER to explore.' : 'OPEN. Tap ENTER to fight.', color: '#ffd166' };
   }
@@ -253,9 +256,9 @@ export default class OverworldScene extends Phaser.Scene {
     this.enterButton?.destroy();
     const p = MAP.panel;
     const b = MAP.enterButton;
-    const canFight = status !== 'locked' && !!villain;
+    const canFight = status !== 'locked' && (!!villain || wip(region));
     const rematch = status === 'cleared' && !MAPS[region.id]; // with a map, rematches start from the villain
-    const text = status === 'locked' ? 'LOCKED' : !villain ? 'SOON' : rematch ? 'REMATCH' : 'ENTER';
+    const text = status === 'locked' ? 'LOCKED' : !villain && !wip(region) ? 'SOON' : rematch ? 'REMATCH' : 'ENTER';
     this.enterButton = new Button(this, {
       x: p.x + p.w - 14 - b.w / 2,
       y: p.y + p.h / 2,
@@ -377,4 +380,9 @@ function dashedPath(g, points, fraction = 1) {
       }
     }
   }
+}
+
+/** A region with a map but no villain yet: only debug mode goes in. */
+function wip(region) {
+  return DEBUG.enabled && !!MAPS[region.id];
 }

@@ -1028,6 +1028,76 @@ async function main() {
       await page.context().close();
     }
 
+    // 5f. The jet ski (Influencer Isles): rent it from the dockhand, push the stick off the end of the
+    // dock to hop on and back to hop off, then tap the castle island and he plans the trip: walk, board,
+    // ride, land, walk.
+    {
+      const errors = [];
+      const page = await newPage(browser, errors);
+      await page.goto(`${base}?debug=1&canvas=1&region=isles&cash=1000&fast=1&weather=clear&time=16:00`);
+      await page.waitForFunction(() => window.__smm?.state().scene === 'Region', null, { timeout: 20_000 });
+      await sleep(600);
+      const scene = (fn) => page.evaluate((f) => new Function('s', f)(window.__smm.game.scene.getScene('Region')), fn);
+      const settle = async () => {
+        let s;
+        for (let i = 0; i < 400; i++) {
+          s = await state(page);
+          if (s.mode === 'talk') await tapGame(page, GAME_W / 2, 1170);
+          else if (!s.walking && !s.ride.hopping && !s.ride.planned) return s;
+          await sleep(150);
+        }
+        return s;
+      };
+      await walkNear(page, 'dockhand');
+      await scene('s.approach(s.npcs.find((n) => n.id === "dockhand"))');
+      let rented = false;
+      for (let i = 0; i < 40 && !rented; i++) {
+        const rent = (await state(page)).buttons.find((b) => b.text === 'RENT IT');
+        if (rent) {
+          await tapGame(page, rent.x, rent.y);
+          rented = true;
+        } else {
+          await tapGame(page, GAME_W / 2, 1170);
+          await sleep(250);
+        }
+      }
+      let s = await settle();
+      if (!s.ride.rented) failures.push('ride: the dockhand should rent out the jet ski');
+      if (s.cash !== 600) failures.push(`ride: the rental should cost $400 (cash ${s.cash})`);
+      // To the dock's tip, then push the stick up: off the end and onto the ski.
+      await scene('const b = s.map.bridges[0]; s.walkTo(b.x + b.w / 2, b.y + 34)');
+      s = await settle();
+      await touchDrag(page, s.stick, { x: s.stick.x, y: s.stick.y - s.stick.radius }, 1400);
+      s = await settle();
+      if (!s.ride.riding) failures.push('ride: pushing the stick off the dock should hop onto the jet ski');
+      const afloat = s.player;
+      await page.screenshot({ path: path.join(SHOTS, '19j-ride-board.png') });
+      await touchDrag(page, s.stick, { x: s.stick.x, y: s.stick.y + s.stick.radius }, 2500);
+      s = await settle();
+      if (s.ride.riding) failures.push(`ride: pushing back onto the dock should hop off (at ${s.player.x},${s.player.y}, from ${afloat.x},${afloat.y})`);
+      // Tap the castle island: walk, board, ride, land, walk.
+      const guard = s.npcs.find((n) => n.id === 'guard');
+      await scene('const g = s.npcs.find((n) => n.id === "guard"); s.walkTo(g.x + 60, g.y + 60)');
+      let rode = false;
+      for (let i = 0; i < 600; i++) {
+        s = await state(page);
+        if (s.ride.riding && s.walking && !rode) {
+          rode = true;
+          await sleep(500);
+          await page.screenshot({ path: path.join(SHOTS, '19k-ride-across.png') });
+        }
+        if (!s.walking && !s.ride.hopping && !s.ride.planned) break;
+        await sleep(150);
+      }
+      if (!rode) failures.push('ride: a tap across the water should ride there');
+      if (s.ride.riding) failures.push('ride: he should hop off at the far shore');
+      if (s.player.y > 1100) failures.push(`ride: he should end up on the castle island (at ${s.player.x},${s.player.y})`);
+      await page.screenshot({ path: path.join(SHOTS, '19l-ride-castle.png') });
+      console.log(`ride: rented the jet ski, hopped on and off the dock with the stick, rode to the castle (${s.player.x},${s.player.y}) near ${guard.id}`);
+      failures.push(...errors.map((x) => `ride: ${x}`));
+      await page.context().close();
+    }
+
     // 6. The journey: map -> walk the swamp to Derek -> fight -> back to the map with Tier 1 unlocked -> reload keeps it.
     {
       const errors = [];
@@ -1060,12 +1130,14 @@ async function main() {
       await page.screenshot({ path: path.join(SHOTS, '13-map-tier1.png') });
       const want = { start: 'cleared', isles: 'open', ratio: 'open', riviera: 'locked' };
       for (const [id, st] of Object.entries(want)) if (map.statuses[id] !== st) failures.push(`map: after the win ${id} should be ${st}, got ${map.statuses[id]}`);
-      if (!map.buttons.some((b) => b.text === 'SOON' && !b.enabled)) failures.push('map: an unwritten region should show a disabled SOON button');
+      // The Isles has a map being built and no villain yet: debug mode can walk in.
+      if (map.selected === 'isles' && !map.buttons.some((b) => b.text === 'ENTER' && b.enabled)) failures.push('map: in debug mode, the Isles (a map, no villain yet) should show ENTER');
 
       const [rx, ry] = map.nodes.ratio;
       await tapGame(page, rx, ry);
       await sleep(300);
       if ((await state(page)).selected !== 'ratio') failures.push('map: tapping Mount Ratio did not select it');
+      if (!(await state(page)).buttons.some((b) => b.text === 'SOON' && !b.enabled)) failures.push('map: an unwritten region should show a disabled SOON button');
 
       await page.reload();
       await page.waitForFunction(() => window.__smm?.state().scene === 'Overworld', null, { timeout: 20_000 });

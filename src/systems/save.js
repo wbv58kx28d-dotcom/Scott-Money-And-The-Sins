@@ -9,6 +9,7 @@
 // moments he's already bragged about; plus the phone apps people gave him
 // (the WIFI app) and the secrets he's found with them (Derek's hidden cellar);
 // and the Sin who walks behind him: the test toggle, and her jealousy (data/followers.js);
+// whether he's rented the jet ski (systems/ride.js);
 // and the regions' clock and weather (systems/sky.js).
 //
 // localStorage can be missing or throw (private browsing, blocked storage), so
@@ -35,6 +36,7 @@ const fresh = () => ({
   seq: 0, feedSeq: {}, mine: [], gates: [], bragged: [],
   apps: [], found: [],
   tryFollow: false, jealousy: {},
+  jetski: false,
   clock: DAY.startHour * 60, weather: null, // game minutes since the first day began; { kind, until }
 });
 const MINE_MAX = 40; // $cott's own posts kept in the feed
@@ -69,7 +71,7 @@ class SaveGame {
       }
     }
     const preset = DEBUG.cleared !== null || DEBUG.sins !== null || DEBUG.cash !== null || DEBUG.phone !== null || DEBUG.clout !== null
-      || DEBUG.apps !== null || DEBUG.found !== null
+      || DEBUG.apps !== null || DEBUG.found !== null || DEBUG.jetski
       || DEBUG.edit !== null; // playtesting a map in the editor never touches the real save
     this.persist = !preset;
     this.data = preset ? fresh() : read() ?? fresh();
@@ -81,6 +83,19 @@ class SaveGame {
     if (DEBUG.clout !== null) this.data.clout = DEBUG.clout;
     if (DEBUG.apps) this.data.apps = [...DEBUG.apps];
     if (DEBUG.found) this.data.found = [...DEBUG.found];
+    if (DEBUG.jetski) this.data.jetski = true;
+  }
+
+  // ---- The jet ski (systems/ride.js) ------------------------------------------------
+
+  /** Rented once at a dock, kept for good. */
+  get jetski() {
+    return this.data.jetski;
+  }
+
+  rentJetski() {
+    this.data.jetski = true;
+    this.flush();
   }
 
   // ---- Gifted apps and found secrets (the WIFI app, Derek's cellar) ----------------

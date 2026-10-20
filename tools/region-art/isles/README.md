@@ -1,6 +1,6 @@
 # Influencer Isles: art sources (in progress)
 
-Picked so far, step by step with the user. The Isles' own ground isn't wired into the game yet (no `art.json`, no `PROP_IMAGES` entries, no layout); the Sky Deck is (CLAUDE.md §6.6, `&region=isles_sky`).
+Picked step by step with the user. The Isles has a first map (`src/data/maps/isles.layout.js`, CLAUDE.md §6.6) with the jet ski, and the Sky Deck above the castle's keep.
 
 ## Direction
 - Islands dot a lagoon; $cott crosses between them on a **jet ski**.
@@ -16,6 +16,24 @@ Standard PixelLab top-down tilesets, 16 px, chained through the sand base tile (
 | `sand_marble` | `6db0a99a-0f8a-4bc0-8876-cfea2f71ff04` | cream marble paving with gold inlay for the castle grounds; square, 0 (marble base tile `fd1f3253-be39-4931-b192-db2488b0eb46`) |
 
 Passed over: a postcard turquoise and white-sand set (`d1406b24…`) and a pastel pink and lavender set (`d5dbb61b…`); both came back with their labels swapped.
+
+`art.json` wires them up for `python3 tools/region-art/tileset.py isles`: LAGOON (`w`), SAND (`s`, the base), LAWN (`g`) and MARBLE (`m`), the water darkening in bands toward the middle, soft patches on each, and the decals below.
+
+**Decals** (`decals/`, `create_image_pro` at 32×32, 64 candidates a round, a 64 px swatch of the `water_sand` tiles as the style image; the number in each file name is its candidate): beach litter, job `86f3eabb` (shells 0, 6, 16, conch 19, starfish 8 and 13, pebbles 40, seaweed 54, flip-flops 24, heart sunglasses 30, iced coffee 59, coconut 37, sandcastle 33, a gold coin 46, a palm frond 48, a lei 61; the big pink starfish 9 read head-sized and came out); on the lagoon, job `ffedec2c` (a flamingo float 1, a donut float 8, a rose 22, petals 21, a cork 32, a beach ball 42, lily pads 49 and 53, rubber swans 56, sparkles 63; foam rings 27 read as UI bubbles and came out).
+
+**The dock** (`bridge.png`): `create_image_pro` at 56×112, job `97521174` #0: teak planks, gold-capped posts, a pink rope coil, plain planks in the middle so it stretches.
+
+**Props** (`../props/`, a cypress as the style image for outline, detail and shading, not its palette): palms at 96×144, job `1a9c2cb4` (#0 `prop_palm`, #2 `prop_palm_b`, #1 `prop_palm_c`, pink-tinged with a gold garland; #3 had signs at its foot); the **jet-ski shack** at 112×96, job `7653a6cd` #1 (its sign reads JET-SKI), a straight-on front elevation from a composition guide (gable, awning, centered door). Passed over: beach umbrellas with loungers (`2eeabe14`, every lounger turned at an angle) and an empty parked jet ski (`8e99840a`, every candidate cut off at the canvas edge).
+
+**People** (`../standees/`, `standee.py`): Dockhand Dylan, job `7f3bf039` #3 (pink STAFF tank, clipboard, shades); the castle guard, job `581413d8` #6 (pink and gold tabard, a ring-light halberd, bored). Both at 48×72 with the jet ski's front as the style image and $cott's front frame for proportions.
+
+## The jet ski (`../jetski/`, baked by `python3 tools/region-art/jetski.py`)
+Glam pink and gold with a phone mount, drawn straight-on in three views (`create_image_pro`, 9 candidates each):
+| File | Job | Notes |
+|---|---|---|
+| `front.png` | `89764031` #4 | 72×72, his idle front frame as style image and identity reference; least baked-in spray |
+| `back.png` | `db0db924` #1 | 72×72, the front pick as the design reference and his back frame for identity; stripes and nozzle match |
+| `side.png` | `df4d9716` #3 | 84×72, plus his side frame and a flat side-elevation guide; came back nose-right (all nine did), mirrored by `jetski.py`; jacket flapping |
 
 ## Sky Deck (`../skydeck/`, `../skytowers/`)
 `python3 tools/region-art/skydeck.py` cuts the picked bridges (`picks/bridge_h.png`, `picks/bridge_v.png`) to one seamless segment each (`bridge_h.png`, `bridge.png`) and draws the lagoon below (`assets/vista/isles_below.png`); then `tileset.py skydeck`.

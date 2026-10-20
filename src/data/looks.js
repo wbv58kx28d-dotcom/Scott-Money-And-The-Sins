@@ -143,6 +143,16 @@ export const LOOKS = {
     },
   },
 
+  // The Influencer Isles: islands in a lagoon, on the same day and weather as the swamp, with a cooler
+  // edge to the dark (the lagoon's teal, not the bog's violet).
+  isles: {
+    ...SWAMP_AIR,
+    vignetteColor: 0x0a1a2c,
+    phases: DAY_PHASES,
+    weather: WEATHER,
+    sunPath: SUN_PATH,
+  },
+
   // Plain daylight: just shadows. Maps without a look of their own.
   day: { shadows: 0.3, lights: 0.35 },
 

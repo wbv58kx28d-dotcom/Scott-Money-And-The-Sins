@@ -9,7 +9,7 @@ export default {
   cols: 36,
   spawn: { x: 320, y: 876, facing: 'down' },
   exits: [
-    { to: 'map', x: 280, y: 928, w: 80, h: 32 },
+    { to: 'isles', x: 280, y: 928, w: 80, h: 32 },
   ],
   bridges: [
     { x: 356, y: 392, w: 384, h: 48 },

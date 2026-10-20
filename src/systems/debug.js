@@ -16,6 +16,7 @@
 //   &apps=wifi           preset gifted phone apps (in memory only)
 //   &found=start:derek_wifi
 //                        preset found secrets, like Derek's hidden cellar (in memory only)
+//   &jetski=1            $cott has already rented the jet ski (in memory only)
 //   &phone=smart         preset the phone model: flip or smart (in memory only)
 //   &title=1             show the title screen anyway (to test CONTINUE / START FRESH)
 //   &speed=4             run minigame clocks (day trade, property ladder) 4× faster
@@ -57,6 +58,7 @@ export const DEBUG = Object.freeze({
   clout: enabled && /^\d+$/.test(params.get('clout') ?? '') ? Number(params.get('clout')) : null,
   apps: list('apps'),
   found: list('found'),
+  jetski: flag('jetski'),
   title: flag('title'),
   canvas: flag('canvas'),
   noLightmap: enabled && params.get('lightmap') === '0',

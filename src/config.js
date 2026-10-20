@@ -125,3 +125,19 @@ export const FIELD = {
   // NPC is within `range` of $cott's feet; pressing it talks to the nearest one.
   talkButton: { x: 440, y: 1186, radius: 36, grab: 56, range: 170 },
 };
+
+// $cott's jet ski (CLAUDE.md §6.6, systems/ride.js): rented once at a dock, boarded from any shore.
+export const RIDE = {
+  speed: 430, // px per second on the water
+  clearance: 3, // water-grid cells kept between the hull and the shore
+  reach: 90, // how far across the shore (px) he can hop between land and the ski
+  pushMs: 140, // push the stick into the shore this long to hop on or off
+  hopMs: 280, // the hop itself
+  hopHeight: 26, // px he rises at the top of the hop
+  waterline: [8, 12], // art rows of hull under the water, swinging between these as it bobs (screen px)
+  bobMs: 1100, // one bob
+  wakeEveryPx: 22, // a puff of foam behind him every this many px ridden
+  wakeMs: 900, // how long a puff lasts
+  rippleMs: 1500, // standing still: a ring spreads out from the hull this often
+  price: 400, // what the dock charges (less if that's more than he has: never stuck on the first island)
+};
