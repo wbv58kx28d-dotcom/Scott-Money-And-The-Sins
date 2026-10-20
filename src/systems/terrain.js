@@ -23,6 +23,9 @@
 // `level` is below the ground's, so the far side of a hole shows a tall cliff
 // face down into it, like a crater; at the map's top edge nothing hangs. Any
 // terrain can meet it; cells mixing ground and void are drawn as the ground.
+// A void that doesn't block (the Sky Deck's 'o', TOWER TOP) is walkable but
+// still draws nothing: what's under the ground shows there instead (the tower
+// bodies, whose own rooftops are the floor).
 //
 // Water (a terrain marked `water`) sits a little below the ground: where
 // ground meets it on its far (north) side, a low earth bank hangs over the
@@ -80,11 +83,7 @@ export class Terrain {
     this.atLeast = {};
     for (let L = this.minLevel + 1; L <= this.maxLevel; L++) this.atLeast[L] = new Set(Object.keys(this.levels).filter((c) => this.levels[c] >= L));
     this.face = this.maxLevel > this.minLevel ? (tileset.cliff?.face ?? 48) : 0; // per level dropped
-    // A tileset's `endless` faces (the Sky Deck's tower walls) run from a rim over a drop all the
-    // way down: to the map's bottom, or until nearer ground as high hides them.
-    this.endless = !!tileset.cliff?.endless && this.voids.size > 0;
-    this.voidLevel = Math.max(...[...this.voids].map((c) => this.levels[c]), this.minLevel);
-    this.maxFace = this.endless ? this.rows * this.cell : this.face * (this.maxLevel - this.minLevel);
+    this.maxFace = this.face * (this.maxLevel - this.minLevel);
   }
 
   get width() {
@@ -274,9 +273,8 @@ export class Terrain {
   /**
    * Where cliff faces hang in a column of world x, from y0 to y1: [{ top,
    * height, full }] for each south-facing drop (higher ground above, lower
-   * below), its face from the rim down `face` px per level dropped (`full`;
-   * an endless face into a drop, to the map's bottom), or less where it
-   * reaches ground as high again. On the 2 px art grid.
+   * below), its face from the rim down `face` px per level dropped (`full`),
+   * or less where it reaches ground as high again. On the 2 px art grid.
    */
   facesAt(x, y0, y1) {
     const out = [];
@@ -286,7 +284,7 @@ export class Terrain {
     for (let y = start + 2; y < y1; y += 2) {
       const lv = this.levelAt(x, y);
       if (lv < prev) {
-        const full = this.endless && lv <= this.voidLevel ? this.rows * this.cell - y : this.face * (prev - lv);
+        const full = this.face * (prev - lv);
         let h = 0;
         while (h < full && this.levelAt(x, y + h) < prev) h += 2;
         out.push({ top: y, height: h, full });

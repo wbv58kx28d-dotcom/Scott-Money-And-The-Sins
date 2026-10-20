@@ -126,7 +126,8 @@ def main(name):
     colors = {}
     for c, t in spec['terrains'].items():
         if t.get('void'):  # a drop has no tiles: nothing is drawn there (systems/terrain.js)
-            colors[c] = '#0b0614'
+            # One you can walk on (the Sky Deck's tower tops, the floor drawn by the tower under it) shows pale.
+            colors[c] = '#0b0614' if t.get('blocks') else '#e8dcc8'
             continue
         solid = tiles[keys[c * 4][0]].convert('RGB').resize((1, 1), Image.BOX).getpixel((0, 0))
         colors[c] = '#%02x%02x%02x' % solid
@@ -170,14 +171,7 @@ def main(name):
         },
     }
     if 'cliff' in spec:
-        cliff = spec['cliff']
-        tileset['cliff'] = {'face': cliff['face'] * ART_PX}
-        # Faces into a drop that run all the way down (the Sky Deck's tower walls): the art's
-        # rows from `repeat` on repeat below its first copy, hazed by `haze` the deeper they go.
-        if cliff.get('endless'):
-            tileset['cliff'].update(endless=True, repeat=cliff.get('repeat', 0) * ART_PX)
-            if 'haze' in cliff:
-                tileset['cliff']['haze'] = {**cliff['haze'], 'over': cliff['haze']['over'] * ART_PX}
+        tileset['cliff'] = {'face': spec['cliff']['face'] * ART_PX}
     if 'bank' in spec:
         tileset['bank'] = {'face': spec['bank']['face'] * ART_PX}
     if 'depth' in spec:

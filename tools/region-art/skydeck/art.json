@@ -9,6 +9,11 @@
       "label": "ROSE HEDGE",
       "blocks": true
     },
+    "o": {
+      "name": "roof",
+      "label": "TOWER TOP",
+      "void": true
+    },
     "v": {
       "name": "drop",
       "label": "DROP",
@@ -24,12 +29,6 @@
   "grade": {
     "saturation": 1.0,
     "brightness": 1.0
-  },
-  "cliff": {
-    "face": 30,
-    "endless": true,
-    "repeat": 12,
-    "haze": { "color": "#dce8f6", "alpha": 0.4, "over": 360 }
   },
   "scatter": []
 }

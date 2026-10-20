@@ -120,7 +120,7 @@ export const LOOKS = {
   // (ui/vista.js BelowView): `image` is assets/vista/<image>.png (tools/region-art/skydeck.py),
   // `depth` how fast it moves with the ground, `haze` how much of the sky's color lies over
   // it; cloud layers drift between (`drift` px a second in a light wind, `size` a puff's
-  // radius in art px).
+  // radius in art px), and `wisps` cross in front of the towers' shafts.
   skydeck: {
     vignetteColor: 0x140c24,
     sporeColors: SWAMP_AIR.sporeColors,
@@ -137,6 +137,8 @@ export const LOOKS = {
           { depth: 0.45, drift: 6, count: 16, size: [10, 20], alpha: 0.75, seed: 3 },
           { depth: 0.7, drift: 12, count: 9, size: [14, 26], alpha: 0.92, seed: 9 },
         ],
+        // Puffs drifting across each tower's shaft, `below` px under its rooftop.
+        wisps: { count: 2, size: [9, 16], below: [380, 760], drift: [10, 22], alpha: 0.95 },
       },
     },
   },

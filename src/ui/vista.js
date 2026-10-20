@@ -138,36 +138,32 @@ export const belowImage = (name) => ({ key: `vista_${name}`, path: `assets/vista
 // A cloud's tones, lit top to shaded underside.
 const CLOUD = { top: '#ffffff', body: '#faf6fa', under: '#e6d6ee', base: '#cebade' };
 
-/**
- * A layer of clouds that tiles both ways: puffs (a few overlapping ovals each)
- * on the 2 px grid, wrapped at the edges, lit on top and lavender underneath.
- */
-function cloudsMask(spec) {
-  const rand = createRng(spec.seed ?? 3).random;
-  const N = TILE / PX;
-  const inside = new Uint8Array(N * N);
-  const [rmin, rmax] = spec.size;
-  for (let k = 0; k < spec.count; k++) {
-    const cx = rand() * N;
-    const cy = rand() * N;
-    const r = rmin + rand() * (rmax - rmin);
-    const blobs = [[0, 0, r]];
-    for (let b = 0; b < 5; b++) blobs.push([(rand() * 2 - 1) * r * 1.4, (rand() * 0.7 - 0.3) * r, r * (0.45 + rand() * 0.35)]);
-    for (const [bx, by, br] of blobs) {
-      for (let y = Math.floor(-br); y <= br; y++) {
-        const half = Math.sqrt(Math.max(0, br * br - (y * 1.35) ** 2));
-        for (let x = Math.floor(-half); x <= half; x++) {
-          const ix = ((Math.floor(cx + bx + x) % N) + N) % N;
-          const iy = ((Math.floor(cy + by + y) % N) + N) % N;
-          inside[iy * N + ix] = 1;
-        }
+/** Mark one puff (a few overlapping ovals, radius r art px, centered at cx, cy) in an N × M art-px grid, wrapping if asked. */
+function markPuff(inside, N, M, cx, cy, r, rand, wrap) {
+  const blobs = [[0, 0, r]];
+  for (let b = 0; b < 5; b++) blobs.push([(rand() * 2 - 1) * r * 1.4, (rand() * 0.7 - 0.3) * r, r * (0.45 + rand() * 0.35)]);
+  for (const [bx, by, br] of blobs) {
+    for (let y = Math.floor(-br); y <= br; y++) {
+      const half = Math.sqrt(Math.max(0, br * br - (y * 1.35) ** 2));
+      for (let x = Math.floor(-half); x <= half; x++) {
+        let ix = Math.floor(cx + bx + x);
+        let iy = Math.floor(cy + by + y);
+        if (wrap) {
+          ix = ((ix % N) + N) % N;
+          iy = ((iy % M) + M) % M;
+        } else if (ix < 0 || iy < 0 || ix >= N || iy >= M) continue;
+        inside[iy * N + ix] = 1;
       }
     }
   }
-  const c = canvas(TILE, TILE);
+}
+
+/** Paint the marked cells on the 2 px grid, lit on top and lavender underneath. */
+function paintCloud(inside, N, M, wrap) {
+  const c = canvas(N * PX, M * PX);
   const ctx = c.getContext('2d');
-  const at = (x, y) => inside[(((y % N) + N) % N) * N + (((x % N) + N) % N)];
-  for (let y = 0; y < N; y++) {
+  const at = (x, y) => (wrap ? inside[(((y % M) + M) % M) * N + (((x % N) + N) % N)] : x >= 0 && y >= 0 && x < N && y < M && inside[y * N + x]);
+  for (let y = 0; y < M; y++) {
     for (let x = 0; x < N; x++) {
       if (!at(x, y)) continue;
       ctx.fillStyle = !at(x, y - 1) ? CLOUD.top : !at(x, y + 1) ? CLOUD.base : !at(x, y + 2) ? CLOUD.under : CLOUD.body;
@@ -175,6 +171,26 @@ function cloudsMask(spec) {
     }
   }
   return c;
+}
+
+/** A layer of clouds that tiles both ways: puffs on the 2 px grid, wrapped at the edges. */
+function cloudsMask(spec) {
+  const rand = createRng(spec.seed ?? 3).random;
+  const N = TILE / PX;
+  const inside = new Uint8Array(N * N);
+  const [rmin, rmax] = spec.size;
+  for (let k = 0; k < spec.count; k++) markPuff(inside, N, N, rand() * N, rand() * N, rmin + rand() * (rmax - rmin), rand, true);
+  return paintCloud(inside, N, N, true);
+}
+
+/** One cloud puff on its own canvas (a wisp crossing a tower, BelowView.addWisps). */
+function puffCanvas(r, seed) {
+  const rand = createRng(seed).random;
+  const N = Math.ceil(r * 4.4) + 4;
+  const M = Math.ceil(r * 2) + 4;
+  const inside = new Uint8Array(N * M);
+  markPuff(inside, N, M, N / 2, M / 2, r, rand, false);
+  return paintCloud(inside, N, M, false);
 }
 
 /**
@@ -185,7 +201,8 @@ function cloudsMask(spec) {
  */
 export class BelowView {
   /**
-   * @param {object} spec  { image, depth, haze, clouds: [{ depth, drift, count, size: [min, max], alpha, seed }] }
+   * @param {object} spec  { image, depth, haze, clouds: [{ depth, drift, count, size: [min, max], alpha, seed }],
+   *                        wisps: { count, size, below: [min, max] (px under the rooftop), drift: [min, max] (px/s), alpha } }
    * @param {object} o     { depth: just under the ground }
    */
   constructor(scene, spec, { depth }) {
@@ -202,6 +219,33 @@ export class BelowView {
       return { ...l, sprite: pin(scene.add.tileSprite(0, 0, GAME_W, GAME_H, key), depth - 8 + k).setAlpha(l.alpha ?? 1) };
     });
     this.last = scene.time.now;
+    this.wisps = [];
+  }
+
+  /**
+   * Wisps of cloud drifting across each tower's shaft (`spec.wisps`), well below its rooftop: each
+   * puff crosses from one side to the other, fading in and out, then comes round again. Each sits
+   * just in front of its own tower and behind any nearer one (towers: { p, depth, w } from
+   * RegionScene.addTower).
+   */
+  addWisps(towers) {
+    const spec = this.spec.wisps;
+    if (!spec) return;
+    const rand = createRng(spec.seed ?? 21).random;
+    towers.forEach((t, i) => {
+      for (let k = 0; k < spec.count; k++) {
+        const key = `fx_wisp_${i}_${k}`;
+        if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
+        const [rmin, rmax] = spec.size;
+        this.scene.textures.addCanvas(key, puffCanvas(rmin + rand() * (rmax - rmin), 100 + i * 10 + k));
+        const [b0, b1] = spec.below;
+        this.wisps.push({
+          img: this.scene.add.image(t.p.x, t.p.y, key).setDepth(t.depth + 1e-4 * (k + 1)).setAlpha(0),
+          x: t.p.x, y: Math.round(t.p.y + b0 + rand() * (b1 - b0)), span: t.w * 1.5,
+          speed: spec.drift[0] + rand() * (spec.drift[1] - spec.drift[0]), at: rand(),
+        });
+      }
+    });
   }
 
   /** Scroll everything for the camera, drift the clouds with the wind, and tint the haze for the light. */
@@ -215,6 +259,11 @@ export class BelowView {
     this.land.tilePositionY = Math.round(cam.scrollY * this.spec.depth);
     const fog = light.fog ?? 0;
     this.haze.setFillStyle(light.sky.bottom, Math.min(0.85, (this.spec.haze ?? 0.35) + fog * 0.4));
+    // Each wisp crosses its tower, fading in and out, faster in wind.
+    for (const w of this.wisps) {
+      w.at = (w.at + (dt * w.speed * (0.4 + (light.wind ?? 0.35))) / w.span) % 1;
+      w.img.setPosition(Math.round((w.x + (w.at - 0.5) * w.span) / PX) * PX, w.y).setAlpha(Math.sin(Math.PI * w.at) * (this.spec.wisps.alpha ?? 1));
+    }
     for (const l of this.clouds) {
       // Whole art pixels only, so the clouds stay on the 2 px grid.
       l.sprite.tilePositionX = Math.round((cam.scrollX * l.depth - this.drift * l.drift) / PX) * PX;

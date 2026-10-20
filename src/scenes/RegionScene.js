@@ -34,7 +34,7 @@
 import { FIELD, LAYOUT, GAME_W, GAME_H } from '../config.js';
 import { TIMING } from '../data/rules.js';
 import { MAPS } from '../data/maps/index.js';
-import { FIELD_SHEETS, PROP_IMAGES, FX_SHEETS } from '../data/assets.js';
+import { FIELD_SHEETS, PROP_IMAGES, FX_SHEETS, propOrigin } from '../data/assets.js';
 import { regionById, TIER_NAMES } from '../data/regions.js';
 import { ENEMIES } from '../data/enemies/index.js';
 import { Save } from '../systems/save.js';
@@ -97,6 +97,8 @@ const EMOTE_GAP = 6;
 const BARK_MS = { base: 1600, perChar: 45, max: 4500 };
 
 const worldDepth = (y) => y - WORLD_DEPTH;
+// Tower bodies under the ground (props marked `under`): above the view down (ui/vista.js), below the ground.
+const UNDER_GROUND = -WORLD_DEPTH * 2 - 4;
 /** Is (x, y) on a body standing at `s` (its feet), in a hit box this big? */
 const onBody = (x, y, s, box) => Math.abs(x - s.x) <= box.w / 2 && y <= s.y + 10 && y >= s.y - box.h;
 
@@ -127,6 +129,7 @@ export default class RegionScene extends Phaser.Scene {
     for (const s of FIELD_SHEETS) if (s.path) this.load.spritesheet(s.key, s.path, { frameWidth: w, frameHeight: h });
     for (const s of FIELD_SHEETS) if (s.idle) this.load.spritesheet(`${s.key}_idle`, s.idle.path, { frameWidth: w, frameHeight: h });
     for (const p of PROP_IMAGES) if (p.path) this.load.image(p.key, p.path);
+    for (const p of PROP_IMAGES) if (p.band && this.map.props.some((q) => q.texture === p.key)) this.load.image(p.band.key, p.band.path);
   }
 
   create() {
@@ -199,7 +202,12 @@ export default class RegionScene extends Phaser.Scene {
     // Props tagged with a secret show once it's found; a `cover` shows until then (systems/secrets.js).
     this.secretProps = [];
     const propImages = [];
+    this.towers = [];
     for (const p of map.props) {
+      if (PROP_DEFS[p.texture]?.under) {
+        this.towers.push(this.addTower(p, PROP_DEFS[p.texture]));
+        continue;
+      }
       const sway = PROP_DEFS[p.texture]?.sway;
       const img = this.add.image(p.x, p.y, sway ? swaySheet(this, p.texture, sway) : p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
       if (sway) this.motion.sway(img);
@@ -208,6 +216,7 @@ export default class RegionScene extends Phaser.Scene {
       this.atmo.addProp(img, PROP_DEFS[p.texture]);
       if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });
     }
+    this.vista?.addWisps?.(this.towers);
     this.seeThrough = new SeeThrough(this, propImages);
     this.foreground = this.look.foreground
       ? new Foreground(this, this.look.foreground, { depth: OVER_WORLD - 0.5, props: map.props, terrain: this.terrain })
@@ -262,6 +271,28 @@ export default class RegionScene extends Phaser.Scene {
 
     this.follower = null;
     this.syncFollower();
+  }
+
+  /**
+   * A tower body under the ground (a prop marked `under`, the Sky Deck's): it hangs from its
+   * rooftop's floor (the layout point) over the drop, its band tiled below it down past the
+   * map's bottom, so it never ends on screen. Nearer towers (lower on the map) cover farther ones,
+   * and everything on the ground (the bridges, people) covers them all.
+   */
+  addTower(p, def) {
+    const src = this.textures.get(p.texture).getSourceImage();
+    const [ox, oy] = propOrigin(def, src.width, src.height);
+    const depth = UNDER_GROUND + p.y / (this.terrain.height + 1);
+    const img = this.add.image(p.x, p.y, p.texture).setOrigin(ox, oy).setDepth(depth);
+    const foot = Math.round(p.y + src.height * (1 - oy));
+    let band = null;
+    if (def.band && this.textures.exists(def.band.key)) {
+      const b = this.textures.get(def.band.key).getSourceImage();
+      const h = Math.max(0, this.terrain.height + GAME_H - foot);
+      band = this.add.tileSprite(Math.round(p.x - src.width * ox), foot, b.width, Math.ceil(h / b.height) * b.height, def.band.key)
+        .setOrigin(0).setDepth(depth - 1e-6);
+    }
+    return { p, img, band, depth, w: src.width };
   }
 
   /**

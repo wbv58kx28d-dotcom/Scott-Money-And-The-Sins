@@ -5,7 +5,7 @@ Picked so far, step by step with the user. The Isles' own ground isn't wired int
 ## Direction
 - Islands dot a lagoon; $cott crosses between them on a **jet ski**.
 - Envy (Lil' Turnt) holds court in a **fantasy princess castle**: a tall central keep linked to smaller turrets by **sky bridges**. She sees herself as a princess.
-- **Sky Deck (built as a test map):** the towers stand as tall props on their islands, and an elevator leads up to a separate rooftop map: the tower tops are platforms over a drop with the lagoon far below (a looking-down vista: the lagoon with two cloud layers drifting between, following the clock), joined by the bridges. The tower walls run off the bottom of the screen. Envy waits in the central keep's penthouse.
+- **Sky Deck (built as a test map):** the towers stand as tall props on their islands, and an elevator leads up to a separate rooftop map: the tower tops are platforms over a drop with the lagoon far below (a looking-down vista: the lagoon with two cloud layers drifting between, following the clock), joined by the bridges. Each tower is a generated body whose own rooftop is the floor, running off the bottom of the screen. Envy waits in the central keep's penthouse.
 
 ## Ground (`tiles/`), the "golden-hour" look
 Standard PixelLab top-down tilesets, 16 px, chained through the sand base tile (`03cc7f28-09c3-4f12-84ac-3d32d0885ad4`).
@@ -17,10 +17,20 @@ Standard PixelLab top-down tilesets, 16 px, chained through the sand base tile (
 
 Passed over: a postcard turquoise and white-sand set (`d1406b24…`) and a pastel pink and lavender set (`d5dbb61b…`); both came back with their labels swapped.
 
-## Sky Deck (`../skydeck/`)
-`python3 tools/region-art/skydeck.py` draws the tower wall (`cliff.png`), the bridges (`bridge.png`, `bridge_h.png`) and the lagoon below (`assets/vista/isles_below.png`); then `tileset.py skydeck`.
+## Sky Deck (`../skydeck/`, `../skytowers/`)
+`python3 tools/region-art/skydeck.py` draws the bridges (`bridge.png`, `bridge_h.png`) and the lagoon below (`assets/vista/isles_below.png`); then `tileset.py skydeck`.
 
-`marble_hedge` (`c224dc9d-d791-45b8-9705-6681a7e6926d`): the castle grounds' marble (chained from its base tile) with clipped rose-hedge planters, which ring each rooftop as railings. Passed over: pink flagstone with marble inlay (`d99c8432…`), and a sky-garden lawn ringed by clouds (`e50c4927…`).
+**Tower bodies** (`../skytowers/<name>.png`, baked by `python3 tools/region-art/skytowers.py` into `assets/skydeck/`): one tall `create_image_pro` image per tower (1 candidate at that size, 25 generations each), the tower's own rooftop at the top and its body plunging down past the bottom, with its exterior castle prop as the style image and the design reference, and a procedural silhouette (`../skytowers/guides/`, the turret's or the keep's) as the composition reference. Prompts asked for a corbelled crown, varied floors (arched galleries, balconies, banners, vines, a rose window, a clock on the keep), narrowing slightly toward the bottom, and no clouds (the game drifts its own wisps across). Two takes each; picks:
+| File | Job | From | Notes |
+|---|---|---|---|
+| `keep.png` | `bdb8b12d` | `prop_castle_keep` | gold crown ring around the railed rooftop, a clock, a rose window, banners, a gothic arcade lower down; 256×640 art px |
+| `turret.png` | `b0c3b6b3` | `prop_castle_turret` | arched gallery, balcony, banners, vines, rose window |
+| `rose.png` | `f421ce4c` | `prop_castle_turret_b` | draped in rose vines, an arched window with flower boxes |
+| `twin.png` | `3fc416fd` | `prop_castle_turret_c` | slim, side doorways near the top, gold filigree; the smallest top |
+
+Passed over: keep `2988a7dd` (its tiers widen going down), turret `e08a6d65`, rose `ee08f9f5`, twin `0ae40e01`; the first test turret `5b16a13b` (a baked-in cloud). Procedural bodies (stacked bands and windows drawn in code) and image-to-image passes over the guide (`create_image_pixflux`, 1 generation each) were tried first and didn't reach the castle art's look.
+
+`marble_hedge` (`c224dc9d-d791-45b8-9705-6681a7e6926d`): the castle grounds' marble (chained from its base tile) with clipped rose-hedge planters, for terraces painted onto the deck (the towers bring their own rooftops now). Passed over: pink flagstone with marble inlay (`d99c8432…`), and a sky-garden lawn ringed by clouds (`e50c4927…`).
 
 ## Castle props (`../props/`)
 All from `create_image_pro`, with the picked concept as both style image and reference. Concept round: job `cd0a41fb` ("pink fairytale keep + halo", 4 takes), picked over a cat-ear castle (`d8c77621`) and a mirror palace (`b74daef0`).

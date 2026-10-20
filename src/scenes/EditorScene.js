@@ -15,7 +15,7 @@
 // Two cameras: the map's (main, between the bars, zoomable) and the UI's on top.
 
 import { GAME_W, GAME_H, FIELD, COLORS } from '../config.js';
-import { FIELD_SHEETS, PROP_IMAGES } from '../data/assets.js';
+import { FIELD_SHEETS, PROP_IMAGES, propOrigin } from '../data/assets.js';
 import { LAYOUTS, CONTENT } from '../data/maps/index.js';
 import { regionById } from '../data/regions.js';
 import { Terrain } from '../systems/terrain.js';
@@ -34,6 +34,7 @@ const BOTTOM = 1000; // the tool panel starts here
 const VIEW = { x: 0, y: TOP, w: GAME_W, h: BOTTOM - TOP };
 const BAR = 0x120d22;
 const ACCENT = 0x9fdcff;
+const PROP_DEFS = Object.fromEntries(PROP_IMAGES.map((p) => [p.key, p]));
 const SEL = 0xffd166;
 const ZOOM = { min: 0.2, max: 2.5 };
 const UNDO_MAX = 60;
@@ -184,7 +185,8 @@ export default class EditorScene extends Phaser.Scene {
     const tex = (key) => this.textures.get(key).getSourceImage();
     L.props.forEach((p, index) => {
       const img = tex(p.texture);
-      out.push({ kind: 'prop', index, ref: p, bounds: { x: p.x - img.width / 2, y: p.y - img.height, w: img.width, h: img.height } });
+      const [ox, oy] = propOrigin(PROP_DEFS[p.texture], img.width, img.height);
+      out.push({ kind: 'prop', index, ref: p, bounds: { x: p.x - img.width * ox, y: p.y - img.height * oy, w: img.width, h: img.height } });
     });
     L.npcs.forEach((n, index) => out.push({ kind: 'npc', index, ref: n, bounds: { x: n.x - frame.w / 2, y: n.y - frame.h + 10, w: frame.w, h: frame.h - 10 } }));
     L.gates.forEach((g, index) => {
@@ -219,7 +221,10 @@ export default class EditorScene extends Phaser.Scene {
       add(label(this, e.x + e.w / 2, e.y - 6, `EXIT → ${e.to.toUpperCase()}`, 12, { color: '#9fdcff' }).setOrigin(0.5, 1).setDepth(1e6));
     }
     for (const p of L.props) {
-      const img = add(this.add.image(p.x, p.y, p.texture).setOrigin(0.5, 1).setDepth(p.y));
+      const def = PROP_DEFS[p.texture];
+      const src = this.textures.get(p.texture).getSourceImage();
+      // A tower body (`under`) hangs from its point under the ground; everything else stands on its feet.
+      const img = add(this.add.image(p.x, p.y, p.texture).setOrigin(...propOrigin(def, src.width, src.height)).setDepth(def?.under ? -1e7 - 1 + p.y * 1e-6 : p.y));
       if (p.label) add(signLabel(this, p, img).setDepth(p.y + 0.5));
     }
     for (const g of L.gates) {

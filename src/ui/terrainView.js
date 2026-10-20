@@ -21,8 +21,6 @@ const FOOT_SHADOW = [0.34, 0.3, 0.24, 0.18, 0.12, 0.07];
 const SIDE = 6;
 
 const key = (set, part) => `ts_${set}_${part}`;
-/** '#rrggbb' at an alpha, for a canvas fill. */
-const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
 
 /** In preload(): the tileset's json and images, if not loaded yet. */
 export function preloadTileset(scene, set) {
@@ -378,19 +376,15 @@ export class TerrainView {
     const faces = [];
     for (let x = -2; x <= w; x += 2) faces.push(terrain.facesAt(ox + x + 1, oy, oy + h));
     const hasFace = (k, f) => (faces[k] ?? []).some((g) => Math.abs(g.top - f.top) <= 4);
-    // An endless face (the Sky Deck's walls) repeats the art's rows from `repeat` on below its first copy.
-    const { haze } = terrain.tileset.cliff ?? {};
-    const repeat = (terrain.tileset.cliff?.repeat ?? 0) < img.height ? terrain.tileset.cliff?.repeat ?? 0 : 0;
     for (let x = 0; x < w; x += 2) {
       const sx = (ox + x) % img.width;
       const k = x / 2 + 1;
       for (const f of faces[k]) {
         const y = f.top - oy;
-        // A drop of more than one level stacks the strip (an endless face, its repeating rows).
-        for (let s = 0, sy = 0; s < f.height; sy = repeat) {
-          const sh = Math.min(img.height - sy, f.height - s);
-          ctx.drawImage(img, sx, sy, 2, sh, x, y + s, 2, sh);
-          s += sh;
+        // A drop of more than one level stacks the strip.
+        for (let s = 0; s < f.height; s += img.height) {
+          const sh = Math.min(img.height, f.height - s);
+          ctx.drawImage(img, sx, 0, 2, sh, x, y + s, 2, sh);
         }
         // Where the face ends (it turns the corner into a side wall), an ink edge, and shade beside it.
         const left = !hasFace(k - 1, f);
@@ -401,14 +395,6 @@ export class TerrainView {
         } else if (!hasFace(k - 2, f) || !hasFace(k + 2, f)) {
           ctx.fillStyle = 'rgba(18,13,28,0.35)';
           ctx.fillRect(x, y + 4, 2, f.height - 4);
-        }
-        // The deeper an endless wall runs, the more of the haze lies over it (it stays solid).
-        if (haze) {
-          const g = ctx.createLinearGradient(0, y, 0, y + haze.over);
-          g.addColorStop(0, 'rgba(0,0,0,0)');
-          g.addColorStop(1, rgba(haze.color, haze.alpha));
-          ctx.fillStyle = g;
-          ctx.fillRect(x, y, 2, f.height);
         }
         // A shadow at its foot, unless it ends in a drop (nothing there to cast it on).
         if (f.height === f.full && terrain.voidAt(ox + x + 1, f.top + f.height + 1) <= 0.5) {

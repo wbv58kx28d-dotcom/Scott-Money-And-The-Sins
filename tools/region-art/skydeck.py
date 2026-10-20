@@ -1,19 +1,14 @@
-"""Draw the Sky Deck's art: the walls under its rooftops, its bridges, and the lagoon far below.
+"""Draw the Sky Deck's art: its bridges and the lagoon far below.
 
     python3 tools/region-art/skydeck.py
 
 The Sky Deck (CLAUDE.md §6.6) is the top of Envy's castle: rooftops over a drop,
 joined by bridges, with the Influencer Isles far below. Drawn here rather than
 generated, since each piece has to tile exactly. Colors come from the castle's
-turrets (cream stone, pink bands, gold trim) and the rooftops' marble.
+turrets (cream stone, pink bands, gold trim) and the rooftops' marble. (The
+towers' bodies under the rooftops are PixelLab art: tools/region-art/isles/README.md.)
 
 tools/region-art/skydeck/:
-  cliff.png    (CLIFF_W x FACE art px) the castle wall hung under every rooftop's
-               south edge (ui/terrainView.js): a gold cornice and a pink band on top
-               (HEAD rows), then a floor of cream ashlar with window slits and a pink
-               band at its foot, which the game repeats all the way down (art.json's
-               cliff `endless` and `repeat`), so the towers run off the bottom of the
-               screen. Tiles sideways.
   bridge.png   a marble walkway running down the screen, gold rails on both sides;
                its middle rows repeat to any length.
   bridge_h.png the same running across the screen: a back rail, the deck, a front
@@ -36,73 +31,10 @@ from PIL import Image
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'tools', 'region-art', 'skydeck')
 
-CLIFF_W, HEAD, FACE = 64, 12, 60  # a floor of wall is FACE - HEAD rows
-
 INK = (21, 14, 9)
 GOLD = [(252, 251, 175), (247, 226, 120), (219, 161, 75), (160, 104, 48)]
 PINK = [(246, 139, 144), (220, 116, 124), (197, 96, 106)]
-STONE = (241, 233, 222)
-STONE_HI = (250, 246, 236)
-STONE_SHADE = (222, 206, 192)
-MORTAR = (209, 172, 156)
-WINDOW = [(123, 80, 96), (92, 58, 76)]
 MARBLE = [(251, 250, 236), (244, 239, 222), (229, 229, 217), (192, 179, 161)]
-
-def draw_cliff(seed=3):
-    """The castle wall under a rooftop: a cornice and a pink band (HEAD rows, drawn once),
-    then a floor of ashlar (the rest, repeated all the way down, with a pink band per floor)."""
-    rand = random.Random(seed)
-    im = Image.new('RGBA', (CLIFF_W, FACE))
-    px = im.load()
-    # Window slits, two per strip on different floors' courses, never on the seam.
-    windows = [(10, HEAD + 10), (42, HEAD + 26)]
-    for y in range(FACE):
-        for x in range(CLIFF_W):
-            if y == 0:
-                c = INK  # the rooftop's edge
-            elif y < 4:
-                c = GOLD[y - 1]  # the cornice
-            elif y == 4:
-                c = INK
-            elif y < 11:
-                c = PINK[0] if y < 7 else PINK[1] if y < 9 else PINK[2]  # the pink band under it
-            elif y == 11:
-                c = (165, 108, 113)
-            else:
-                # Ashlar: courses 8 rows tall, blocks 16 wide, every other course offset by 8
-                # (an even number of courses per floor, so the floor repeats seamlessly).
-                course = (y - HEAD) // 8
-                row = (y - HEAD) % 8
-                off = 8 if course % 2 else 0
-                if row == 7 or (x + off) % 16 == 15:
-                    c = MORTAR
-                elif row == 0:
-                    c = STONE_HI
-                elif row == 6 or (x + off) % 16 == 14:
-                    c = STONE_SHADE
-                else:
-                    c = STONE
-                # A pink band at the foot of each floor.
-                if FACE - 4 <= y:
-                    c = PINK[1] if y < FACE - 1 else PINK[2]
-            for wx, wy in windows:
-                dx, dy = x - wx, y - wy
-                if 0 <= dx < 6 and 0 <= dy < 14:
-                    if dy < 3 and (dx == 0 or dx == 5 or (dy == 0 and dx in (1, 4))):
-                        continue  # the arch's rounded top
-                    edge = dx in (0, 5) or dy == 13 or (dy < 3 and dx in (1, 4))
-                    c = (123, 80, 96) if edge else WINDOW[1] if dx > 2 else WINDOW[0]
-                    if dy == 13:
-                        c = GOLD[2]  # a sill
-            px[x, y] = c + (255,)
-    # A little weathering: a few darker flecks on the stone.
-    for _ in range(40):
-        x, y = rand.randrange(CLIFF_W), rand.randrange(HEAD + 1, FACE - 4)
-        r, g, b, a = px[x, y]
-        if (r, g, b) not in (MORTAR, WINDOW[0], WINDOW[1]):
-            px[x, y] = (round(r * 0.94), round(g * 0.94), round(b * 0.94), a)
-    return im
-
 
 def deck(x, y):
     """Marble slabs 8 art px square with gold inlay seams (repeats every 8 px both ways)."""
@@ -240,13 +172,12 @@ def torus(x0, y0, x1, y1, n):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    draw_cliff().save(os.path.join(OUT, 'cliff.png'))
     draw_bridge().save(os.path.join(OUT, 'bridge.png'))
     draw_bridge_h().save(os.path.join(OUT, 'bridge_h.png'))
     vista = os.path.join(ROOT, 'assets', 'vista')
     os.makedirs(vista, exist_ok=True)
     draw_below().save(os.path.join(vista, 'isles_below.png'), optimize=True)
-    print('skydeck: cliff, bridge, bridge_h; assets/vista/isles_below.png')
+    print('skydeck: bridge, bridge_h; assets/vista/isles_below.png')
 
 
 if __name__ == '__main__':
