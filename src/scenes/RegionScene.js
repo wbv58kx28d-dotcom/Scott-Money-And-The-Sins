@@ -273,7 +273,10 @@ export default class RegionScene extends Phaser.Scene {
     this.facing = spawn.facing;
     this.face(this.player, this.facing);
     this.atmo.follow(this.player);
-    this.ski = this.canRide ? new JetSkiView(this, this.player, { depth: -WORLD_DEPTH * 2 + 1 }) : null;
+    this.ski = this.canRide ? new JetSkiView(this, this.player, {
+      depth: -WORLD_DEPTH * 2 + 1,
+      wet: (x, y) => this.terrain.wetAt(x, y) && !map.bridges.some((b) => inRect(x, y, b)),
+    }) : null;
 
     this.tapMark = this.add.ellipse(0, 0, 36, 16).setStrokeStyle(3, 0xffffff, 0.9).setDepth(-WORLD_DEPTH * 2 + 1).setVisible(false);
 
@@ -730,6 +733,7 @@ export default class RegionScene extends Phaser.Scene {
     this.seeThrough.update(delta, this.player);
     this.foreground?.update();
     this.placeEmote();
+    this.ski?.tick(time);
     if (this.riding && this.mode !== 'hop') this.ski.update(time, delta, this.rode ?? 0, this.rodeX ?? 0, this.rodeY ?? 0, this.facing);
     this.rode = 0;
     if (this.mode !== 'explore') return;

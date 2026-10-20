@@ -1,23 +1,27 @@
 // $cott on his jet ski (CLAUDE.md §6.6, systems/ride.js): the ride sheet's
 // frame for each facing, the hull riding low in the water and bobbing while he
 // idles (the bottom rows cropped off at the waterline, so nothing is scaled),
-// a churn of foam at the waterline hiding the cut, a V of foam peeling off
-// behind him as he rides, and rings spreading out from the hull while he sits still. Foam and rings are drawn on the 2 px art grid,
-// flat on the water just above the ground layer, so the light map grades them.
+// a churn of foam at the waterline hiding the cut, waves spreading behind him
+// as he rides (ui/wake.js), and rings spreading out from the hull while he
+// sits still. Waves and rings are drawn on the 2 px art grid, flat on the
+// water just above the ground layer, so the light map grades them.
 
 import { RIDE } from '../config.js';
 import { RIDE_SHEET } from '../data/assets.js';
 import { facingFrame } from '../systems/fieldArt.js';
+import { Wake } from './wake.js';
 
-const FOAM = 'fx_ski_foam';
 // The churn at the waterline: as wide as the hull in each view (the side view's is long).
 const CHURN = { narrow: { key: 'fx_ski_churn', w: 64 }, wide: { key: 'fx_ski_churn_wide', w: 132 } };
 const RINGS = [20, 30, 40, 50]; // a ring's half-width at each step (px); each is 0.4 as tall
 const ringKey = (k) => `fx_ski_ring_${k}`;
 // Where the hull's bottom sits in a ride frame (tools/region-art/jetski.py WATERLINE, in screen px).
 const HULL_FOOT = 140;
-// How far behind his feet the stern is, by view: the side view's hull is long.
-const STERN = { down: 18, up: 18, left: 62, right: 62 };
+// The hull on the water, by view (measured from the ride sheet): how far its stern is behind the middle
+// of its footprint, and how far it reaches to each side. The side view's hull is long and thin.
+const HULL = { down: { back: 24, half: 26 }, up: { back: 24, half: 26 }, left: { back: 66, half: 6 }, right: { back: 66, half: 6 } };
+// The middle of the hull's footprint, above his feet (screen px).
+const HULL_RISE = 8;
 const WHITE = '#f4fbff';
 
 /** Fill an ellipse (or its rim) in 2 px squares. */
@@ -32,15 +36,8 @@ function pixelEllipse(ctx, cx, cy, rx, ry, rim = 0) {
 }
 
 function makeTextures(scene) {
-  if (scene.textures.exists(FOAM)) return;
-  const foam = scene.textures.createCanvas(FOAM, 24, 10);
-  let ctx = foam.getContext();
-  ctx.fillStyle = WHITE;
-  ctx.globalAlpha = 0.5;
-  pixelEllipse(ctx, 12, 5, 12, 5);
-  ctx.globalAlpha = 1;
-  pixelEllipse(ctx, 12, 5, 6, 3);
-  foam.refresh();
+  if (scene.textures.exists(CHURN.narrow.key)) return;
+  let ctx;
   for (const { key, w } of Object.values(CHURN)) {
     // A ring of foam around the hull's foot, thick at the sides, with a brighter rim.
     const churn = scene.textures.createCanvas(key, w, 14);
@@ -66,13 +63,14 @@ export class JetSkiView {
   /**
    * @param {Phaser.Scene} scene
    * @param {Phaser.GameObjects.Sprite} sprite  $cott's sprite (it swaps between his walk and ride sheets)
-   * @param {{ depth: number }} o  depth for the foam (flat on the water)
+   * @param {{ depth: number, wet: (x: number, y: number) => boolean }} o  depth for the foam (flat on the
+   *   water), and where open water is (the waves stop at a beach or a dock)
    */
-  constructor(scene, sprite, { depth }) {
+  constructor(scene, sprite, { depth, wet }) {
     Object.assign(this, { scene, sprite, depth });
     makeTextures(scene);
     this.churn = scene.add.image(sprite.x, sprite.y, CHURN.narrow.key).setOrigin(0.5, 0.5).setVisible(false);
-    this.since = 0; // px ridden since the last puff of foam
+    this.waves = new Wake(scene, { depth, wet });
     this.still = 0; // ms since he stopped
     this.ringAt = 0;
   }
@@ -89,13 +87,17 @@ export class JetSkiView {
   off() {
     this.sprite.setCrop();
     this.churn.setVisible(false);
-    this.since = 0;
     this.still = 0;
+  }
+
+  /** Every frame, riding or not: what's left of the waves keeps spreading and fading. */
+  tick(time) {
+    this.waves.draw(time);
   }
 
   /**
    * Each frame he's on the water: `moved` px this frame, heading (mx, my), facing. Moving, the hull
-   * planes higher and foam peels off the stern; sitting still, it bobs and rings spread out.
+   * planes higher and waves spread from the stern; sitting still, it bobs and rings spread out.
    */
   update(time, delta, moved, mx, my, facing) {
     const [lo, hi] = RIDE.waterline;
@@ -108,11 +110,7 @@ export class JetSkiView {
       .setAlpha(moved > 0.01 ? 0.95 : 0.55 + 0.25 * Math.sin((time / RIDE.bobMs) * Math.PI * 2));
     if (moved > 0.01) {
       this.still = 0;
-      this.since += moved;
-      if (this.since >= RIDE.wakeEveryPx) {
-        this.since = 0;
-        this.wake(mx, my, facing);
-      }
+      this.wake(time, mx, my, facing);
     } else {
       this.still += delta;
       if (this.still > 300 && time - this.ringAt > RIDE.rippleMs) {
@@ -122,23 +120,13 @@ export class JetSkiView {
     }
   }
 
-  /** Two puffs at the stern, drifting apart on either side of his track, fading. */
-  wake(mx, my, facing) {
+  /** Leave the stern's spot on the wake's trail (ui/wake.js). */
+  wake(time, mx, my, facing) {
     const len = Math.hypot(mx, my) || 1;
     const ux = mx / len;
     const uy = my / len;
-    const back = STERN[facing] ?? 20;
-    const sx = this.sprite.x - ux * back;
-    const sy = this.sprite.y - 6 - uy * back * 0.5;
-    for (const side of [-1, 1]) {
-      const px = -uy * side;
-      const py = ux * side;
-      const puff = this.scene.add.image(Math.round(sx + px * 14), Math.round(sy + py * 6), FOAM).setDepth(this.depth).setAlpha(0.9);
-      this.scene.tweens.add({
-        targets: puff, x: puff.x + px * 44, y: puff.y + py * 20, alpha: 0, duration: RIDE.wakeMs, ease: 'Quad.easeOut',
-        onComplete: () => puff.destroy(),
-      });
-    }
+    const { back, half } = HULL[facing] ?? HULL.down;
+    this.waves.add(this.sprite.x - ux * back, this.sprite.y - HULL_RISE - uy * back * 0.5, ux, uy, time, half);
   }
 
   /** A ring spreading out from the hull, step by step through the ring sizes, fading. */
