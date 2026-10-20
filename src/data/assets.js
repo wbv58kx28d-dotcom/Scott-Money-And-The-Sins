@@ -74,6 +74,9 @@ export const FIELD_SHEETS = [
 //           from their rooftop over a drop. `anchor` is the px in the image that lands on the
 //           layout's point (the middle of the rooftop's floor), `floor` the floor's half-width and
 //           half-height, and `band` an image tiled below the body down to the map's bottom.
+//   seeThrough false: never fades when $cott walks behind it (an arch you see him through anyway)
+//   pillars { dx, w, h }: instead of one footprint, one under each of two pillars `dx` either side
+//           of the feet, so the way between them stays open (a gate arch; systems/mapcheck.js)
 export const PROP_IMAGES = [
   { key: 'prop_cypress', path: 'assets/props/prop_cypress.png', name: 'CYPRESS', block: { w: 64, h: 24 }, sway: 8, cast: { foot: 20 } },
   { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png', name: 'CYPRESS 2', block: { w: 64, h: 24 }, sway: 8, cast: { foot: 24 } },
@@ -141,10 +144,11 @@ export const PROP_IMAGES = [
     key: `sky_${id}`, path: `assets/skydeck/sky_${id}.png`, name, under: true, cast: false,
     anchor: { x, y }, floor: { rx, ry }, band: { key: `sky_${id}_band`, path: `assets/skydeck/sky_${id}_band.png` },
   })),
-  // Gate arches where a Sky Deck bridge meets a rooftop: facing the camera for a bridge running
-  // down the screen, side-on for one running across. Stand one on the rim, at the bridge's mouth.
-  { key: 'prop_sky_gate', path: 'assets/props/prop_sky_gate.png', name: 'SKY GATE', shadow: true, cast: false },
-  { key: 'prop_sky_gate_side', path: 'assets/props/prop_sky_gate_side.png', name: 'SKY GATE (SIDE)', shadow: true, cast: false },
+  // Where a Sky Deck bridge meets a rooftop (CLAUDE.md §6.6), drawn straight-on: for a bridge running
+  // down the screen, a gate arch facing the camera on the rim (its `pillars` block, the way between them
+  // is open); for one running across, a pair of its pillars, one on each rail at the bridge's mouth.
+  { key: 'prop_sky_gate', path: 'assets/props/prop_sky_gate.png', name: 'SKY GATE', shadow: true, cast: false, seeThrough: false, pillars: { dx: 44, w: 16, h: 12 } },
+  { key: 'prop_sky_pillar', path: 'assets/props/prop_sky_pillar.png', name: 'SKY GATE PILLAR', shadow: true, cast: false, seeThrough: false },
   // A velvet rope (map `gates`), closed and unhooked.
   { key: 'prop_rope', path: 'assets/props/prop_rope.png', place: false },
   { key: 'prop_rope_open', path: 'assets/props/prop_rope_open.png', place: false },

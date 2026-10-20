@@ -213,7 +213,7 @@ export default class RegionScene extends Phaser.Scene {
       const sway = PROP_DEFS[p.texture]?.sway;
       const img = this.add.image(p.x, p.y, sway ? swaySheet(this, p.texture, sway) : p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
       if (sway) this.motion.sway(img);
-      propImages.push(img);
+      if (PROP_DEFS[p.texture]?.seeThrough !== false) propImages.push(img);
       const tag = p.label ? signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5) : null;
       this.atmo.addProp(img, PROP_DEFS[p.texture]);
       if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });

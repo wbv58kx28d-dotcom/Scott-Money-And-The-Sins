@@ -8,6 +8,7 @@ import { Terrain } from '../src/systems/terrain.js';
 import { checkMap, buildRegionGrid, reachable } from '../src/systems/mapcheck.js';
 import { mergeMap, layoutToSource, cloneLayout } from '../src/systems/mapfile.js';
 import { LAYOUTS, CONTENT, MAPS } from '../src/data/maps/index.js';
+import { PROP_IMAGES } from '../src/data/assets.js';
 
 const tileset = (set) => JSON.parse(fs.readFileSync(new URL(`../assets/regions/${set}/tileset.json`, import.meta.url)));
 
@@ -17,6 +18,20 @@ test('every committed map passes the map checks', () => {
     const { problems } = checkMap(map, terrain);
     const errors = problems.filter((p) => p.level === 'error');
     assert.deepEqual(errors, [], `${map.id}: ${errors.map((e) => e.msg).join('; ')}`);
+  }
+});
+
+test('every tower top (a prop drawn under the ground, the Sky Deck) can be walked to from the spawn', () => {
+  const under = new Set(PROP_IMAGES.filter((p) => p.under).map((p) => p.key));
+  for (const map of Object.values(MAPS)) {
+    const towers = map.props.filter((p) => under.has(p.texture));
+    if (!towers.length) continue;
+    const grid = buildRegionGrid(map, new Terrain(map.layout.terrain, tileset(map.tileset)));
+    const seen = reachable(grid, map.spawn);
+    for (const t of towers) {
+      const c = grid.nearestOpen(t.x, t.y, 6);
+      assert.ok(c && seen[c[1] * grid.cols + c[0]], `${map.id}: the ${t.texture} top at ${t.x}, ${t.y} is cut off`);
+    }
   }
 });
 
