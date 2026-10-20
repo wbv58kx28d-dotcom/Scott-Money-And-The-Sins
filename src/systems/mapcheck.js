@@ -6,13 +6,16 @@
 //     door and NPC with the ropes opened (a door can wait behind a rope);
 //   - every velvet rope closes something off (you can't just walk around it),
 //     and its bouncer can be reached without going through it;
-//   - nothing stands in the water, in the reeds, or off the map.
+//   - nothing stands in the water, in the reeds, or off the map;
+//   - on a map with a jet ski to rent (systems/ride.js), its dock is reachable on
+//     foot, and "reachable" for everything else counts riding across the water.
 // (Props are blocked by their `block` footprint, or a gate arch by its `pillars`.)
 // Pure (no Phaser), on top of systems/walkGrid.js and systems/terrain.js.
 
 import { FIELD } from '../config.js';
 import { PROP_IMAGES } from '../data/assets.js';
 import { WalkGrid } from './walkGrid.js';
+import { buildWaterGrid, hasJetski, reachableByRide, shorePairs } from './ride.js';
 
 const footprint = (x, y, b) => ({ x: x - b.w / 2, y: y - b.h / 2, w: b.w, h: b.h });
 // A prop with `pillars` (a gate arch, data/assets.js) blocks a footprint under each of its two
@@ -113,7 +116,16 @@ export function checkMap(map, terrain) {
   const closedGrid = buildRegionGrid(map, terrain);
   const openGrid = buildRegionGrid(map, terrain, { isClosed: () => false });
   const closed = reachable(closedGrid, map.spawn);
-  const open = reachable(openGrid, map.spawn);
+  let open = reachable(openGrid, map.spawn);
+  // With a jet ski, islands across the water count too, once he's rented it on foot.
+  const onFoot = open;
+  if (hasJetski(map)) {
+    const grids = { walk: openGrid, water: buildWaterGrid(map, terrain) };
+    open = reachableByRide(grids, shorePairs(grids.walk, grids.water, terrain), map.spawn).walk;
+    for (const n of map.npcs.filter((x) => x.rental)) {
+      if (!canReach(openGrid, onFoot, n.x, n.y, talk)) err(`${n.name} rents the jet ski, but can't be reached on foot.`, n.x, n.y);
+    }
+  }
 
   if (off(map.spawn)) err('The spawn is off the map.', map.spawn.x, map.spawn.y);
   else if (terrain.blocksAt(map.spawn.x, map.spawn.y)) err('The spawn is in the water or the reeds.', map.spawn.x, map.spawn.y);

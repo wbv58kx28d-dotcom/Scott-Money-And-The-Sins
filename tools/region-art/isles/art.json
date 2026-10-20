@@ -1,0 +1,190 @@
+{
+  "terrains": {
+    "w": {
+      "name": "water",
+      "label": "LAGOON",
+      "blocks": true,
+      "water": true
+    },
+    "s": {
+      "name": "sand",
+      "label": "SAND"
+    },
+    "g": {
+      "name": "grass",
+      "label": "LAWN"
+    },
+    "m": {
+      "name": "marble",
+      "label": "MARBLE"
+    }
+  },
+  "base": "s",
+  "pairs": [
+    "water_sand",
+    "sand_grass",
+    "sand_marble"
+  ],
+  "grade": {
+    "saturation": 1.0,
+    "brightness": 1.0
+  },
+  "depth": {
+    "color": "#0c4a66",
+    "blend": "multiply",
+    "fray": 8,
+    "steps": [
+      {
+        "at": 24,
+        "alpha": 0.18
+      },
+      {
+        "at": 64,
+        "alpha": 0.32
+      },
+      {
+        "at": 120,
+        "alpha": 0.46
+      }
+    ]
+  },
+  "patches": [
+    {
+      "on": [
+        "sand"
+      ],
+      "color": "#fff0c8",
+      "alpha": 0.22,
+      "scale": 9,
+      "cut": 0.6
+    },
+    {
+      "on": [
+        "sand"
+      ],
+      "color": "#c08850",
+      "alpha": 0.2,
+      "blend": "multiply",
+      "scale": 5,
+      "cut": 0.64
+    },
+    {
+      "on": [
+        "grass"
+      ],
+      "color": "#3e7a30",
+      "alpha": 0.3,
+      "blend": "multiply",
+      "scale": 6,
+      "cut": 0.6
+    },
+    {
+      "on": [
+        "grass"
+      ],
+      "color": "#f8e8a0",
+      "alpha": 0.14,
+      "scale": 10,
+      "cut": 0.62
+    },
+    {
+      "on": [
+        "water"
+      ],
+      "color": "#5ee0e0",
+      "alpha": 0.22,
+      "scale": 7,
+      "cut": 0.58
+    }
+  ],
+  "scatter": [
+    {
+      "on": "sand",
+      "files": [
+        "shell_00.png",
+        "shell_06.png",
+        "shell_16.png",
+        "conch_19.png"
+      ],
+      "density": 0.05
+    },
+    {
+      "on": "sand",
+      "files": [
+        "starfish_08.png",
+        "starfish_13.png"
+      ],
+      "density": 0.025
+    },
+    {
+      "on": "sand",
+      "files": [
+        "pebbles_40.png",
+        "seaweed_54.png"
+      ],
+      "density": 0.03
+    },
+    {
+      "on": "sand",
+      "files": [
+        "flipflops_24.png",
+        "sunnies_30.png",
+        "iced_59.png",
+        "coconut_37.png"
+      ],
+      "density": 0.008
+    },
+    {
+      "on": "sand",
+      "files": [
+        "sandcastle_33.png",
+        "coin_46.png"
+      ],
+      "density": 0.004
+    },
+    {
+      "on": "grass",
+      "files": [
+        "frond_48.png",
+        "coconut_37.png"
+      ],
+      "density": 0.012
+    },
+    {
+      "on": "grass",
+      "files": [
+        "lei_61.png",
+        "sunnies_30.png"
+      ],
+      "density": 0.004
+    },
+    {
+      "on": "water",
+      "files": [
+        "sparkle_63.png"
+      ],
+      "density": 0.012
+    },
+    {
+      "on": "water",
+      "files": [
+        "lilypad_49.png",
+        "lilypads_53.png",
+        "petals_21.png",
+        "rose_22.png"
+      ],
+      "density": 0.012
+    },
+    {
+      "on": "water",
+      "files": [
+        "flamingo_01.png",
+        "donut_08.png",
+        "ball_42.png",
+        "swans_56.png",
+        "cork_32.png"
+      ],
+      "density": 0.004
+    }
+  ]
+}

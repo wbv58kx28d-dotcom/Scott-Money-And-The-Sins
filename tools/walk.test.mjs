@@ -82,7 +82,7 @@ test('doors lead to a map in the same region, and there is a door back', () => {
       if (e.arrive) assert.ok(['down', 'up', 'left', 'right'].includes(e.arrive), `${id} -> ${e.to} arrive`);
     }
     // Every room behind a door can be reached from its region's own map. (A room in a region
-    // with no map of its own yet, like the Isles' Sky Deck, is a work in progress, reached by &region=.)
+    // with no map of its own yet would be a work in progress, reached by &region=.)
     if (map.region !== id && MAPS[map.region]) assert.ok(MAPS[map.region].exits.some((x) => x.to === id), `${id} has a door from ${map.region}`);
   }
 });

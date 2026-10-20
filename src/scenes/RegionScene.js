@@ -20,6 +20,12 @@
 // jealous when he talks to anyone else. Walking past people and landmarks she
 // has an opinion on, she sometimes barks a line in a bubble over her head.
 //
+// Where the map has a jet ski to rent (the Influencer Isles' dock, systems/ride.js),
+// $cott rents it once, then rides it from any shore: push the stick into the
+// water (or out of it onto land) to hop on or off, or tap across the water and
+// he plans the trip: walk to the best shore, ride, hop off, walk the rest. Lil'
+// Turnt stays out of sight while he rides (she's on the back, sulking).
+//
 // World objects are depth-sorted by their feet (depth = y - WORLD_DEPTH), so
 // everything in the world sits below the UI's ordinary depths. The map's look
 // (data/looks.js) grades and lights it, with shadows under everyone (ui/atmosphere.js);
@@ -31,10 +37,10 @@
 // everything (ui/seeThrough.js, ui/foreground.js). UI is created
 // inside ui(), which pins it to the screen.
 
-import { FIELD, LAYOUT, GAME_W, GAME_H } from '../config.js';
+import { FIELD, LAYOUT, GAME_W, GAME_H, RIDE } from '../config.js';
 import { TIMING } from '../data/rules.js';
 import { MAPS } from '../data/maps/index.js';
-import { FIELD_SHEETS, PROP_IMAGES, FX_SHEETS, propOrigin } from '../data/assets.js';
+import { FIELD_SHEETS, PROP_IMAGES, FX_SHEETS, RIDE_SHEET, propOrigin } from '../data/assets.js';
 import { regionById, TIER_NAMES } from '../data/regions.js';
 import { ENEMIES } from '../data/enemies/index.js';
 import { Save } from '../systems/save.js';
@@ -42,6 +48,7 @@ import { Audio } from '../systems/audio.js';
 import { DEBUG } from '../systems/debug.js';
 import { Terrain, hash } from '../systems/terrain.js';
 import { buildRegionGrid, inRect } from '../systems/mapcheck.js';
+import { buildWaterGrid, shorePairs, crossing, hopAhead, hasJetski } from '../systems/ride.js';
 import { present, secretSpots, secretKey, signal, heading } from '../systems/secrets.js';
 import { revealLines } from '../systems/intel.js';
 import { formatClout, fillIn } from '../systems/social.js';
@@ -60,6 +67,7 @@ import { Motion, swaySheet } from '../ui/motion.js';
 import { makeVista, belowImage } from '../ui/vista.js';
 import { Foreground } from '../ui/foreground.js';
 import { SeeThrough } from '../ui/seeThrough.js';
+import { JetSkiView } from '../ui/jetski.js';
 import { LOOKS, DEFAULT_LOOK, DAY } from '../data/looks.js';
 import { hourOf, parseTime, weatherAt, WEATHER_KINDS, DAY_MINUTES } from '../systems/sky.js';
 import { TapBus } from '../ui/tapBus.js';
@@ -131,14 +139,20 @@ export default class RegionScene extends Phaser.Scene {
     for (const s of FIELD_SHEETS) if (s.path) this.load.spritesheet(s.key, s.path, { frameWidth: w, frameHeight: h });
     for (const s of FIELD_SHEETS) if (s.idle) this.load.spritesheet(`${s.key}_idle`, s.idle.path, { frameWidth: w, frameHeight: h });
     for (const p of PROP_IMAGES) if (p.path) this.load.image(p.key, p.path);
+    if (hasJetski(this.map) && !this.textures.exists(RIDE_SHEET.key)) this.load.spritesheet(RIDE_SHEET.key, RIDE_SHEET.path, { frameWidth: RIDE_SHEET.w, frameHeight: RIDE_SHEET.h });
     for (const p of PROP_IMAGES) if (p.band && this.map.props.some((q) => q.texture === p.key)) this.load.image(p.band.key, p.band.path);
   }
 
   create() {
     this.buttons = new Set();
-    this.mode = 'explore'; // explore | talk | leaving
+    this.mode = 'explore'; // explore | talk | hop | leaving
     this.path = [];
     this.pendingNpc = null;
+    // The jet ski (systems/ride.js): riding, a hop to make at the end of the path, and how long the stick's pushed into a shore.
+    this.canRide = hasJetski(this.map) && this.textures.exists(RIDE_SHEET.key);
+    this.riding = false;
+    this.pendingHop = null;
+    this.pushMs = 0;
     this.dragging = false;
     this.lastAim = 0;
     // The scene object is reused (doors restart it; the phone's MAP app stops it), so nothing carries over.
@@ -259,6 +273,7 @@ export default class RegionScene extends Phaser.Scene {
     this.facing = spawn.facing;
     this.face(this.player, this.facing);
     this.atmo.follow(this.player);
+    this.ski = this.canRide ? new JetSkiView(this, this.player, { depth: -WORLD_DEPTH * 2 + 1 }) : null;
 
     this.tapMark = this.add.ellipse(0, 0, 36, 16).setStrokeStyle(3, 0xffffff, 0.9).setDepth(-WORLD_DEPTH * 2 + 1).setVisible(false);
 
@@ -405,6 +420,24 @@ export default class RegionScene extends Phaser.Scene {
   /** The walk grid (systems/mapcheck.js), with the ropes that are still up. Rebuilt when one opens. */
   buildGrid() {
     this.grid = buildRegionGrid(this.map, this.terrain, { isClosed: (g) => !this.gates.find((o) => o.id === g.id)?.unlocked });
+    if (hasJetski(this.map)) {
+      this.water = buildWaterGrid(this.map, this.terrain);
+      this.shores = shorePairs(this.grid, this.water, this.terrain);
+    }
+  }
+
+  /** The grid he moves on: the water's while he rides, the ground's on foot. */
+  moveGrid() {
+    return this.riding ? this.water : this.grid;
+  }
+
+  speed() {
+    return this.riding ? RIDE.speed : FIELD.speed;
+  }
+
+  /** Can he ride here, now: a map with a jet ski, and he's rented it. */
+  mayRide() {
+    return this.canRide && Save.jetski;
   }
 
   gateId(gate) {
@@ -418,15 +451,22 @@ export default class RegionScene extends Phaser.Scene {
   walker(x, y, sheet) {
     const sprite = this.add.sprite(Math.round(x), Math.round(y), sheet).setOrigin(0.5, 1).setDepth(worldDepth(y));
     sprite.sheet = sheet;
+    this.breathe(sprite);
+    return sprite;
+  }
+
+  /** Let a walker breathe while it stands (and play its idle action, data/assets.js). */
+  breathe(sprite) {
+    const { sheet } = sprite;
     let idle = FIELD_SHEETS.find((s) => s.key === sheet)?.idle;
     if (idle && this.textures.exists(`${sheet}_idle`)) idleActionAnims(this, sheet, idle);
     else idle = null;
     this.motion.breathe(sprite, sheet, FIELD.frame.w, FIELD.frame.h, idle);
-    return sprite;
   }
 
   /** Show a walker's idle frame for a facing (right mirrors left). */
   face(sprite, facing) {
+    if (sprite === this.player && this.riding) return this.ski.face(facing);
     const { row, flip } = facingFrame(facing);
     const sheet = sprite.sheet ?? sprite.texture.key;
     sprite.anims.stop();
@@ -499,7 +539,7 @@ export default class RegionScene extends Phaser.Scene {
     this.lastAim = this.time.now;
     const npc = this.npcAt(pointer.worldX, pointer.worldY);
     if (npc) this.approach(npc);
-    else if (this.followerAt(pointer.worldX, pointer.worldY)) this.talkToFollower();
+    else if (!this.riding && this.followerAt(pointer.worldX, pointer.worldY)) this.talkToFollower();
     else this.walkTo(pointer.worldX, pointer.worldY);
   }
 
@@ -527,8 +567,8 @@ export default class RegionScene extends Phaser.Scene {
     const npc = this.nearbyNpc();
     this.stick.release();
     if (npc) return this.approach(npc);
-    // Nobody else around: the follower's always close.
-    if (this.follower) return this.talkToFollower();
+    // Nobody else around: the follower's always close (on foot; riding, she's out of sight).
+    if (this.follower && !this.riding) return this.talkToFollower();
     Audio.sfx('blip');
   }
 
@@ -552,7 +592,8 @@ export default class RegionScene extends Phaser.Scene {
 
   walkTo(x, y, { quiet = false } = {}) {
     this.pendingNpc = null;
-    const path = this.grid.findPath({ x: this.player.x, y: this.player.y }, { x, y });
+    this.pendingHop = null;
+    const path = this.mayRide() ? this.planTrip({ x, y }) : this.grid.findPath({ x: this.player.x, y: this.player.y }, { x, y });
     this.path = path ?? [];
     if (!path) return false;
     if (!quiet) {
@@ -562,6 +603,107 @@ export default class RegionScene extends Phaser.Scene {
       this.tweens.add({ targets: this.tapMark, alpha: 0, scale: 0.4, duration: 450 });
     }
     return true;
+  }
+
+  /**
+   * With the jet ski: a path on the grid he's on now, to the tap, or to the best shore to hop
+   * across on the way (systems/ride.js crossing), with the hop and the rest of the trip saved in
+   * `pendingHop`. A tap on land on another island goes by water: board, then plan again afloat.
+   */
+  planTrip(to) {
+    const at = { x: this.player.x, y: this.player.y };
+    const grids = { walk: this.grid, water: this.water };
+    const onWater = !this.grid.walkableAt(to.x, to.y) && this.terrain.wetAt(to.x, to.y);
+    const here = this.moveGrid();
+    if (this.riding === onWater) {
+      // Same side: just go, if there's a way on this grid.
+      const path = here.findPath(at, to);
+      if (path && Math.hypot(path.at(-1).x - to.x, path.at(-1).y - to.y) < 60) return path;
+    }
+    const side = this.riding ? 'land' : 'board';
+    // Hopping onto the water for an island across it: aim the boarding at the water nearest the tap.
+    let goal = to;
+    if (side === 'board' && !onWater) {
+      const c = this.water.nearestOpen(to.x, to.y, 60);
+      if (c) goal = this.water.center(c[0], c[1]);
+    } else if (side === 'board') {
+      const c = this.water.nearestOpen(to.x, to.y, 6);
+      if (c) goal = this.water.center(c[0], c[1]);
+    }
+    const cross = crossing(this.shores, grids, side, at, goal);
+    if (!cross) return here.findPath(at, to);
+    this.pendingHop = { to: cross.to, then: to };
+    const path = here.findPath(at, cross.from);
+    return path?.length ? path : [cross.from];
+  }
+
+  /**
+   * Hop between land and the jet ski: a little jump arcing over the shore to `to`, the sheet swapping
+   * at the top. `then` is where to go next (the rest of a planned trip).
+   */
+  hop(to, then = null) {
+    const npc = this.pendingNpc;
+    this.mode = 'hop';
+    this.path = [];
+    this.pendingHop = null;
+    this.pushMs = 0;
+    const from = { x: this.player.x, y: this.player.y };
+    const boarding = !this.riding;
+    this.facing = facingOf(to.x - from.x, to.y - from.y) ?? this.facing;
+    this.player.anims.stop();
+    this.ski.churn.setVisible(false); // back once he's afloat (ui/jetski.js)
+    Audio.sfx('blip');
+    let swapped = false;
+    this.tweens.addCounter({
+      from: 0, to: 1, duration: RIDE.hopMs,
+      onUpdate: (tw) => {
+        const t = tw.getValue();
+        const x = from.x + (to.x - from.x) * t;
+        const y = from.y + (to.y - from.y) * t;
+        this.player.setPosition(Math.round(x), Math.round(y - Math.sin(Math.PI * t) * RIDE.hopHeight)).setDepth(worldDepth(y));
+        if (!swapped && t >= 0.5) {
+          swapped = true;
+          this.setRiding(boarding);
+        }
+      },
+      onComplete: () => {
+        this.player.setPosition(to.x, to.y).setDepth(worldDepth(to.y));
+        if (!swapped) this.setRiding(boarding);
+        this.face(this.player, this.facing);
+        if (boarding) this.ski.ripple();
+        Audio.sfx(boarding ? 'good' : 'blip');
+        if (this.mode === 'hop') this.mode = 'explore';
+        if (then && this.mode === 'explore') {
+          this.walkTo(then.x, then.y, { quiet: true });
+          this.pendingNpc = npc;
+        }
+      },
+    });
+  }
+
+  /** Swap between walking and riding: his sheet, his breathing, and Lil' Turnt (out of sight while he rides). */
+  setRiding(on) {
+    this.riding = on;
+    if (on) {
+      this.motion.forget(this.player);
+      this.ski.face(this.facing);
+    } else {
+      this.ski.off();
+      this.player.setTexture('field_scott');
+      this.breathe(this.player);
+      this.face(this.player, this.facing);
+    }
+    const f = this.follower;
+    if (!f) return;
+    f.sprite.setVisible(!on);
+    if (on) this.clearEmote();
+    else {
+      // Back on land, she hops off behind him.
+      f.trail = new Trail(f.data.gap, this.player, { facing: this.facing, bounds: this.map.size });
+      const { x, y } = f.trail.position();
+      f.sprite.setPosition(x, y).setDepth(worldDepth(y));
+      this.face(f.sprite, this.facing);
+    }
   }
 
   /** Walk up to an NPC (from $cott's side), then talk. */
@@ -588,11 +730,14 @@ export default class RegionScene extends Phaser.Scene {
     this.seeThrough.update(delta, this.player);
     this.foreground?.update();
     this.placeEmote();
+    if (this.riding && this.mode !== 'hop') this.ski.update(time, delta, this.rode ?? 0, this.rodeX ?? 0, this.rodeY ?? 0, this.facing);
+    this.rode = 0;
     if (this.mode !== 'explore') return;
     this.talkButton.setReady(!!this.nearbyNpc());
     if (this.stick.active) this.steer(delta);
     else if (this.path.length) this.walkPath(delta);
     else if (this.follower) this.follower.stillMs += delta;
+    if (this.riding) return;
     this.moveFollower(delta);
     this.checkBarks();
   }
@@ -639,7 +784,7 @@ export default class RegionScene extends Phaser.Scene {
 
   /** Tap-to-walk: follow the path, then leave, talk, or stop at its end. */
   walkPath(delta) {
-    let step = (FIELD.speed * delta) / 1000;
+    let step = (this.speed() * delta) / 1000;
     const moved = step;
     let mx = 0;
     let my = 0;
@@ -663,11 +808,12 @@ export default class RegionScene extends Phaser.Scene {
     }
     this.player.setDepth(worldDepth(this.player.y));
     const facing = facingOf(mx, my, this.facing);
-    if (facing) this.walkAnim(facing, moved - step, delta);
+    if (facing) this.walkAnim(facing, moved - step, delta, mx, my);
 
     const exit = this.exitAt();
     if (exit) return this.leave(exit);
     if (this.pendingNpc && this.closeTo(this.pendingNpc)) return this.talkTo(this.pendingNpc);
+    if (!this.path.length && this.pendingHop) return this.hop(this.pendingHop.to, this.pendingHop.then);
     if (!this.path.length) {
       this.face(this.player, this.facing);
       if (this.pendingNpc) this.pendingNpc = null; // couldn't get close enough
@@ -683,14 +829,15 @@ export default class RegionScene extends Phaser.Scene {
       return;
     }
     const { minSpeed } = FIELD.stick;
-    const step = (FIELD.speed * (minSpeed + (1 - minSpeed) * v.strength) * delta) / 1000;
+    const step = (this.speed() * (minSpeed + (1 - minSpeed) * v.strength) * delta) / 1000;
     const { x, y } = this.player;
+    const grid = this.moveGrid();
     const tries = [[v.x, v.y], [Math.sign(v.x), 0], [0, Math.sign(v.y)]];
     for (const [dx, dy] of tries) {
       if (!dx && !dy) continue;
       const nx = x + dx * step;
       const ny = y + dy * step;
-      if (this.grid.walkableAt(nx, ny)) {
+      if (grid.walkableAt(nx, ny)) {
         this.player.setPosition(nx, ny);
         break;
       }
@@ -698,9 +845,20 @@ export default class RegionScene extends Phaser.Scene {
     this.player.setDepth(worldDepth(this.player.y));
     const moved = Math.hypot(this.player.x - x, this.player.y - y);
     const facing = facingOf(v.x, v.y, this.facing) ?? this.facing;
-    // Pushing into a wall: turn that way, but no walking in place.
-    if (moved < 0.01) this.face(this.player, (this.facing = facing));
-    else this.walkAnim(facing, moved, delta);
+    // Pushing into a wall: turn that way, but no walking in place. Pushed into a shore a moment with
+    // the jet ski, he hops across it (onto the ski, or off it onto land).
+    if (moved < 0.01) {
+      this.face(this.player, (this.facing = facing));
+      this.pushMs = this.mayRide() ? this.pushMs + delta : 0;
+      if (this.pushMs >= RIDE.pushMs) {
+        this.pushMs = 0;
+        const to = hopAhead(this.riding ? this.grid : this.water, this.terrain, this.player, v);
+        if (to) return this.hop(to);
+      }
+    } else {
+      this.pushMs = 0;
+      this.walkAnim(facing, moved, delta, this.player.x - x, this.player.y - y);
+    }
     const exit = this.exitAt();
     if (exit) this.leave(exit);
   }
@@ -785,14 +943,23 @@ export default class RegionScene extends Phaser.Scene {
     walkPace(sprite, moved, delta);
   }
 
-  walkAnim(facing, moved, delta) {
-    this.playWalk(this.player, 'field_scott', facing, moved, delta);
+  walkAnim(facing, moved, delta, mx = 0, my = 0) {
     this.facing = facing;
+    if (this.riding) {
+      // On the ski: its frame for the facing; the bob and the wake follow how far he went (ui/jetski.js).
+      this.ski.face(facing);
+      this.rode = moved;
+      this.rodeX = mx;
+      this.rodeY = my;
+      return;
+    }
+    this.playWalk(this.player, 'field_scott', facing, moved, delta);
   }
 
   stop() {
     this.path = [];
     this.pendingNpc = null;
+    this.pendingHop = null;
     this.dragging = false;
     this.face(this.player, this.facing);
   }
@@ -821,6 +988,7 @@ export default class RegionScene extends Phaser.Scene {
     this.atmo.follow(sprite, 34, 66); // a kitten: narrower and shorter, so her shadows are too
     const barker = data.barks ? new Barker(data.barks, { now: this.time.now }) : null;
     this.follower = { id, data, trail, sprite, barker, facing: this.facing, moving: false, stillMs: 0 };
+    sprite.setVisible(!this.riding); // riding the jet ski, she's out of sight
     this.buildBarkTargets();
   }
 
@@ -979,6 +1147,7 @@ export default class RegionScene extends Phaser.Scene {
     await this.afterTalk(npc);
     this.dialog.hide();
     if (npc.challenge && !won) await this.offerChallenge(npc);
+    if (npc.rental) await this.offerRental(npc);
 
     if (npc.fight) {
       const enemy = ENEMIES[npc.fight];
@@ -1048,6 +1217,32 @@ export default class RegionScene extends Phaser.Scene {
     this.cameras.main.flash(160, 255, 209, 102);
     this.buildGrid();
     this.badge.refresh();
+  }
+
+  /**
+   * The jet-ski rental (systems/ride.js): rent it once and it's his for good. Short of the price,
+   * the dock takes whatever's in his wallet, so nobody's stuck on the first island.
+   */
+  async offerRental(npc) {
+    const r = npc.rental;
+    if (Save.jetski) {
+      await this.sayAll(r.have);
+      return this.dialog.hide();
+    }
+    const price = r.price ?? RIDE.price;
+    await this.sayAll(r.offer, { price: money(price) });
+    const choice = await this.ui(() => this.menu.choose([
+      { id: 'rent', text: 'RENT IT', sub: money(price), accent: GOLD, textColor: '#ffd166' },
+      { id: 'leave', text: 'NOT NOW', sub: 'Swimming is free. Allegedly.' },
+    ], { prompt: 'JET SKI RENTAL', columns: 2 }));
+    if (choice !== 'rent') return this.dialog.hide();
+    if (Save.cash < price) await this.sayAll(r.broke, { cash: money(Save.cash) });
+    Save.spend(Math.min(price, Save.cash));
+    Save.rentJetski();
+    Audio.sfx('crit');
+    this.cameras.main.flash(160, 255, 138, 216);
+    await this.sayAll(r.rented);
+    this.dialog.hide();
   }
 
   /** An NPC's save key (challenges won, who he's met, gifts given). */
@@ -1182,6 +1377,7 @@ export default class RegionScene extends Phaser.Scene {
       stick: { ...FIELD.stick, active: this.stick.active },
       talkButton: { ...FIELD.talkButton, ready: this.talkButton.ready, near: this.nearbyNpc()?.id ?? null },
       player: { x: Math.round(this.player.x), y: Math.round(this.player.y), facing: this.facing },
+      ride: this.canRide ? { rented: Save.jetski, riding: this.riding, hopping: this.mode === 'hop', planned: !!this.pendingHop } : null,
       npcs: this.npcs.map((n) => ({
         id: n.id, tap: screen(n.x, n.y - 60), challenge: !!n.challenge, won: !!n.challenge && Save.hasWon(this.npcKey(n)),
       })),
