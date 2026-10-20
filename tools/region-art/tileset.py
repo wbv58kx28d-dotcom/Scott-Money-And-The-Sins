@@ -11,11 +11,11 @@ Reads `tools/region-art/<set>/`:
                                which `scatter` decals go on which terrain, and optional
                                `bubbles` (animated fx_bubble pops on a terrain, Region scene); a terrain
                                marked `void` (a drop) needs no tiles
-    decals/*.png, bridge.png
+    decals/*.png, bridge.png, bridge_h.png (optional: a boardwalk running across the screen)
 
 and writes `assets/regions/<set>/`: tiles.png (every tile, color-graded, at the
 game's 2 screen px per art pixel), decals.png (the decals, packed), bridge.png
-(a boardwalk to stretch over water), cliff.png and bank.png (the faces hung
+(a boardwalk to stretch over water; bridge_h.png one running across, if the set has it), cliff.png and bank.png (the faces hung
 below high ground and over the water's far edges, from cliff.py) and stairs.png (steps up a cliff; both a transparent
 pixel when the set has none), and tileset.json, which the game
 (systems/terrain.js) reads to pick a tile for each cell from its four corners.
@@ -126,7 +126,8 @@ def main(name):
     colors = {}
     for c, t in spec['terrains'].items():
         if t.get('void'):  # a drop has no tiles: nothing is drawn there (systems/terrain.js)
-            colors[c] = '#0b0614'
+            # One you can walk on (the Sky Deck's tower tops, the floor drawn by the tower under it) shows pale.
+            colors[c] = '#0b0614' if t.get('blocks') else '#e8dcc8'
             continue
         solid = tiles[keys[c * 4][0]].convert('RGB').resize((1, 1), Image.BOX).getpixel((0, 0))
         colors[c] = '#%02x%02x%02x' % solid
@@ -149,10 +150,10 @@ def main(name):
     bridge = Image.open(os.path.join(src, 'bridge.png')).convert('RGBA')
     up(bridge.crop(bridge.getbbox())).save(os.path.join(out, 'bridge.png'), optimize=True)
     # The game loads these for every set, so a set without them gets an empty pixel.
-    for part in ('cliff', 'bank', 'stairs'):
+    for part in ('cliff', 'bank', 'stairs', 'bridge_h'):
         path = os.path.join(src, f'{part}.png')
         im = Image.open(path).convert('RGBA') if os.path.exists(path) else Image.new('RGBA', (1, 1))
-        if part == 'stairs' and im.getbbox():
+        if part == 'stairs' and im.getbbox():  # (bridge_h keeps its padding: its deck is centered in it)
             im = im.crop(im.getbbox())
         up(im).save(os.path.join(out, f'{part}.png'), optimize=True)
 
@@ -179,6 +180,9 @@ def main(name):
         tileset['patches'] = [{**p, 'on': [code[t] for t in p['on']]} for p in spec['patches']]
     if 'bubbles' in spec:
         tileset['bubbles'] = {**spec['bubbles'], 'on': code[spec['bubbles']['on']]}
+    if spec.get('bridges', {}).get('tile'):
+        # The bridge art is one seamless segment, repeated whole along a bridge (the Sky Deck's).
+        tileset['bridgeTile'] = True
     json.dump(tileset, open(os.path.join(out, 'tileset.json'), 'w'), separators=(',', ':'))
     print(f'{name}: {len(tiles)} tiles of {size * ART_PX}px, {len(frames)} decals, keys {len(keys)}')
 

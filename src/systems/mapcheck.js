@@ -7,12 +7,17 @@
 //   - every velvet rope closes something off (you can't just walk around it),
 //     and its bouncer can be reached without going through it;
 //   - nothing stands in the water, in the reeds, or off the map.
+// (Props are blocked by their `block` footprint, or a gate arch by its `pillars`.)
 // Pure (no Phaser), on top of systems/walkGrid.js and systems/terrain.js.
 
 import { FIELD } from '../config.js';
+import { PROP_IMAGES } from '../data/assets.js';
 import { WalkGrid } from './walkGrid.js';
 
 const footprint = (x, y, b) => ({ x: x - b.w / 2, y: y - b.h / 2, w: b.w, h: b.h });
+// A prop with `pillars` (a gate arch, data/assets.js) blocks a footprint under each of its two
+// pillars, `dx` either side of its feet, and leaves the way through between them open.
+const PILLARS = Object.fromEntries(PROP_IMAGES.filter((p) => p.pillars).map((p) => [p.key, p.pillars]));
 export const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
 /** Is a world point walkable ground: not water or reeds, or on a bridge or an exit? */
@@ -31,7 +36,11 @@ export function buildRegionGrid(map, terrain, { isClosed = () => true } = {}) {
   const cols = Math.ceil(map.size.w / cell);
   const rows = Math.ceil(map.size.h / cell);
   const grid = new WalkGrid(cols, rows, cell, (c, r) => groundWalkable(map, terrain, (c + 0.5) * cell, (r + 0.5) * cell));
-  for (const p of map.props) if (p.block?.w) grid.block(footprint(p.x, p.y, p.block));
+  for (const p of map.props) {
+    if (p.block?.w) grid.block(footprint(p.x, p.y, p.block));
+    const pillars = PILLARS[p.texture];
+    if (pillars) for (const side of [-1, 1]) grid.block(footprint(p.x + side * pillars.dx, p.y, pillars));
+  }
   for (const n of map.npcs) grid.block(footprint(n.x, n.y, FIELD.npcBlock));
   for (const g of map.gates) if (isClosed(g)) grid.block(footprint(g.x, g.y, g.block));
   return grid.erode(clearance);

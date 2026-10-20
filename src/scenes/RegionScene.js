@@ -34,7 +34,7 @@
 import { FIELD, LAYOUT, GAME_W, GAME_H } from '../config.js';
 import { TIMING } from '../data/rules.js';
 import { MAPS } from '../data/maps/index.js';
-import { FIELD_SHEETS, PROP_IMAGES, FX_SHEETS } from '../data/assets.js';
+import { FIELD_SHEETS, PROP_IMAGES, FX_SHEETS, propOrigin } from '../data/assets.js';
 import { regionById, TIER_NAMES } from '../data/regions.js';
 import { ENEMIES } from '../data/enemies/index.js';
 import { Save } from '../systems/save.js';
@@ -57,7 +57,7 @@ import { bakeProps, bakeWalkerSheet, walkerAnims, walkPace, idleActionAnims, fac
 import { TerrainView, preloadTileset, tilesetOf } from '../ui/terrainView.js';
 import { Atmosphere } from '../ui/atmosphere.js';
 import { Motion, swaySheet } from '../ui/motion.js';
-import { Vista } from '../ui/vista.js';
+import { makeVista, belowImage } from '../ui/vista.js';
 import { Foreground } from '../ui/foreground.js';
 import { SeeThrough } from '../ui/seeThrough.js';
 import { LOOKS, DEFAULT_LOOK, DAY } from '../data/looks.js';
@@ -97,6 +97,10 @@ const EMOTE_GAP = 6;
 const BARK_MS = { base: 1600, perChar: 45, max: 4500 };
 
 const worldDepth = (y) => y - WORLD_DEPTH;
+// Tower bodies under the ground (props marked `under`): above the view down (ui/vista.js), below the ground.
+const UNDER_GROUND = -WORLD_DEPTH * 2 - 4;
+// The shadow a Sky Deck bridge casts on the tower bodies behind it (RegionScene.shadedTower).
+const TOWER_SHADOW = { dx: 22, dy: 30, color: 'rgba(48, 18, 52, 0.38)' };
 /** Is (x, y) on a body standing at `s` (its feet), in a hit box this big? */
 const onBody = (x, y, s, box) => Math.abs(x - s.x) <= box.w / 2 && y <= s.y + 10 && y >= s.y - box.h;
 
@@ -119,11 +123,15 @@ export default class RegionScene extends Phaser.Scene {
   // Real art loads when src/data/assets.js lists it; any walker or prop missing is baked in create().
   preload() {
     preloadTileset(this, this.map.tileset);
+    // A look that looks straight down (the Sky Deck's) loads the land below.
+    const below = (LOOKS[DEBUG.look] ?? LOOKS[this.map.look])?.vista?.below;
+    if (below && !this.textures.exists(belowImage(below.image).key)) this.load.image(belowImage(below.image).key, belowImage(below.image).path);
     for (const f of FX_SHEETS) if (!this.textures.exists(f.key)) this.load.spritesheet(f.key, f.path, { frameWidth: f.w, frameHeight: f.h });
     const { w, h } = FIELD.frame;
     for (const s of FIELD_SHEETS) if (s.path) this.load.spritesheet(s.key, s.path, { frameWidth: w, frameHeight: h });
     for (const s of FIELD_SHEETS) if (s.idle) this.load.spritesheet(`${s.key}_idle`, s.idle.path, { frameWidth: w, frameHeight: h });
     for (const p of PROP_IMAGES) if (p.path) this.load.image(p.key, p.path);
+    for (const p of PROP_IMAGES) if (p.band && this.map.props.some((q) => q.texture === p.key)) this.load.image(p.band.key, p.band.path);
   }
 
   create() {
@@ -186,9 +194,9 @@ export default class RegionScene extends Phaser.Scene {
       ground: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain, hour: this.hour(), weather: this.weatherNow(),
       lightmap: !DEBUG.noLightmap,
     });
-    // The view past a drop at the map's top edge (ui/vista.js), if the look has one and the map has a drop.
+    // The view past a drop (ui/vista.js): out past the map's top edge, or straight down from a floating map.
     this.vista = this.look.vista && this.terrain.voids.size
-      ? new Vista(this, this.look.vista, { depth: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain })
+      ? makeVista(this, this.look.vista, { depth: -WORLD_DEPTH * 2, over: OVER_WORLD, terrain: this.terrain })
       : null;
 
     this.motion = new Motion(this, { rand: createRng(13).random });
@@ -196,15 +204,21 @@ export default class RegionScene extends Phaser.Scene {
     // Props tagged with a secret show once it's found; a `cover` shows until then (systems/secrets.js).
     this.secretProps = [];
     const propImages = [];
+    this.towers = [];
     for (const p of map.props) {
+      if (PROP_DEFS[p.texture]?.under) {
+        this.towers.push(this.addTower(p, PROP_DEFS[p.texture]));
+        continue;
+      }
       const sway = PROP_DEFS[p.texture]?.sway;
       const img = this.add.image(p.x, p.y, sway ? swaySheet(this, p.texture, sway) : p.texture).setOrigin(0.5, 1).setDepth(worldDepth(p.y));
       if (sway) this.motion.sway(img);
-      propImages.push(img);
+      if (PROP_DEFS[p.texture]?.seeThrough !== false) propImages.push(img);
       const tag = p.label ? signLabel(this, p, img).setDepth(worldDepth(p.y) + 0.5) : null;
       this.atmo.addProp(img, PROP_DEFS[p.texture]);
       if (p.secret || p.cover) this.secretProps.push({ p, objs: [img, tag].filter(Boolean) });
     }
+    this.vista?.addWisps?.(this.towers);
     this.seeThrough = new SeeThrough(this, propImages);
     this.foreground = this.look.foreground
       ? new Foreground(this, this.look.foreground, { depth: OVER_WORLD - 0.5, props: map.props, terrain: this.terrain })
@@ -259,6 +273,73 @@ export default class RegionScene extends Phaser.Scene {
 
     this.follower = null;
     this.syncFollower();
+  }
+
+  /**
+   * A tower body under the ground (a prop marked `under`, the Sky Deck's): it hangs from its
+   * rooftop's floor (the layout point) over the drop, its band tiled below it down past the
+   * map's bottom, so it never ends on screen. Nearer towers (lower on the map) cover farther ones,
+   * and everything on the ground (the bridges, people) covers them all.
+   */
+  addTower(p, def) {
+    const src = this.textures.get(p.texture).getSourceImage();
+    const [ox, oy] = propOrigin(def, src.width, src.height);
+    const depth = UNDER_GROUND + p.y / (this.terrain.height + 1);
+    const img = this.add.image(p.x, p.y, this.shadedTower(p, def, src, ox, oy)).setOrigin(ox, oy).setDepth(depth);
+    const foot = Math.round(p.y + src.height * (1 - oy));
+    let band = null;
+    if (def.band && this.textures.exists(def.band.key)) {
+      const b = this.textures.get(def.band.key).getSourceImage();
+      const h = Math.max(0, this.terrain.height + GAME_H - foot);
+      band = this.add.tileSprite(Math.round(p.x - src.width * ox), foot, b.width, Math.ceil(h / b.height) * b.height, def.band.key)
+        .setOrigin(0).setDepth(depth - 1e-6);
+    }
+    return { p, img, band, depth, w: src.width };
+  }
+
+  /**
+   * A tower body with the bridges' shadows on it: each bridge's art (as wide as it's drawn), pushed
+   * right and down (TOWER_SHADOW), darkens the tower's own walls, so a bridge reads as standing out
+   * in front of the towers it crosses rather than painted on them. The tower's rooftop floor stays
+   * unshaded. Its own texture, freed with the scene.
+   */
+  shadedTower(p, def, src, ox, oy) {
+    const left = p.x - src.width * ox;
+    const top = p.y - src.height * oy;
+    const { dx, dy } = TOWER_SHADOW;
+    // Each bridge as drawn (ui/terrainView.js centers its art across the rect).
+    const drawn = this.map.bridges.filter((b) => b.kind !== 'stairs').map((b) => {
+      if (b.w > b.h) {
+        const ih = this.ground.bridgeHImg.height;
+        return { x: b.x, y: b.y + b.h / 2 - ih / 2, w: b.w, h: ih };
+      }
+      const iw = this.ground.bridgeImg.width;
+      return { x: b.x + b.w / 2 - iw / 2, y: b.y, w: iw, h: b.h };
+    });
+    const hits = drawn.filter((r) => r.x + dx < left + src.width && r.x + r.w + dx > left && r.y + dy < top + src.height && r.y + r.h + dy > top);
+    if (!hits.length) return p.texture;
+    const key = `${p.texture}_shaded_${Math.round(p.x)}_${Math.round(p.y)}`;
+    if (this.textures.exists(key)) this.textures.remove(key);
+    const tex = this.textures.createCanvas(key, src.width, src.height);
+    const ctx = tex.getContext();
+    ctx.drawImage(src, 0, 0);
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = TOWER_SHADOW.color;
+    for (const r of hits) ctx.fillRect(Math.round(r.x + dx - left), Math.round(r.y + dy - top), Math.round(r.w), Math.round(r.h));
+    // The rooftop floor is level and open to the sky: put it back as it was.
+    if (def.anchor && def.floor) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(def.anchor.x, def.anchor.y, def.floor.rx + 8, def.floor.ry + 8, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.clearRect(0, 0, src.width, src.height);
+      ctx.drawImage(src, 0, 0);
+      ctx.restore();
+    }
+    tex.refresh();
+    this.events.once('shutdown', () => this.textures.exists(key) && this.textures.remove(key));
+    return key;
   }
 
   /**

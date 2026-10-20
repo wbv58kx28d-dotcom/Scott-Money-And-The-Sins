@@ -61,6 +61,22 @@ const DUSK = {
   sky: { top: 0x2a1c5a, bottom: 0xe0609a },
 };
 
+// The day's round: night, dawn, day, golden hour, dusk, and night again.
+const DAY_PHASES = [
+  { at: 0, ...NIGHT },
+  { at: 4.5, ...NIGHT },
+  { at: 6.5, ...DAWN },
+  { at: 9, ...DAY_LIGHT },
+  { at: 16, ...DAY_LIGHT },
+  { at: 18, ...SUNSET },
+  { at: 19.5, ...DUSK },
+  { at: 21.5, ...NIGHT },
+];
+const WEATHER = { odds: { clear: 6, fog: 3, rain: 2, storm: 1 }, hours: [2, 5] };
+// The sun's way across the sky, for shadows that point (systems/sky.js sunShadow): up in
+// the east at 6, highest (62° up) in the north at midday, down in the west at 19:30.
+const SUN_PATH = { rise: 6, set: 19.5, peak: 62 };
+
 const SWAMP_AIR = {
   vignetteColor: 0x14081e,
   fireflyColors: [0xfff07a, 0xc8ff6a, 0xffb0e0],
@@ -74,20 +90,9 @@ export const LOOKS = {
   // The swamp's day: night, dawn, day, golden hour, dusk, and round again; with weather.
   swamp: {
     ...SWAMP_AIR,
-    phases: [
-      { at: 0, ...NIGHT },
-      { at: 4.5, ...NIGHT },
-      { at: 6.5, ...DAWN },
-      { at: 9, ...DAY_LIGHT },
-      { at: 16, ...DAY_LIGHT },
-      { at: 18, ...SUNSET },
-      { at: 19.5, ...DUSK },
-      { at: 21.5, ...NIGHT },
-    ],
-    weather: { odds: { clear: 6, fog: 3, rain: 2, storm: 1 }, hours: [2, 5] },
-    // The sun's way across the sky, for shadows that point (systems/sky.js sunShadow): up in
-    // the east at 6, highest (62° up) in the north at midday, down in the west at 19:30.
-    sunPath: { rise: 6, set: 19.5, peak: 62 },
+    phases: DAY_PHASES,
+    weather: WEATHER,
+    sunPath: SUN_PATH,
     // Past the cliff at the map's top edge: the financial district the stonk bros can't
     // afford, over misty hills and the swamp's own treeline (ui/vista.js). `depth` is how
     // fast a layer moves with the ground, `rise` how far above the cliff edge its skyline
@@ -107,6 +112,34 @@ export const LOOKS = {
         { kind: 'hills', depth: 0.2, rise: 130, height: 120, color: 0x261a34, haze: 0.32, mist: 0.6, seed: 9 },
         { kind: 'trees', depth: 0.4, rise: 40, height: 110, color: 0x140c1e, haze: 0.12, mist: 0.45, seed: 13 },
       ],
+    },
+  },
+
+  // The Sky Deck, on top of Envy's castle: the same day and weather, no fireflies or
+  // water mist this high up. Past every rooftop's edge, the Influencer Isles far below
+  // (ui/vista.js BelowView): `image` is assets/vista/<image>.png (tools/region-art/skydeck.py),
+  // `depth` how fast it moves with the ground, `haze` how much of the sky's color lies over
+  // it; cloud layers drift between (`drift` px a second in a light wind, `size` a puff's
+  // radius in art px), and `wisps` cross in front of the towers' shafts.
+  skydeck: {
+    vignetteColor: 0x140c24,
+    sporeColors: SWAMP_AIR.sporeColors,
+    motes: 16,
+    phases: DAY_PHASES.map((p) => ({ ...p, fireflies: 0, mist: 0 })),
+    weather: WEATHER,
+    sunPath: SUN_PATH,
+    vista: {
+      below: {
+        image: 'isles_below',
+        depth: 0.22,
+        haze: 0.34,
+        clouds: [
+          { depth: 0.45, drift: 6, count: 16, size: [10, 20], alpha: 0.75, seed: 3 },
+          { depth: 0.7, drift: 12, count: 9, size: [14, 26], alpha: 0.92, seed: 9 },
+        ],
+        // Puffs drifting across each tower's shaft, `below` px under its rooftop.
+        wisps: { count: 2, size: [9, 16], below: [380, 760], drift: [10, 22], alpha: 0.95 },
+      },
     },
   },
 

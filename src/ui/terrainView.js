@@ -26,7 +26,7 @@ const key = (set, part) => `ts_${set}_${part}`;
 export function preloadTileset(scene, set) {
   const dir = `assets/regions/${set}`;
   if (!scene.cache.json.exists(key(set, 'json'))) scene.load.json(key(set, 'json'), `${dir}/tileset.json`);
-  for (const part of ['tiles', 'decals', 'bridge', 'cliff', 'bank', 'stairs']) {
+  for (const part of ['tiles', 'decals', 'bridge', 'bridge_h', 'cliff', 'bank', 'stairs']) {
     if (!scene.textures.exists(key(set, part))) scene.load.image(key(set, part), `${dir}/${part}.png`);
   }
 }
@@ -51,6 +51,7 @@ export class TerrainView {
     this.tiles = scene.textures.get(key(set, 'tiles')).getSourceImage();
     this.decals = scene.textures.get(key(set, 'decals')).getSourceImage();
     this.bridgeImg = scene.textures.get(key(set, 'bridge')).getSourceImage();
+    this.bridgeHImg = scene.textures.get(key(set, 'bridge_h')).getSourceImage();
     this.stairsImg = scene.textures.get(key(set, 'stairs')).getSourceImage();
     this.cliffImg = scene.textures.get(key(set, 'cliff')).getSourceImage();
     this.bankImg = scene.textures.get(key(set, 'bank')).getSourceImage();
@@ -395,7 +396,8 @@ export class TerrainView {
           ctx.fillStyle = 'rgba(18,13,28,0.35)';
           ctx.fillRect(x, y + 4, 2, f.height - 4);
         }
-        if (f.height === f.full) {
+        // A shadow at its foot, unless it ends in a drop (nothing there to cast it on).
+        if (f.height === f.full && terrain.voidAt(ox + x + 1, f.top + f.height + 1) <= 0.5) {
           FOOT_SHADOW.forEach((a, r) => {
             if (r % 2 && (x / 2) % 2) return; // dithered toward the bottom
             ctx.fillStyle = `rgba(10, 6, 16, ${a})`;
@@ -412,6 +414,14 @@ export class TerrainView {
    * plank rows (never by scaling pixels).
    */
   drawBridge(ctx, b, ox, oy, w, h) {
+    if (b.kind !== 'stairs' && this.terrain.tileset.bridgeTile) {
+      this.drawBridgeTiled(ctx, b, ox, oy, w, h);
+      return;
+    }
+    if (b.kind !== 'stairs' && b.w > b.h && this.bridgeHImg.width > 1) {
+      this.drawBridgeAcross(ctx, b, ox, oy, w, h);
+      return;
+    }
     const img = b.kind === 'stairs' ? this.stairsImg : this.bridgeImg;
     const x = Math.round(b.x + b.w / 2 - img.width / 2) - ox;
     const y = Math.round(b.y) - oy;
@@ -435,6 +445,63 @@ export class TerrainView {
       yy += hh;
     }
     ctx.drawImage(img, 0, head + band, img.width, tail, x, end, img.width, tail);
+  }
+
+  /**
+   * A boardwalk on a set whose bridge art is one seamless segment (`bridgeTile`, the Sky Deck's):
+   * the segment repeated whole along the rect, centered across it (bridge_h.png for one running
+   * across the screen, bridge.png for one running down it), the last copy cut at the rect's end.
+   */
+  drawBridgeTiled(ctx, b, ox, oy, w, h) {
+    const across = b.w > b.h && this.bridgeHImg.width > 1;
+    const img = across ? this.bridgeHImg : this.bridgeImg;
+    if (across) {
+      const y = Math.round(b.y + b.h / 2 - img.height / 2) - oy;
+      if (y > h || y + img.height < 0) return;
+      for (let s = 0; s < b.w; s += img.width) {
+        const x = Math.round(b.x + s) - ox;
+        const sw = Math.min(img.width, Math.round(b.w - s));
+        if (x <= w && x + sw >= 0) ctx.drawImage(img, 0, 0, sw, img.height, x, y, sw, img.height);
+      }
+    } else {
+      const x = Math.round(b.x + b.w / 2 - img.width / 2) - ox;
+      if (x > w || x + img.width < 0) return;
+      for (let s = 0; s < b.h; s += img.height) {
+        const y = Math.round(b.y + s) - oy;
+        const sh = Math.min(img.height, Math.round(b.h - s));
+        if (y <= h && y + sh >= 0) ctx.drawImage(img, 0, 0, img.width, sh, x, y, img.width, sh);
+      }
+    }
+  }
+
+  /**
+   * A boardwalk running across the screen (a set with bridge_h.png, the Sky
+   * Deck's): the art centered on the rect's height, as wide as the rect,
+   * stretched by repeating its middle columns.
+   */
+  drawBridgeAcross(ctx, b, ox, oy, w, h) {
+    const img = this.bridgeHImg;
+    const x = Math.round(b.x) - ox;
+    const y = Math.round(b.y + b.h / 2 - img.height / 2) - oy;
+    const want = Math.round(b.w);
+    if (x > w || y > h || x + want < 0 || y + img.height < 0) return;
+    const head = Math.floor(img.width / 2) - 8;
+    const band = 16;
+    const tail = img.width - head - band;
+    if (want <= head + tail) {
+      const sx = Math.floor((img.width - want) / 2);
+      ctx.drawImage(img, sx, 0, want, img.height, x, y, want, img.height);
+      return;
+    }
+    ctx.drawImage(img, 0, 0, head, img.height, x, y, head, img.height);
+    let xx = x + head;
+    const end = x + want - tail;
+    while (xx < end) {
+      const ww = Math.min(band, end - xx);
+      ctx.drawImage(img, head, 0, ww, img.height, xx, y, ww, img.height);
+      xx += ww;
+    }
+    ctx.drawImage(img, head + band, 0, tail, img.height, end, y, tail, img.height);
   }
 
   destroy() {

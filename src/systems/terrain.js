@@ -23,6 +23,9 @@
 // `level` is below the ground's, so the far side of a hole shows a tall cliff
 // face down into it, like a crater; at the map's top edge nothing hangs. Any
 // terrain can meet it; cells mixing ground and void are drawn as the ground.
+// A void that doesn't block (the Sky Deck's 'o', TOWER TOP) is walkable but
+// still draws nothing: what's under the ground shows there instead (the tower
+// bodies, whose own rooftops are the floor).
 //
 // Water (a terrain marked `water`) sits a little below the ground: where
 // ground meets it on its far (north) side, a low earth bank hangs over the

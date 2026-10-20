@@ -70,6 +70,13 @@ export const FIELD_SHEETS = [
 //           { foot } for a tree: its bottom `foot` px are its mud plate, and the
 //           silhouette above casts from there; nothing for each column of the art to
 //           cast from its own ground line; false for none (wall decor, flat things)
+//   under   drawn under the ground instead of standing on it: the Sky Deck's tower bodies, hanging
+//           from their rooftop over a drop. `anchor` is the px in the image that lands on the
+//           layout's point (the middle of the rooftop's floor), `floor` the floor's half-width and
+//           half-height, and `band` an image tiled below the body down to the map's bottom.
+//   seeThrough false: never fades when $cott walks behind it (an arch you see him through anyway)
+//   pillars { dx, w, h }: instead of one footprint, one under each of two pillars `dx` either side
+//           of the feet, so the way between them stays open (a gate arch; systems/mapcheck.js)
 export const PROP_IMAGES = [
   { key: 'prop_cypress', path: 'assets/props/prop_cypress.png', name: 'CYPRESS', block: { w: 64, h: 24 }, sway: 8, cast: { foot: 20 } },
   { key: 'prop_cypress_b', path: 'assets/props/prop_cypress_b.png', name: 'CYPRESS 2', block: { w: 64, h: 24 }, sway: 8, cast: { foot: 24 } },
@@ -126,10 +133,31 @@ export const PROP_IMAGES = [
   { key: 'prop_tradedesk', path: 'assets/props/prop_tradedesk.png', name: 'TRADING DESK', block: { w: 170, h: 40 }, cast: { box: true } },
   { key: 'prop_espresso', path: 'assets/props/prop_espresso.png', name: 'ESPRESSO BAR', block: { w: 110, h: 30 }, cast: { box: true } },
   { key: 'prop_screen', path: 'assets/props/prop_screen.png', name: 'WALL SCREEN', glow: [{ x: 14, y: -99, r: 76, color: 0x50ff90, alpha: 0.5, pulse: true }], cast: false },
+  // The Sky Deck's towers (CLAUDE.md §6.6): PixelLab bodies whose own rooftop is the floor, from
+  // tools/region-art/skytowers.py. Each layout point is the middle of that floor.
+  ...[
+    ['keep', 'SKY KEEP', 256, 124, 166, 84],
+    ['turret', 'SKY TURRET', 160, 84, 140, 60],
+    ['rose', 'SKY ROSE TURRET', 160, 122, 150, 76],
+    ['twin', 'SKY TWIN TURRET', 156, 86, 88, 38],
+  ].map(([id, name, x, y, rx, ry]) => ({
+    key: `sky_${id}`, path: `assets/skydeck/sky_${id}.png`, name, under: true, cast: false,
+    anchor: { x, y }, floor: { rx, ry }, band: { key: `sky_${id}_band`, path: `assets/skydeck/sky_${id}_band.png` },
+  })),
+  // Where a Sky Deck bridge meets a rooftop (CLAUDE.md §6.6), drawn straight-on: for a bridge running
+  // down the screen, a gate arch facing the camera on the rim (its `pillars` block, the way between them
+  // is open); for one running across, a pair of its pillars, one on each rail at the bridge's mouth.
+  { key: 'prop_sky_gate', path: 'assets/props/prop_sky_gate.png', name: 'SKY GATE', shadow: true, cast: false, seeThrough: false, pillars: { dx: 44, w: 16, h: 12 } },
+  { key: 'prop_sky_pillar', path: 'assets/props/prop_sky_pillar.png', name: 'SKY GATE PILLAR', shadow: true, cast: false, seeThrough: false },
   // A velvet rope (map `gates`), closed and unhooked.
   { key: 'prop_rope', path: 'assets/props/prop_rope.png', place: false },
   { key: 'prop_rope_open', path: 'assets/props/prop_rope_open.png', place: false },
 ];
+
+/** Where a prop's image hangs from its layout point, as an origin: its feet (bottom middle), or its `anchor`. */
+export function propOrigin(def, w, h) {
+  return def?.anchor ? [def.anchor.x / w, def.anchor.y / h] : [0.5, 1];
+}
 
 // Little looping effects in the regions, as sprite sheets (w × h frames).
 // fx_bubble: a toxic bubble rising and popping on the water (the tileset's `bubbles`).

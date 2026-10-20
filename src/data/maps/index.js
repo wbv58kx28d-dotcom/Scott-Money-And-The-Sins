@@ -13,8 +13,10 @@ import startLairLayout from './start_lair.layout.js';
 import startLair from './start_lair.js';
 import startOfficeLayout from './start_office.layout.js';
 import startOffice from './start_office.js';
+import islesSkyLayout from './isles_sky.layout.js';
+import islesSky from './isles_sky.js';
 
-export const LAYOUTS = { start: startLayout, start_lair: startLairLayout, start_office: startOfficeLayout };
-export const CONTENT = { start, start_lair: startLair, start_office: startOffice };
+export const LAYOUTS = { start: startLayout, start_lair: startLairLayout, start_office: startOfficeLayout, isles_sky: islesSkyLayout };
+export const CONTENT = { start, start_lair: startLair, start_office: startOffice, isles_sky: islesSky };
 
 export const MAPS = Object.fromEntries(Object.keys(LAYOUTS).map((id) => [id, mergeMap(LAYOUTS[id], CONTENT[id])]));
