@@ -668,6 +668,7 @@ export default class RegionScene extends Phaser.Scene {
         if (!swapped && t >= 0.5) {
           swapped = true;
           this.setRiding(boarding);
+          if (boarding) this.ski.point(to.x - from.x, to.y - from.y); // pointing the way he hopped
         }
       },
       onComplete: () => {
@@ -738,7 +739,7 @@ export default class RegionScene extends Phaser.Scene {
     this.foreground?.update();
     this.placeEmote();
     this.ski?.tick(time, delta);
-    if (this.riding && this.mode !== 'hop') this.ski.update(time, delta, this.rode ?? 0, this.rodeX ?? 0, this.rodeY ?? 0, this.facing);
+    if (this.riding && this.mode !== 'hop') this.ski.update(time, delta, this.rode ?? 0, this.rodeX ?? 0, this.rodeY ?? 0);
     this.rode = 0;
     if (this.mode !== 'explore') return;
     this.talkButton.setReady(!!this.nearbyNpc());
@@ -954,8 +955,7 @@ export default class RegionScene extends Phaser.Scene {
   walkAnim(facing, moved, delta, mx = 0, my = 0) {
     this.facing = facing;
     if (this.riding) {
-      // On the ski: its frame for the facing; the bob and the wake follow how far he went (ui/jetski.js).
-      this.ski.face(facing);
+      // On the ski: it turns toward the way he went, and the bob and the wake follow how far (ui/jetski.js).
       this.rode = moved;
       this.rodeX = mx;
       this.rodeY = my;

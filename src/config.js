@@ -136,6 +136,7 @@ export const RIDE = {
   hopHeight: 26, // px he rises at the top of the hop
   waterline: [8, 12], // art rows of hull under the water, swinging between these as it bobs (screen px)
   bobMs: 1100, // one bob
+  turnMs: 45, // the ski turns one of its 16 headings (22.5°) this often, toward the way he's going
   // The waves behind him (ui/wake.js): a point of the trail every `every` px ridden, each lasting `life` ms,
   // its waves spreading sideways `spread` px a second from the hull's sides and rippling `ripple.amp` px
   // side to side over `ripple.length` px of track (more as they age).

@@ -1,17 +1,18 @@
-"""Bake $cott's jet ski into a ride sheet.
+"""Bake $cott's jet ski into a ride sheet of 16 headings.
 
     python3 tools/region-art/jetski.py
 
-Reads the picked views in tools/region-art/jetski/ (PixelLab create_image_pro, straight-on, CLAUDE.md §8.4):
+Reads the views in tools/region-art/jetski/views/, one per heading on the west half of the
+compass, south round through west to north (PixelLab, tools/region-art/isles/README.md):
 
-    front.png  coming toward the camera (72×72 art px)
-    back.png   driving away (72×72)
-    side.png   in profile, nose to the right as generated (84×72); mirrored here to face left
+    s ssw sw wsw w wnw nw nnw n
 
-and writes assets/field/field_scott_ski.png: one 84×72 art-px cell per view (168×144 on screen,
-2 screen px per art px), rows down, up, left like a walker sheet (right is the left row mirrored
-in-engine). Each view's hull bottom sits on one waterline (WATERLINE), centered across the cell, so
-switching views doesn't jump. Baked-in spray is cut away: the game draws its own wake (RegionScene).
+and writes assets/field/field_scott_ski.png: one CELL (84×78 art px, 168×156 on screen at
+2 screen px per art px) per view, a row each in that order. The east half is the same rows
+mirrored in-engine (systems/ride.js headingRow), so the sheet covers 16 headings, 22.5° apart.
+Each view's hull bottom sits on one waterline (WATERLINE) and keeps its place across PixelLab's
+canvas, so turning from one view to the next doesn't jump. Any baked-in spray is cut away: the game draws its own
+wake and splash (ui/wake.js, ui/splash.js).
 """
 
 import os
@@ -19,10 +20,11 @@ import os
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-SRC = os.path.join(ROOT, 'tools', 'region-art', 'jetski')
+SRC = os.path.join(ROOT, 'tools', 'region-art', 'jetski', 'views')
 OUT = os.path.join(ROOT, 'assets', 'field', 'field_scott_ski.png')
-CELL = (84, 72)
-WATERLINE = 70  # art row the hull's bottom sits on
+VIEWS = ['s', 'ssw', 'sw', 'wsw', 'w', 'wnw', 'nw', 'nnw', 'n']
+CELL = (84, 78)
+WATERLINE = 76  # art row the hull's bottom sits on
 ART_PX = 2
 
 
@@ -65,24 +67,25 @@ def strip_spray(im):
 
 
 def seat(im):
-    """Into a cell, centered across, hull bottom on the waterline."""
-    im = im.crop(im.getbbox())
+    """
+    Into a cell, hull bottom on the waterline. Across, it keeps its place on PixelLab's canvas, which
+    holds the ski's pivot steady from view to view, so turning doesn't shuffle it sideways.
+    """
+    x0, y0, x1, y1 = im.getbbox()
+    left = (im.width - CELL[0]) // 2
+    assert x0 >= left and x1 <= left + CELL[0] and y1 - y0 <= WATERLINE, f"a view at {im.getbbox()} won't fit the {CELL} cell"
     cell = Image.new('RGBA', CELL)
-    cell.alpha_composite(im, ((CELL[0] - im.width) // 2, WATERLINE - im.height))
+    cell.alpha_composite(im.crop((left, y0, left + CELL[0], y1)), (0, WATERLINE - (y1 - y0)))
     return cell
 
 
 def main():
-    views = {
-        'down': strip_spray(Image.open(os.path.join(SRC, 'front.png')).convert('RGBA')),
-        'up': strip_spray(Image.open(os.path.join(SRC, 'back.png')).convert('RGBA')),
-        'left': strip_spray(Image.open(os.path.join(SRC, 'side.png')).convert('RGBA')).transpose(Image.FLIP_LEFT_RIGHT),
-    }
-    sheet = Image.new('RGBA', (CELL[0], CELL[1] * 3))
-    for row, key in enumerate(('down', 'up', 'left')):
-        sheet.alpha_composite(seat(views[key]), (0, row * CELL[1]))
+    sheet = Image.new('RGBA', (CELL[0], CELL[1] * len(VIEWS)))
+    for row, name in enumerate(VIEWS):
+        view = strip_spray(Image.open(os.path.join(SRC, f'{name}.png')).convert('RGBA'))
+        sheet.alpha_composite(seat(view), (0, row * CELL[1]))
     sheet.resize((sheet.width * ART_PX, sheet.height * ART_PX), Image.NEAREST).save(OUT, optimize=True)
-    print(f'jetski: {OUT} ({CELL[0] * ART_PX}×{CELL[1] * ART_PX} frames, rows down, up, left)')
+    print(f'jetski: {OUT} ({CELL[0] * ART_PX}×{CELL[1] * ART_PX} frames, rows {" ".join(VIEWS)}; east mirrored)')
 
 
 if __name__ == '__main__':

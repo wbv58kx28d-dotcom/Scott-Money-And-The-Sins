@@ -54,9 +54,10 @@ export const FIELD_SHEETS = [
   { key: 'field_guard', path: 'assets/field/field_guard.png' }, // at Envy's castle
 ];
 
-// $cott on his jet ski (tools/region-art/jetski.py, systems/ride.js): one frame per view, rows down,
-// up, left (right mirrors left), the hull's bottom on one waterline near the frame's foot.
-export const RIDE_SHEET = { key: 'field_scott_ski', path: 'assets/field/field_scott_ski.png', w: 168, h: 144 };
+// $cott on his jet ski (tools/region-art/jetski.py, systems/ride.js): 16 headings, 22.5° apart. A row per
+// heading on the west half, south round through west to north (s ssw sw wsw w wnw nw nnw n); the east half
+// mirrors them. Every view's hull bottom sits on one waterline, `foot` px down the frame.
+export const RIDE_SHEET = { key: 'field_scott_ski', path: 'assets/field/field_scott_ski.png', w: 168, h: 156, foot: 152 };
 
 // Scenery props, drawn with their feet (bottom center) on the ground. `name` and
 // `block` (the footprint $cott can't walk through) are what the map editor

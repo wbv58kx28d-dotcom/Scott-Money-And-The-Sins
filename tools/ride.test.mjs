@@ -6,7 +6,9 @@ import fs from 'node:fs';
 
 import { Terrain } from '../src/systems/terrain.js';
 import { buildRegionGrid, reachable, checkMap } from '../src/systems/mapcheck.js';
-import { buildWaterGrid, shorePairs, crossing, hopAhead, reachableByRide, hasJetski } from '../src/systems/ride.js';
+import {
+  buildWaterGrid, shorePairs, crossing, hopAhead, reachableByRide, hasJetski, HEADINGS, headingOf, headingVector, headingRow, turnToward,
+} from '../src/systems/ride.js';
 import { MAPS } from '../src/data/maps/index.js';
 import { mergeMap, cloneLayout } from '../src/systems/mapfile.js';
 import { LAYOUTS, CONTENT } from '../src/data/maps/index.js';
@@ -99,4 +101,30 @@ test('a map with a jet ski still needs its dock reachable on foot', () => {
   const map = mergeMap(layout, CONTENT.isles);
   const { problems } = checkMap(map, new Terrain(layout.terrain, tileset(layout.tileset)));
   assert.ok(problems.some((p) => p.level === 'error' && /rents the jet ski/.test(p.msg)), problems.map((p) => p.msg).join('; '));
+});
+
+test('16 headings: each direction of travel gets its nearest, and the east half mirrors the west', () => {
+  assert.equal(HEADINGS, 16);
+  for (let k = 0; k < HEADINGS; k++) {
+    const { ux, uy } = headingVector(k);
+    assert.equal(headingOf(ux, uy), k, `heading ${k} round-trips`);
+    // A little off the heading still picks it.
+    const a = Math.atan2(uy, ux) + 0.15;
+    assert.equal(headingOf(Math.cos(a), Math.sin(a)), k, `heading ${k}, nudged`);
+  }
+  assert.deepEqual([headingOf(0, 1), headingOf(-1, 0), headingOf(0, -1), headingOf(1, 0)], [0, 4, 8, 12]);
+  for (let k = 0; k <= 8; k++) assert.deepEqual(headingRow(k), { row: k, flip: false });
+  for (let k = 9; k < 16; k++) assert.deepEqual(headingRow(k), { row: 16 - k, flip: true }, `heading ${k} mirrors ${16 - k}`);
+});
+
+test('turning steps one heading at a time, the short way round', () => {
+  const path = (from, to) => {
+    const out = [from];
+    while (out.at(-1) !== to) out.push(turnToward(out.at(-1), to));
+    return out;
+  };
+  assert.deepEqual(path(0, 4), [0, 1, 2, 3, 4]);
+  assert.deepEqual(path(14, 2), [14, 15, 0, 1, 2], 'across south, not the long way');
+  assert.deepEqual(path(3, 3), [3]);
+  assert.equal(path(0, 8).length, 9, 'a U-turn sweeps through 8 steps');
 });

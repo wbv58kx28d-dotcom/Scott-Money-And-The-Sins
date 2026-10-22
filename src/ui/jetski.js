@@ -1,5 +1,6 @@
 // $cott on his jet ski (CLAUDE.md §6.6, systems/ride.js): the ride sheet's
-// frame for each facing, the hull riding low in the water and bobbing while he
+// frame for each of 16 headings, turning toward the way he's going one heading
+// at a time (so a turn sweeps round instead of snapping), the hull riding low in the water and bobbing while he
 // idles (the bottom rows cropped off at the waterline, so nothing is scaled),
 // a churn of foam at the waterline hiding the cut, white water and spray at
 // the stern (ui/splash.js), waves spreading behind him as he rides
@@ -9,19 +10,21 @@
 
 import { RIDE } from '../config.js';
 import { RIDE_SHEET } from '../data/assets.js';
-import { facingFrame } from '../systems/fieldArt.js';
+import { headingOf, headingRow, headingVector, turnToward } from '../systems/ride.js';
 import { Wake } from './wake.js';
 import { Splash } from './splash.js';
 
-// The churn at the waterline: as wide as the hull in each view (the side view's is long).
-const CHURN = { narrow: { key: 'fx_ski_churn', w: 64 }, wide: { key: 'fx_ski_churn_wide', w: 132 } };
+// The churn at the waterline: as wide as the hull in each view (head-on narrow, side-on long).
+const CHURN = { narrow: { key: 'fx_ski_churn', w: 64 }, mid: { key: 'fx_ski_churn_mid', w: 100 }, wide: { key: 'fx_ski_churn_wide', w: 132 } };
 const RINGS = [20, 30, 40, 50]; // a ring's half-width at each step (px); each is 0.4 as tall
 const ringKey = (k) => `fx_ski_ring_${k}`;
 // Where the hull's bottom sits in a ride frame (tools/region-art/jetski.py WATERLINE, in screen px).
-const HULL_FOOT = 140;
-// The hull on the water, by view (measured from the ride sheet): how far its stern is behind the middle
-// of its footprint, and how far it reaches to each side. The side view's hull is long and thin.
-const HULL = { down: { back: 24, half: 26 }, up: { back: 24, half: 26 }, left: { back: 66, half: 6 }, right: { back: 66, half: 6 } };
+const HULL_FOOT = RIDE_SHEET.foot;
+// The hull on the water (measured from the ride sheet): how far its stern is behind the middle of its
+// footprint, and how far it reaches to each side, head-on and side-on; headings between blend the two.
+const HULL = { head: { back: 24, half: 26 }, side: { back: 66, half: 6 } };
+// Which heading a four-way facing points (systems/ride.js headingOf).
+const FACING_HEADING = { down: 0, left: 4, up: 8, right: 12 };
 // The middle of the hull's footprint, above his feet (screen px).
 const HULL_RISE = 8;
 const WHITE = '#f4fbff';
@@ -76,14 +79,35 @@ export class JetSkiView {
     this.splash = new Splash(scene, { wet });
     this.still = 0; // ms since he stopped
     this.ringAt = 0;
+    this.heading = 0; // the heading shown (0 south, 4 west, 8 north, 12 east)
+    this.target = 0; // the heading he's turning toward
+    this.turnAt = 0; // ms toward the next step of a turn
   }
 
-  /** Show the ride frame for a facing (right mirrors left). */
+  /**
+   * Face a four-way facing (standing to talk, getting on): unless he's already pointing roughly that way,
+   * in which case he keeps his heading, so stopping on a diagonal doesn't snap him square.
+   */
   face(facing) {
-    const { row, flip } = facingFrame(facing);
+    const k = FACING_HEADING[facing] ?? 0;
+    const off = Math.abs(((this.heading - k + 24) % 16) - 8); // headings apart, 0..8
+    if (off > 3) this.point(headingVector(k).ux, headingVector(k).uy);
+    else this.show();
+  }
+
+  /** Point straight along (ux, uy), no turn (getting on, heading off from a hop). */
+  point(ux, uy) {
+    this.heading = this.target = headingOf(ux, uy);
+    this.show();
+  }
+
+  /** Show the ride frame for the heading (the east half mirrors the west). */
+  show() {
+    const { row, flip } = headingRow(this.heading);
     this.sprite.anims.stop();
     this.sprite.setTexture(RIDE_SHEET.key, row).setFlipX(flip);
-    this.churn.setTexture(facing === 'left' || facing === 'right' ? CHURN.wide.key : CHURN.narrow.key);
+    const across = Math.abs(headingVector(this.heading).ux);
+    this.churn.setTexture(across > 0.85 ? CHURN.wide.key : across > 0.35 ? CHURN.mid.key : CHURN.narrow.key);
   }
 
   /** Back on foot: the whole frame again. */
@@ -101,10 +125,19 @@ export class JetSkiView {
   }
 
   /**
-   * Each frame he's on the water: `moved` px this frame, heading (mx, my), facing. Moving, the hull
-   * planes higher and waves spread from the stern; sitting still, it bobs and rings spread out.
+   * Each frame he's on the water: `moved` px this frame, along (mx, my). Moving, the ski turns toward
+   * that way a heading at a time, the hull planes higher and waves spread from the stern; sitting
+   * still, it bobs and rings spread out.
    */
-  update(time, delta, moved, mx, my, facing) {
+  update(time, delta, moved, mx, my) {
+    if (moved > 0.01) this.target = headingOf(mx, my);
+    this.turnAt += delta;
+    if (this.heading === this.target) this.turnAt = 0;
+    while (this.heading !== this.target && this.turnAt >= RIDE.turnMs) {
+      this.turnAt -= RIDE.turnMs;
+      this.heading = turnToward(this.heading, this.target);
+      this.show();
+    }
     const [lo, hi] = RIDE.waterline;
     const sink = moved > 0.01 ? lo - 4 : lo + (hi - lo) * (0.5 + 0.5 * Math.sin((time / RIDE.bobMs) * Math.PI * 2));
     const cut = HULL_FOOT - Math.round(sink / 2) * 2;
@@ -113,11 +146,9 @@ export class JetSkiView {
     const foot = this.sprite.y - RIDE_SHEET.h + cut;
     this.churn.setPosition(Math.round(this.sprite.x), Math.round(foot - 2)).setDepth(this.sprite.depth + 0.01).setVisible(true)
       .setAlpha(moved > 0.01 ? 0.95 : 0.55 + 0.25 * Math.sin((time / RIDE.bobMs) * Math.PI * 2));
-    const len = Math.hypot(mx, my) || 1;
-    if (moved > 0.01) [this.ux, this.uy] = [mx / len, my / len];
-    const stern = this.stern(facing);
-    // The stern's the end nearest the camera unless he's riding down the screen.
-    this.splash.update(time, delta, { ...stern, speed: (moved / Math.max(1, delta)) * 1000, front: facing !== 'down', depth: this.sprite.depth });
+    const stern = this.stern();
+    // The stern's the end nearest the camera unless he's pointing down the screen.
+    this.splash.update(time, delta, { ...stern, speed: (moved / Math.max(1, delta)) * 1000, front: stern.uy < 0.4, depth: this.sprite.depth });
     if (moved > 0.01) {
       this.still = 0;
       this.waves.add(stern.x, stern.y, stern.ux, stern.uy, time, stern.half);
@@ -130,11 +161,12 @@ export class JetSkiView {
     }
   }
 
-  /** Where the stern is on the water, the heading it was last moving, and the hull's half-width there. */
-  stern(facing) {
-    const ux = this.ux ?? 0;
-    const uy = this.uy ?? -1;
-    const { back, half } = HULL[facing] ?? HULL.down;
+  /** Where the stern is on the water for the heading shown, the way it points, and the hull's half-width there. */
+  stern() {
+    const { ux, uy } = headingVector(this.heading);
+    const side = Math.abs(ux); // 0 head-on, 1 side-on
+    const back = HULL.head.back + (HULL.side.back - HULL.head.back) * side;
+    const half = HULL.head.half + (HULL.side.half - HULL.head.half) * side;
     return { x: this.sprite.x - ux * back, y: this.sprite.y - HULL_RISE - uy * back * 0.5, ux, uy, half };
   }
 

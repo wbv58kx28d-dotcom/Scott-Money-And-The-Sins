@@ -151,3 +151,34 @@ export function reachableByRide(grids, pairs, from) {
   }
   return seen;
 }
+
+// ---- Headings: which way the ski points, in 16 steps (CLAUDE.md §6.6) ----------------
+// Step 0 points down the screen (south), 4 west, 8 north, 12 east. The ride sheet draws
+// the west half (0..8, south round through west to north); the east half is the same
+// rows mirrored.
+
+export const HEADINGS = 16;
+
+/** The heading step (0..15) nearest to a direction of travel (ux, uy), screen y down. */
+export function headingOf(ux, uy) {
+  const a = Math.atan2(-ux, uy); // 0 south, π/2 west, ±π north, -π/2 east
+  return ((Math.round(a / ((2 * Math.PI) / HEADINGS)) % HEADINGS) + HEADINGS) % HEADINGS;
+}
+
+/** The unit direction (ux, uy) a heading step points. */
+export function headingVector(k) {
+  const a = (k * 2 * Math.PI) / HEADINGS;
+  return { ux: -Math.sin(a), uy: Math.cos(a) };
+}
+
+/** The ride sheet's row for a heading step, and whether to mirror it (the east half). */
+export function headingRow(k) {
+  return k <= HEADINGS / 2 ? { row: k, flip: false } : { row: HEADINGS - k, flip: true };
+}
+
+/** One step from `from` toward `to`, the short way round (or `to` itself, once there). */
+export function turnToward(from, to) {
+  const d = (((to - from) % HEADINGS) + HEADINGS + HEADINGS / 2) % HEADINGS - HEADINGS / 2;
+  if (d === 0) return to;
+  return (from + Math.sign(d) + HEADINGS) % HEADINGS;
+}
