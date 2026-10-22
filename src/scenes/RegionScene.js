@@ -655,6 +655,7 @@ export default class RegionScene extends Phaser.Scene {
     this.facing = facingOf(to.x - from.x, to.y - from.y) ?? this.facing;
     this.player.anims.stop();
     this.ski.churn.setVisible(false); // back once he's afloat (ui/jetski.js)
+    if (!boarding) this.ski.burst(this.time.now, from.x, from.y); // pushing off the ski
     Audio.sfx('blip');
     let swapped = false;
     this.tweens.addCounter({
@@ -673,7 +674,10 @@ export default class RegionScene extends Phaser.Scene {
         this.player.setPosition(to.x, to.y).setDepth(worldDepth(to.y));
         if (!swapped) this.setRiding(boarding);
         this.face(this.player, this.facing);
-        if (boarding) this.ski.ripple();
+        if (boarding) {
+          this.ski.ripple();
+          this.ski.burst(this.time.now, to.x, to.y); // landing on it
+        }
         Audio.sfx(boarding ? 'good' : 'blip');
         if (this.mode === 'hop') this.mode = 'explore';
         if (then && this.mode === 'explore') {
@@ -733,7 +737,7 @@ export default class RegionScene extends Phaser.Scene {
     this.seeThrough.update(delta, this.player);
     this.foreground?.update();
     this.placeEmote();
-    this.ski?.tick(time);
+    this.ski?.tick(time, delta);
     if (this.riding && this.mode !== 'hop') this.ski.update(time, delta, this.rode ?? 0, this.rodeX ?? 0, this.rodeY ?? 0, this.facing);
     this.rode = 0;
     if (this.mode !== 'explore') return;

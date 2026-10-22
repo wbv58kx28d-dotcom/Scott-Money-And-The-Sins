@@ -140,6 +140,15 @@ export const RIDE = {
   // its waves spreading sideways `spread` px a second from the hull's sides and rippling `ripple.amp` px
   // side to side over `ripple.length` px of track (more as they age).
   wake: { every: 6, life: 1900, spread: 80, ripple: { amp: 4, length: 14 } },
+  // White water at the stern (ui/splash.js), at full speed: `lumps` of churn from `start` to `length` px
+  // back from the stern, `size` px across (the nearest the biggest), with `froth` loose bits around them,
+  // reshuffled every `boilMs`; spray thrown `perSecond`, launched `up` and `back` (px/s) and fanned `fan`
+  // px/s sideways, lasting up to `life` ms and falling under `gravity` (px/s²); a hop's `burst` of droplets.
+  splash: {
+    churn: { lumps: 12, start: -8, length: 34, size: [4, 11], froth: 14, boilMs: 90 },
+    spray: { perSecond: 90, up: [150, 320], back: [40, 150], fan: 50, life: 1000 },
+    gravity: 720, burst: 34,
+  },
   rippleMs: 1500, // standing still: a ring spreads out from the hull this often
   price: 400, // what the dock charges (less if that's more than he has: never stuck on the first island)
 };

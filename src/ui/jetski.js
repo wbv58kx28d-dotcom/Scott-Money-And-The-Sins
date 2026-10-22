@@ -1,8 +1,9 @@
 // $cott on his jet ski (CLAUDE.md §6.6, systems/ride.js): the ride sheet's
 // frame for each facing, the hull riding low in the water and bobbing while he
 // idles (the bottom rows cropped off at the waterline, so nothing is scaled),
-// a churn of foam at the waterline hiding the cut, waves spreading behind him
-// as he rides (ui/wake.js), and rings spreading out from the hull while he
+// a churn of foam at the waterline hiding the cut, white water and spray at
+// the stern (ui/splash.js), waves spreading behind him as he rides
+// (ui/wake.js), and rings spreading out from the hull while he
 // sits still. Waves and rings are drawn on the 2 px art grid, flat on the
 // water just above the ground layer, so the light map grades them.
 
@@ -10,6 +11,7 @@ import { RIDE } from '../config.js';
 import { RIDE_SHEET } from '../data/assets.js';
 import { facingFrame } from '../systems/fieldArt.js';
 import { Wake } from './wake.js';
+import { Splash } from './splash.js';
 
 // The churn at the waterline: as wide as the hull in each view (the side view's is long).
 const CHURN = { narrow: { key: 'fx_ski_churn', w: 64 }, wide: { key: 'fx_ski_churn_wide', w: 132 } };
@@ -71,6 +73,7 @@ export class JetSkiView {
     makeTextures(scene);
     this.churn = scene.add.image(sprite.x, sprite.y, CHURN.narrow.key).setOrigin(0.5, 0.5).setVisible(false);
     this.waves = new Wake(scene, { depth, wet });
+    this.splash = new Splash(scene, { wet });
     this.still = 0; // ms since he stopped
     this.ringAt = 0;
   }
@@ -87,12 +90,14 @@ export class JetSkiView {
   off() {
     this.sprite.setCrop();
     this.churn.setVisible(false);
+    this.splash.off();
     this.still = 0;
   }
 
   /** Every frame, riding or not: what's left of the waves keeps spreading and fading. */
-  tick(time) {
+  tick(time, delta) {
     this.waves.draw(time);
+    this.splash.draw(time, delta);
   }
 
   /**
@@ -108,9 +113,14 @@ export class JetSkiView {
     const foot = this.sprite.y - RIDE_SHEET.h + cut;
     this.churn.setPosition(Math.round(this.sprite.x), Math.round(foot - 2)).setDepth(this.sprite.depth + 0.01).setVisible(true)
       .setAlpha(moved > 0.01 ? 0.95 : 0.55 + 0.25 * Math.sin((time / RIDE.bobMs) * Math.PI * 2));
+    const len = Math.hypot(mx, my) || 1;
+    if (moved > 0.01) [this.ux, this.uy] = [mx / len, my / len];
+    const stern = this.stern(facing);
+    // The stern's the end nearest the camera unless he's riding down the screen.
+    this.splash.update(time, delta, { ...stern, speed: (moved / Math.max(1, delta)) * 1000, front: facing !== 'down', depth: this.sprite.depth });
     if (moved > 0.01) {
       this.still = 0;
-      this.wake(time, mx, my, facing);
+      this.waves.add(stern.x, stern.y, stern.ux, stern.uy, time, stern.half);
     } else {
       this.still += delta;
       if (this.still > 300 && time - this.ringAt > RIDE.rippleMs) {
@@ -120,13 +130,17 @@ export class JetSkiView {
     }
   }
 
-  /** Leave the stern's spot on the wake's trail (ui/wake.js). */
-  wake(time, mx, my, facing) {
-    const len = Math.hypot(mx, my) || 1;
-    const ux = mx / len;
-    const uy = my / len;
+  /** Where the stern is on the water, the heading it was last moving, and the hull's half-width there. */
+  stern(facing) {
+    const ux = this.ux ?? 0;
+    const uy = this.uy ?? -1;
     const { back, half } = HULL[facing] ?? HULL.down;
-    this.waves.add(this.sprite.x - ux * back, this.sprite.y - HULL_RISE - uy * back * 0.5, ux, uy, time, half);
+    return { x: this.sprite.x - ux * back, y: this.sprite.y - HULL_RISE - uy * back * 0.5, ux, uy, half };
+  }
+
+  /** A burst of spray where he hits (or leaves) the water. */
+  burst(time, x, y) {
+    this.splash.burst(time, x, y - HULL_RISE);
   }
 
   /** A ring spreading out from the hull, step by step through the ring sizes, fading. */
